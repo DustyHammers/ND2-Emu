@@ -21,7 +21,7 @@ The builds are not notarised by Apple, so macOS blocks them until the quarantine
    Terminal window and press Return. Repeat for each of the three.
 3. For the AU, run `killall -9 AudioComponentRegistrar`, then rescan plugins in your host.
 
-On first start, choose the OS update file (the .dmg as downloaded works) and then the factory bank files.
+On first start, choose the OS update file and then the factory bank files.
 
 ## Using the panel
 

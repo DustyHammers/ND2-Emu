@@ -36,7 +36,7 @@ ND2 creates `~/Documents/ND2/` the first time it runs, with three folders:
 
 ```
 ~/Documents/ND2/
-  os/        the OS, taken from the OS update file you choose
+  os/        your firmware/OS
   skins/     your own skins: a folder <name> containing <name>.rml and its files; listed under right-click > Skin
   cache/     made by ND2, safe to delete:
              factory-<id>.flash        the factory memory built from your bank files (shared by new instances)

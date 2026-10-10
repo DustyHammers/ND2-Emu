@@ -1,0 +1,69 @@
+<rml>
+<head>
+	<title>ND2 default</title>
+	<link type="text/rcss" href="nd2-default.rcss"/>
+</head>
+<body>
+	<!-- background art, bottom to top (each a full-canvas PNG at 2x; edit them in GIMP) -->
+	<div class="layer" id="layer_01_jacks"/>	<!-- Rear jacks (behind the body) -->
+	<div class="layer" id="layer_02_body"/>	<!-- Red body -->
+	<div class="layer" id="layer_03_panels"/>	<!-- Black panel print -->
+	<div class="layer" id="layer_04_display"/>	<!-- Display window -->
+	<div class="layer" id="layer_05_redprint"/>	<!-- Red print: master scale, encoder ring -->
+	<div class="layer" id="layer_06_tagboxes"/>	<!-- Tag boxes (red and STORE) -->
+	<div class="layer" id="layer_07_lines"/>	<!-- Lines and brackets -->
+	<div class="layer" id="layer_08_text"/>	<!-- Lettering -->
+	<div class="layer" id="layer_09_wordmark"/>	<!-- Wordmark (placeholder) -->
+	<!-- controls -->
+	<pbutton id="b_program" button="1" class="black"/>
+	<pbutton id="b_chan_left" button="2" class="black"/>
+	<pbutton id="b_chan_right" button="3" class="black"/>
+	<pbutton id="b_row_select" button="0" class="black"/>
+	<pbutton id="b_param1" button="8" class="grey"/>
+	<pbutton id="b_param2" button="9" class="grey"/>
+	<pbutton id="b_param3" button="10" class="grey"/>
+	<pbutton id="b_param4" button="11" class="grey"/>
+	<pbutton id="b_param5" button="16" class="grey"/>
+	<pbutton id="b_param6" button="17" class="grey"/>
+	<pbutton id="b_param7" button="18" class="grey"/>
+	<pbutton id="b_param8" button="19" class="grey"/>
+	<pbutton id="b_shift" button="24" class="grey"/>
+	<pbutton id="b_lower_param" button="26" class="grey"/>
+	<pbutton id="b_trig" button="25" class="grey"/>
+	<led id="l_21" code="21" class="red"><lamp/></led>
+	<led id="l_29" code="29" class="red"><lamp/></led>
+	<led id="l_0" code="0" class="red"><lamp/></led>
+	<led id="l_1" code="1" class="red"><lamp/></led>
+	<led id="l_2" code="2" class="red"><lamp/></led>
+	<led id="l_3" code="3" class="red"><lamp/></led>
+	<led id="l_8" code="8" class="red"><lamp/></led>
+	<led id="l_9" code="9" class="red"><lamp/></led>
+	<led id="l_10" code="10" class="red"><lamp/></led>
+	<led id="l_11" code="11" class="red"><lamp/></led>
+	<led id="l_16" code="16" class="red"><lamp/></led>
+	<led id="l_17" code="17" class="red"><lamp/></led>
+	<led id="l_18" code="18" class="red"><lamp/></led>
+	<led id="l_19" code="19" class="red"><lamp/></led>
+	<led id="l_24" code="24" class="red"><lamp/></led>
+	<led id="l_25" code="25" class="red"><lamp/></led>
+	<led id="l_4" code="4" class="red"><lamp/></led>
+	<led id="l_6" code="6" class="green"><lamp/></led>
+	<led id="l_12" code="12" class="red"><lamp/></led>
+	<led id="l_14" code="14" class="green"><lamp/></led>
+	<led id="l_20" code="20" class="red"><lamp/></led>
+	<led id="l_15" code="15" class="green"><lamp/></led>
+	<led id="l_27" code="27" class="red"><lamp/></led>
+	<led id="l_23" code="23" class="green"><lamp/></led>
+	<led id="l_26" code="26" class="red"><lamp/></led>
+	<led id="l_22" code="22" class="green"><lamp/></led>
+	<led id="l_28" code="28" class="red"><lamp/></led>
+	<led id="l_30" code="30" class="green"><lamp/></led>
+	<led id="l_7" code="7" class="red"><lamp/></led>
+	<knob id="master" control="master"/>
+	<encoder id="value"/>
+	<segdigit id="d0" pos="0"><seg class="a"/><seg class="b"/><seg class="c"/><seg class="d"/><seg class="e"/><seg class="f"/><seg class="g"/><seg class="dp"/></segdigit>
+	<segdigit id="d1" pos="1"><seg class="a"/><seg class="b"/><seg class="c"/><seg class="d"/><seg class="e"/><seg class="f"/><seg class="g"/><seg class="dp"/></segdigit>
+	<segdigit id="d2" pos="2"><seg class="a"/><seg class="b"/><seg class="c"/><seg class="d"/><seg class="e"/><seg class="f"/><seg class="g"/><seg class="dp"/></segdigit>
+	<segdigit id="d3" pos="3"><seg class="a"/><seg class="b"/><seg class="c"/><seg class="d"/><seg class="e"/><seg class="f"/><seg class="g"/><seg class="dp"/></segdigit>
+</body>
+</rml>

@@ -27,6 +27,7 @@ add_library(nd2core STATIC
   source/core/nd2/rom.cpp
   source/core/nd2/device.cpp
   source/core/nd2/engine.cpp
+  source/core/nd2/banks.cpp
   source/core/util/rate_converter.cpp
   source/core/util/midi_stream.cpp)
 target_include_directories(nd2core PUBLIC source/core source/core/dspic source/core/nd2)
@@ -57,11 +58,14 @@ if(ND2_BUILD_TESTS)
   add_executable(nd2enginetest tests/test_engine.cpp)
   target_link_libraries(nd2enginetest PRIVATE nd2core)
   add_test(NAME engine COMMAND nd2enginetest)   # needs ND2_OS, otherwise skipped
+  add_executable(nd2bankstest tests/test_banks.cpp)
+  target_link_libraries(nd2bankstest PRIVATE nd2core)
+  add_test(NAME banks COMMAND nd2bankstest)     # format tests always; the build needs ND2_OS and ND2_BANKS
   add_executable(nd2devicetest tests/test_device.cpp)
   target_link_libraries(nd2devicetest PRIVATE nd2core)
   add_test(NAME device COMMAND nd2devicetest)   # needs ND2_OS in the environment, otherwise skipped
 endif()
 
 if(ND2_BUILD_PLUGIN)
-  add_subdirectory(source/plugin)
+  add_subdirectory(plugin)
 endif()

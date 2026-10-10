@@ -1,0 +1,292 @@
+/* ND2 default skin. Canvas 1725 x 1075 dp; art at 2x (1 dp = 2 px). Generated from the layered source; */
+/* positions match the background layers, so move a control here and in the art together. */
+
+@spritesheet buttons_black { src: ND2BlackButton.png; resolution: 1x; btn_black_up: 0px 0px 122px 59px; btn_black_down: 0px 59px 122px 59px; }
+@spritesheet buttons_grey { src: ND2GreyButton.png; resolution: 1x; btn_grey_up: 0px 0px 122px 59px; btn_grey_down: 0px 59px 122px 59px; }
+@spritesheet leds_red { src: ND2RedLed.png; resolution: 1x; led_red_off: 0px 0px 31px 31px; led_red_on: 0px 31px 31px 31px; }
+@spritesheet leds_green { src: ND2GreenLed.png; resolution: 1x; led_green_off: 0px 0px 31px 31px; led_green_on: 0px 31px 31px 31px; }
+@spritesheet segments { src: ND2DisplaySegments.png; resolution: 2x; seg_unlit: 0px 0px 176px 212px; seg_a: 176px 0px 176px 212px; seg_b: 352px 0px 176px 212px; seg_c: 528px 0px 176px 212px; seg_d: 704px 0px 176px 212px; seg_e: 880px 0px 176px 212px; seg_f: 1056px 0px 176px 212px; seg_g: 1232px 0px 176px 212px; seg_dp: 1408px 0px 176px 212px; }
+@spritesheet master { src: ND2MasterKnob.png; resolution: 1x;
+  master_000: 0px 0px 120px 120px;
+  master_001: 120px 0px 120px 120px;
+  master_002: 240px 0px 120px 120px;
+  master_003: 360px 0px 120px 120px;
+  master_004: 480px 0px 120px 120px;
+  master_005: 600px 0px 120px 120px;
+  master_006: 720px 0px 120px 120px;
+  master_007: 840px 0px 120px 120px;
+  master_008: 960px 0px 120px 120px;
+  master_009: 1080px 0px 120px 120px;
+  master_010: 1200px 0px 120px 120px;
+  master_011: 1320px 0px 120px 120px;
+  master_012: 1440px 0px 120px 120px;
+  master_013: 1560px 0px 120px 120px;
+  master_014: 0px 120px 120px 120px;
+  master_015: 120px 120px 120px 120px;
+  master_016: 240px 120px 120px 120px;
+  master_017: 360px 120px 120px 120px;
+  master_018: 480px 120px 120px 120px;
+  master_019: 600px 120px 120px 120px;
+  master_020: 720px 120px 120px 120px;
+  master_021: 840px 120px 120px 120px;
+  master_022: 960px 120px 120px 120px;
+  master_023: 1080px 120px 120px 120px;
+  master_024: 1200px 120px 120px 120px;
+  master_025: 1320px 120px 120px 120px;
+  master_026: 1440px 120px 120px 120px;
+  master_027: 1560px 120px 120px 120px;
+  master_028: 0px 240px 120px 120px;
+  master_029: 120px 240px 120px 120px;
+  master_030: 240px 240px 120px 120px;
+  master_031: 360px 240px 120px 120px;
+  master_032: 480px 240px 120px 120px;
+  master_033: 600px 240px 120px 120px;
+  master_034: 720px 240px 120px 120px;
+  master_035: 840px 240px 120px 120px;
+  master_036: 960px 240px 120px 120px;
+  master_037: 1080px 240px 120px 120px;
+  master_038: 1200px 240px 120px 120px;
+  master_039: 1320px 240px 120px 120px;
+  master_040: 1440px 240px 120px 120px;
+  master_041: 1560px 240px 120px 120px;
+  master_042: 0px 360px 120px 120px;
+  master_043: 120px 360px 120px 120px;
+  master_044: 240px 360px 120px 120px;
+  master_045: 360px 360px 120px 120px;
+  master_046: 480px 360px 120px 120px;
+  master_047: 600px 360px 120px 120px;
+  master_048: 720px 360px 120px 120px;
+  master_049: 840px 360px 120px 120px;
+  master_050: 960px 360px 120px 120px;
+  master_051: 1080px 360px 120px 120px;
+  master_052: 1200px 360px 120px 120px;
+  master_053: 1320px 360px 120px 120px;
+  master_054: 1440px 360px 120px 120px;
+  master_055: 1560px 360px 120px 120px;
+  master_056: 0px 480px 120px 120px;
+  master_057: 120px 480px 120px 120px;
+  master_058: 240px 480px 120px 120px;
+  master_059: 360px 480px 120px 120px;
+  master_060: 480px 480px 120px 120px;
+  master_061: 600px 480px 120px 120px;
+  master_062: 720px 480px 120px 120px;
+  master_063: 840px 480px 120px 120px;
+  master_064: 960px 480px 120px 120px;
+  master_065: 1080px 480px 120px 120px;
+  master_066: 1200px 480px 120px 120px;
+  master_067: 1320px 480px 120px 120px;
+  master_068: 1440px 480px 120px 120px;
+  master_069: 1560px 480px 120px 120px;
+  master_070: 0px 600px 120px 120px;
+  master_071: 120px 600px 120px 120px;
+  master_072: 240px 600px 120px 120px;
+  master_073: 360px 600px 120px 120px;
+  master_074: 480px 600px 120px 120px;
+  master_075: 600px 600px 120px 120px;
+  master_076: 720px 600px 120px 120px;
+  master_077: 840px 600px 120px 120px;
+  master_078: 960px 600px 120px 120px;
+  master_079: 1080px 600px 120px 120px;
+  master_080: 1200px 600px 120px 120px;
+  master_081: 1320px 600px 120px 120px;
+  master_082: 1440px 600px 120px 120px;
+  master_083: 1560px 600px 120px 120px;
+  master_084: 0px 720px 120px 120px;
+  master_085: 120px 720px 120px 120px;
+  master_086: 240px 720px 120px 120px;
+  master_087: 360px 720px 120px 120px;
+  master_088: 480px 720px 120px 120px;
+  master_089: 600px 720px 120px 120px;
+  master_090: 720px 720px 120px 120px;
+  master_091: 840px 720px 120px 120px;
+  master_092: 960px 720px 120px 120px;
+  master_093: 1080px 720px 120px 120px;
+  master_094: 1200px 720px 120px 120px;
+  master_095: 1320px 720px 120px 120px;
+  master_096: 1440px 720px 120px 120px;
+  master_097: 1560px 720px 120px 120px;
+  master_098: 0px 840px 120px 120px;
+  master_099: 120px 840px 120px 120px;
+  master_100: 240px 840px 120px 120px;
+  master_101: 360px 840px 120px 120px;
+  master_102: 480px 840px 120px 120px;
+  master_103: 600px 840px 120px 120px;
+  master_104: 720px 840px 120px 120px;
+  master_105: 840px 840px 120px 120px;
+  master_106: 960px 840px 120px 120px;
+  master_107: 1080px 840px 120px 120px;
+  master_108: 1200px 840px 120px 120px;
+  master_109: 1320px 840px 120px 120px;
+  master_110: 1440px 840px 120px 120px;
+  master_111: 1560px 840px 120px 120px;
+  master_112: 0px 960px 120px 120px;
+  master_113: 120px 960px 120px 120px;
+  master_114: 240px 960px 120px 120px;
+  master_115: 360px 960px 120px 120px;
+  master_116: 480px 960px 120px 120px;
+  master_117: 600px 960px 120px 120px;
+  master_118: 720px 960px 120px 120px;
+  master_119: 840px 960px 120px 120px;
+  master_120: 960px 960px 120px 120px;
+  master_121: 1080px 960px 120px 120px;
+  master_122: 1200px 960px 120px 120px;
+  master_123: 1320px 960px 120px 120px;
+  master_124: 1440px 960px 120px 120px;
+  master_125: 1560px 960px 120px 120px;
+  master_126: 0px 1080px 120px 120px;
+  master_127: 120px 1080px 120px 120px;
+}
+@spritesheet encoder { src: ND2Encoder.png; resolution: 2x;
+  enc_000: 0px 0px 448px 448px;
+  enc_001: 448px 0px 448px 448px;
+  enc_002: 896px 0px 448px 448px;
+  enc_003: 1344px 0px 448px 448px;
+  enc_004: 1792px 0px 448px 448px;
+  enc_005: 2240px 0px 448px 448px;
+  enc_006: 2688px 0px 448px 448px;
+  enc_007: 3136px 0px 448px 448px;
+  enc_008: 3584px 0px 448px 448px;
+  enc_009: 4032px 0px 448px 448px;
+  enc_010: 4480px 0px 448px 448px;
+  enc_011: 4928px 0px 448px 448px;
+  enc_012: 0px 448px 448px 448px;
+  enc_013: 448px 448px 448px 448px;
+  enc_014: 896px 448px 448px 448px;
+  enc_015: 1344px 448px 448px 448px;
+  enc_016: 1792px 448px 448px 448px;
+  enc_017: 2240px 448px 448px 448px;
+  enc_018: 2688px 448px 448px 448px;
+  enc_019: 3136px 448px 448px 448px;
+  enc_020: 3584px 448px 448px 448px;
+  enc_021: 4032px 448px 448px 448px;
+  enc_022: 4480px 448px 448px 448px;
+  enc_023: 4928px 448px 448px 448px;
+  enc_024: 0px 896px 448px 448px;
+  enc_025: 448px 896px 448px 448px;
+  enc_026: 896px 896px 448px 448px;
+  enc_027: 1344px 896px 448px 448px;
+  enc_028: 1792px 896px 448px 448px;
+  enc_029: 2240px 896px 448px 448px;
+  enc_030: 2688px 896px 448px 448px;
+  enc_031: 3136px 896px 448px 448px;
+  enc_032: 3584px 896px 448px 448px;
+  enc_033: 4032px 896px 448px 448px;
+  enc_034: 4480px 896px 448px 448px;
+  enc_035: 4928px 896px 448px 448px;
+  enc_036: 0px 1344px 448px 448px;
+  enc_037: 448px 1344px 448px 448px;
+  enc_038: 896px 1344px 448px 448px;
+  enc_039: 1344px 1344px 448px 448px;
+  enc_040: 1792px 1344px 448px 448px;
+  enc_041: 2240px 1344px 448px 448px;
+  enc_042: 2688px 1344px 448px 448px;
+  enc_043: 3136px 1344px 448px 448px;
+  enc_044: 3584px 1344px 448px 448px;
+  enc_045: 4032px 1344px 448px 448px;
+  enc_046: 4480px 1344px 448px 448px;
+  enc_047: 4928px 1344px 448px 448px;
+  enc_048: 0px 1792px 448px 448px;
+  enc_049: 448px 1792px 448px 448px;
+  enc_050: 896px 1792px 448px 448px;
+  enc_051: 1344px 1792px 448px 448px;
+  enc_052: 1792px 1792px 448px 448px;
+  enc_053: 2240px 1792px 448px 448px;
+  enc_054: 2688px 1792px 448px 448px;
+  enc_055: 3136px 1792px 448px 448px;
+  enc_056: 3584px 1792px 448px 448px;
+  enc_057: 4032px 1792px 448px 448px;
+  enc_058: 4480px 1792px 448px 448px;
+  enc_059: 4928px 1792px 448px 448px;
+  enc_060: 0px 2240px 448px 448px;
+  enc_061: 448px 2240px 448px 448px;
+  enc_062: 896px 2240px 448px 448px;
+  enc_063: 1344px 2240px 448px 448px;
+  enc_064: 1792px 2240px 448px 448px;
+  enc_065: 2240px 2240px 448px 448px;
+  enc_066: 2688px 2240px 448px 448px;
+  enc_067: 3136px 2240px 448px 448px;
+  enc_068: 3584px 2240px 448px 448px;
+  enc_069: 4032px 2240px 448px 448px;
+  enc_070: 4480px 2240px 448px 448px;
+  enc_071: 4928px 2240px 448px 448px;
+}
+
+body { width: 1725dp; height: 1075dp; background-color: #2b2b2e; }
+div.layer { position: absolute; left: 0dp; top: 0dp; width: 1725dp; height: 1075dp; }
+#layer_01_jacks { decorator: image(ND2Layer01Jacks.png); }
+#layer_02_body { decorator: image(ND2Layer02Body.png); }
+#layer_03_panels { decorator: image(ND2Layer03Panels.png); }
+#layer_04_display { decorator: image(ND2Layer04Display.png); }
+#layer_05_redprint { decorator: image(ND2Layer05RedPrint.png); }
+#layer_06_tagboxes { decorator: image(ND2Layer06TagBoxes.png); }
+#layer_07_lines { decorator: image(ND2Layer07Lines.png); }
+#layer_08_text { decorator: image(ND2Layer08Text.png); }
+#layer_09_wordmark { decorator: image(ND2Layer09Wordmark.png); }
+
+pbutton, led, knob, encoder, segdigit { display: block; position: absolute; }
+pbutton { width: 122dp; height: 59dp; }
+pbutton.black { decorator: image(btn_black_up); }  pbutton.black.pressed, pbutton.black.held { decorator: image(btn_black_down); }
+pbutton.grey { decorator: image(btn_grey_up); }    pbutton.grey.pressed, pbutton.grey.held { decorator: image(btn_grey_down); }
+/* LEDs: the lamp fades in over the unlit lens; the runtime sets the lamp opacity from the OS's LED brightness */
+led { width: 22dp; height: 22dp; }
+led lamp { display: block; position: absolute; left: -3dp; top: -3dp; width: 28dp; height: 28dp; opacity: 0; }
+led.red { decorator: image(led_red_off); }      led.red lamp { decorator: image(led_red_on); }
+led.green { decorator: image(led_green_off); }  led.green lamp { decorator: image(led_green_on); }
+knob#master { frames: 128; spriteprefix: master_; }
+encoder#value { frames: 72; detents: 24; spriteprefix: enc_; }
+/* display digit: unlit segments as the background, one child per segment, shown with class lit */
+segdigit { width: 88dp; height: 106dp; decorator: image(seg_unlit); }
+segdigit seg { display: block; position: absolute; left: 0dp; top: 0dp; width: 88dp; height: 106dp; visibility: hidden; }
+segdigit seg.lit { visibility: visible; }
+segdigit seg.a { decorator: image(seg_a); } segdigit seg.b { decorator: image(seg_b); } segdigit seg.c { decorator: image(seg_c); } segdigit seg.d { decorator: image(seg_d); } segdigit seg.e { decorator: image(seg_e); } segdigit seg.f { decorator: image(seg_f); } segdigit seg.g { decorator: image(seg_g); } segdigit seg.dp { decorator: image(seg_dp); }
+
+#b_program { left: 359dp; top: 311dp; width: 122dp; height: 59dp; }
+#b_chan_left { left: 765dp; top: 296dp; width: 122dp; height: 59dp; }
+#b_chan_right { left: 901dp; top: 296dp; width: 122dp; height: 59dp; }
+#b_row_select { left: 197dp; top: 581dp; width: 122dp; height: 59dp; }
+#b_param1 { left: 357dp; top: 583dp; width: 122dp; height: 59dp; }
+#b_param2 { left: 497dp; top: 583dp; width: 122dp; height: 59dp; }
+#b_param3 { left: 637dp; top: 583dp; width: 122dp; height: 59dp; }
+#b_param4 { left: 777dp; top: 583dp; width: 122dp; height: 59dp; }
+#b_param5 { left: 917dp; top: 583dp; width: 122dp; height: 59dp; }
+#b_param6 { left: 1057dp; top: 583dp; width: 122dp; height: 59dp; }
+#b_param7 { left: 1197dp; top: 583dp; width: 122dp; height: 59dp; }
+#b_param8 { left: 1337dp; top: 583dp; width: 122dp; height: 59dp; }
+#b_shift { left: 195dp; top: 801dp; width: 122dp; height: 59dp; }
+#b_lower_param { left: 496dp; top: 801dp; width: 122dp; height: 59dp; }
+#b_trig { left: 1337dp; top: 801dp; width: 122dp; height: 59dp; }
+#l_21 { left: 359dp; top: 454dp; width: 22dp; height: 22dp; }
+#l_29 { left: 359dp; top: 541dp; width: 22dp; height: 22dp; }
+#l_0 { left: 499dp; top: 454dp; width: 22dp; height: 22dp; }
+#l_1 { left: 499dp; top: 541dp; width: 22dp; height: 22dp; }
+#l_2 { left: 639dp; top: 454dp; width: 22dp; height: 22dp; }
+#l_3 { left: 639dp; top: 541dp; width: 22dp; height: 22dp; }
+#l_8 { left: 779dp; top: 454dp; width: 22dp; height: 22dp; }
+#l_9 { left: 779dp; top: 541dp; width: 22dp; height: 22dp; }
+#l_10 { left: 919dp; top: 454dp; width: 22dp; height: 22dp; }
+#l_11 { left: 919dp; top: 541dp; width: 22dp; height: 22dp; }
+#l_16 { left: 1059dp; top: 454dp; width: 22dp; height: 22dp; }
+#l_17 { left: 1059dp; top: 541dp; width: 22dp; height: 22dp; }
+#l_18 { left: 1199dp; top: 454dp; width: 22dp; height: 22dp; }
+#l_19 { left: 1199dp; top: 541dp; width: 22dp; height: 22dp; }
+#l_24 { left: 1339dp; top: 454dp; width: 22dp; height: 22dp; }
+#l_25 { left: 1339dp; top: 541dp; width: 22dp; height: 22dp; }
+#l_4 { left: 1054dp; top: 302dp; width: 22dp; height: 22dp; }
+#l_6 { left: 1054dp; top: 341dp; width: 22dp; height: 22dp; }
+#l_12 { left: 1127dp; top: 302dp; width: 22dp; height: 22dp; }
+#l_14 { left: 1127dp; top: 341dp; width: 22dp; height: 22dp; }
+#l_20 { left: 1201dp; top: 302dp; width: 22dp; height: 22dp; }
+#l_15 { left: 1201dp; top: 341dp; width: 22dp; height: 22dp; }
+#l_27 { left: 1275dp; top: 302dp; width: 22dp; height: 22dp; }
+#l_23 { left: 1275dp; top: 341dp; width: 22dp; height: 22dp; }
+#l_26 { left: 1349dp; top: 302dp; width: 22dp; height: 22dp; }
+#l_22 { left: 1349dp; top: 341dp; width: 22dp; height: 22dp; }
+#l_28 { left: 1422dp; top: 302dp; width: 22dp; height: 22dp; }
+#l_30 { left: 1422dp; top: 341dp; width: 22dp; height: 22dp; }
+#l_7 { left: 196dp; top: 661dp; width: 22dp; height: 22dp; }
+#master { left: 87.5dp; top: 339.5dp; width: 131dp; height: 131dp; }
+#value { left: 789dp; top: 749dp; width: 224dp; height: 224dp; }
+#d0 { left: 496dp; top: 288dp; width: 88dp; height: 106dp; }
+#d1 { left: 554dp; top: 288dp; width: 88dp; height: 106dp; }
+#d2 { left: 612dp; top: 288dp; width: 88dp; height: 106dp; }
+#d3 { left: 670dp; top: 288dp; width: 88dp; height: 106dp; }

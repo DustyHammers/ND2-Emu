@@ -1,0 +1,18 @@
+<rml>
+<head>
+	<title>ND2 test skin</title>
+	<link type="text/rcss" href="test.rcss"/>
+	<script src="test.lua"></script>
+</head>
+<body onload="onLoad()">
+	<knob id="master" control="master"/>
+	<encoder id="value"/>
+	<pbutton id="bProgram" button="1"/>
+	<pbutton id="bParam1" button="8"/>
+	<led id="l21" code="21"><lamp/></led>
+	<led id="l6" code="6"><lamp/></led>
+	<segdigit id="d0" pos="0"><seg class="a"/><seg class="b"/><seg class="g"/><seg class="dp"/></segdigit>
+	<segdigit id="d3" pos="3"><seg class="a"/><seg class="d"/></segdigit>
+	<div id="shown" onshow="shownCount = (shownCount or 0) + 1"/>
+</body>
+</rml>

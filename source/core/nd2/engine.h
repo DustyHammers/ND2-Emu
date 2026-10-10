@@ -50,6 +50,9 @@ public:
   void setTrigGain(int pad, float gain) { if (pad >= 0 && pad < kPads) trigGain_[pad].store(gain); }
   struct PanelView { std::array<uint8_t, 4> seg; uint32_t leds; };      // seg active-low, led bit = LED index
   PanelView panel() const;
+  // LED brightness as the OS drives it (its PWM duty), in eighths: 0 = off ... 8 = full. Index = LED number.
+  int ledLevel(int led) const { return led >= 0 && led < 32 ? ledLevel_[led].load(std::memory_order_relaxed) : 0; }
+  float masterLevel() const { return master_.load(); }
   uint32_t uiSerial() const { return uiSerial_.load(); }
   bool trigClip(int pad) const { return pad >= 0 && pad < kPads && clipHold_[pad].load() > 0; }
 
@@ -131,6 +134,7 @@ private:
 
   // panel read-out
   std::atomic<uint32_t> segWord_{0xFFFFFFFF}, leds_{0}, uiSerial_{0};
+  std::atomic<uint8_t> ledLevel_[32] = {};
   uint64_t panelSince_ = 0;
   void publishPanel(Board& b);
 

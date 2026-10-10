@@ -189,7 +189,9 @@ void Engine::applyPanel(Board& b) {
     else at = std::max(at, downAt[idx] + uint64_t(kMinButtonHoldS * FCY));   // a click is held long enough to be seen
     b.button_at(idx, down, at);
   }
-  if (int d = encoder_.exchange(0)) b.encoder_turn(d);
+  // A burst of detents (a fast turn of the UI encoder) is played as a fast spin, which the OS accelerates as it
+  // does on the hardware; single detents keep the slow timing (no acceleration).
+  if (int d = encoder_.exchange(0)) b.encoder_turn(d, std::abs(d) >= 3 ? 0.004 : 0.010);
   if (masterDirty_.exchange(false))
     b.set_adc(panel::kAdcMasterLevel, std::max(-1.0, std::min(0.999, double(master_.load()) * 2.0 - 1.0)));
 }
@@ -208,8 +210,13 @@ void Engine::publishPanel(Board& b) {
   const auto p = b.panel(true);
   uint32_t s = 0, l = 0;
   for (int i = 0; i < 4; i++) s |= uint32_t(p.seg[i]) << (8 * i);
-  for (int i = 0; i < 32; i++) if (p.led_duty[i] > 0.25) l |= 1u << i;
-  if (s != segWord_.load() || l != leds_.load()) { segWord_.store(s); leds_.store(l); uiSerial_.fetch_add(1); }
+  bool levels = false;
+  for (int i = 0; i < 32; i++) {
+    if (p.led_duty[i] > 0.25) l |= 1u << i;
+    const uint8_t lv = uint8_t(std::min(8L, std::lround(p.led_duty[i] * 8.0)));
+    if (lv != ledLevel_[i].load(std::memory_order_relaxed)) { ledLevel_[i].store(lv, std::memory_order_relaxed); levels = true; }
+  }
+  if (levels || s != segWord_.load() || l != leds_.load()) { segWord_.store(s); leds_.store(l); uiSerial_.fetch_add(1); }
 }
 
 // ---------------------------------------------------------------- MIDI

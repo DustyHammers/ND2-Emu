@@ -71,13 +71,15 @@ void ND2Processor::prepareToPlay(double sampleRate, int samplesPerBlock) {
     setLatencySamples(engine_.latencySamples());
 }
 
-// Main: stereo. Ch 1-6: stereo or off. Trigger In: off, or 1-6 channels (pads 1-6 in order).
+// Main: stereo. Ch 1-6: stereo or off. Trigger In: off, or all 6 channels (pads 1-6 in order). Fewer channels are
+// refused: hosts that ask for a stereo input first (REAPER does) then keep the 6-channel layout instead of
+// silently getting only pads 1 and 2.
 bool ND2Processor::isBusesLayoutSupported(const BusesLayout& layouts) const {
     if (layouts.outputBuses.isEmpty() || layouts.outputBuses[0] != juce::AudioChannelSet::stereo()) return false;
     for (int b = 1; b < layouts.outputBuses.size(); ++b)
         if (!layouts.outputBuses[b].isDisabled() && layouts.outputBuses[b] != juce::AudioChannelSet::stereo()) return false;
     for (const auto& in : layouts.inputBuses)
-        if (in.size() > nd2::Engine::kPads) return false;
+        if (!in.isDisabled() && in.size() != nd2::Engine::kPads) return false;
     return true;
 }
 

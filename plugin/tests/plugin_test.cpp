@@ -85,6 +85,12 @@ int main(int argc, char** argv) {
         juce::AudioProcessor::BusesLayout bad = fullLayout();
         bad.outputBuses.getReference(0) = juce::AudioChannelSet::mono();
         CHECK(!p.checkBusesLayoutSupported(bad), "a mono main output is refused");
+        juce::AudioProcessor::BusesLayout stereoIn = fullLayout();
+        stereoIn.inputBuses.getReference(0) = juce::AudioChannelSet::stereo();
+        CHECK(!p.checkBusesLayoutSupported(stereoIn), "a stereo Trigger In is refused (all 6 pads or none)");
+        juce::AudioProcessor::BusesLayout noIn = fullLayout();
+        noIn.inputBuses.getReference(0) = juce::AudioChannelSet::disabled();
+        CHECK(p.checkBusesLayoutSupported(noIn), "Trigger In off is accepted");
         p.prepareToPlay(48000, 256);
         std::printf("latency %d samples\n", p.getLatencySamples());
         if (!res.hasOs()) {

@@ -1,0 +1,11 @@
+build/
+out/
+*.bin
+*.cab
+*.syx
+*.nd2_bank
+*.nd2p
+*.wav
+*.exe
+*.dmg
+.DS_Store

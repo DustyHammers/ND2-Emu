@@ -10,3 +10,5 @@ out/
 *.dmg
 .DS_Store
 work/
+__pycache__/
+*.flash

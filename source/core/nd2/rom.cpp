@@ -18,6 +18,21 @@ uint64_t fnv1a(const uint8_t* p, size_t n) {
 }
 }  // namespace
 
+bool extractOsCab(const std::vector<uint8_t>& f, std::vector<uint8_t>& cab) {
+  for (size_t off = 0; off + 0x50 <= f.size(); off += 4) {
+    const uint8_t* h = f.data() + off;
+    if (be32(h) != 0 || be32(h + 8) != 0xDE || be32(h + 12) != 0x8000) continue;
+    const uint32_t len = be32(h + 16);
+    if (len != 0x78000 || off + 0x50 + len > f.size()) continue;
+    std::vector<uint8_t> c(h, h + 0x50 + len);
+    OsImage os; std::string err;
+    if (!loadOsUpdate(c, os, err) || !isSupportedOs(os)) continue;
+    cab.swap(c);
+    return true;
+  }
+  return false;
+}
+
 bool loadOsUpdate(const std::vector<uint8_t>& f, OsImage& out, std::string& err) {
   // header: u32be 0, version, product 0xDE, block 0x8000, payload length; 0xFF pad to 0x50
   for (size_t off = 0; off + 0x50 <= f.size(); off += 4) {

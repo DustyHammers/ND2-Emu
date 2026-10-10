@@ -17,6 +17,9 @@ struct OsImage {
 // Returns false and fills err when no supported OS is found.
 bool loadOsUpdate(const std::vector<uint8_t>& file, OsImage& out, std::string& err);
 bool loadOsUpdateFile(const std::string& path, OsImage& out, std::string& err);
+// The original os.cab inside a container (os.cab itself, the updater app's file, the Windows updater), unchanged
+// (still encrypted): what the plugin keeps a copy of. False if there is none.
+bool extractOsCab(const std::vector<uint8_t>& file, std::vector<uint8_t>& cab);
 
 // The emulator hard-codes v3.00 addresses (vectors, entry point), so only that exact image is accepted.
 bool isSupportedOs(const OsImage& os);

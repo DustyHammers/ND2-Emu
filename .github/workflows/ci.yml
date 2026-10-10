@@ -1,0 +1,130 @@
+# CI: data guard (firmware, data files, original names), core and skin tests on Linux, and the macOS build of the
+# plugin (VST3 + AU + Standalone, ad-hoc signed) as a downloadable zip. No job uses firmware, and none may ever need it.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  data-check:
+    name: No firmware or data files
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0            # every commit is checked, not only the final tree
+      - name: Check every commit
+        run: python3 scripts/check_no_data.py HEAD
+
+  linux-tests:
+    name: Linux tests (no firmware)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Restore dependency cache
+        uses: actions/cache@v6
+        with:
+          path: work/deps
+          key: deps-linux-${{ hashFiles('scripts/deps.env') }}
+      - name: Fetch RmlUi, Lua and FreeType (pinned)
+        run: scripts/fetch_deps.sh rmlui lua freetype
+      - name: Build the core
+        run: |
+          cmake -S . -B build/core -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/core
+      - name: Core tests
+        run: ctest --test-dir build/core --output-on-failure
+      - name: Build the skin runtime (RmlUi + Lua)
+        run: |
+          cmake -S plugin/skin -B build/skin -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/skin
+      - name: Skin runtime tests
+        run: ctest --test-dir build/skin --output-on-failure
+
+  macos-plugin:
+    name: macOS plugin (VST3 + AU + Standalone, Apple Silicon)
+    runs-on: macos-15
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 500M
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install build tools
+        run: brew install ninja ccache
+      - name: Restore dependency cache
+        uses: actions/cache@v6
+        with:
+          path: work/deps
+          key: deps-macos-${{ hashFiles('scripts/deps.env') }}
+      - name: Restore compiler cache
+        uses: actions/cache@v6
+        with:
+          path: .ccache
+          key: ccache-macos-${{ hashFiles('scripts/deps.env') }}-${{ github.sha }}
+          restore-keys: ccache-macos-${{ hashFiles('scripts/deps.env') }}-
+      - name: Fetch JUCE, RmlUi, Lua and FreeType (pinned)
+        run: scripts/fetch_deps.sh
+      - name: Core tests on macOS
+        run: |
+          cmake -S . -B build/core -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build build/core
+          ctest --test-dir build/core --output-on-failure
+      - name: Build the plugin
+        run: |
+          cmake -S . -B build/plugin -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DND2_BUILD_PLUGIN=ON -DND2_BUILD_TESTS=OFF -DND2_BUILD_CLI=OFF \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build build/plugin --target ND2_VST3 ND2_AU ND2_Standalone plugin_test
+          ccache --show-stats
+      - name: Plugin test (bus layouts, state, editor window; no firmware)
+        run: |
+          build/plugin/plugin/plugin_test
+          build/plugin/plugin/plugin_test --editor
+      - name: Ad-hoc sign
+        run: |
+          cd build/plugin/plugin/ND2_artefacts/Release
+          for b in VST3/ND2.vst3 AU/ND2.component Standalone/ND2.app; do
+            codesign --force --deep --sign - --timestamp=none "$b"
+            codesign --verify --deep --strict --verbose=2 "$b"
+          done
+      - name: Check plugin identity (must never change)
+        run: python3 scripts/check_plugin_identity.py build/plugin/plugin/ND2_artefacts/Release --mac
+      - name: Validate the Audio Unit (auval)
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R build/plugin/plugin/ND2_artefacts/Release/AU/ND2.component ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+          auval -a | grep -i nd2e || true
+          auval -v aumu Nd2E DHmr
+      - name: Package
+        id: package
+        run: |
+          version=$(sed -n 's/^project(ND2Emu VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          name="ND2-${version}-macOS-$(git rev-parse --short HEAD)"
+          mkdir -p "dist/$name"
+          ditto build/plugin/plugin/ND2_artefacts/Release/VST3/ND2.vst3 "dist/$name/ND2.vst3"
+          ditto build/plugin/plugin/ND2_artefacts/Release/AU/ND2.component "dist/$name/ND2.component"
+          ditto build/plugin/plugin/ND2_artefacts/Release/Standalone/ND2.app "dist/$name/ND2.app"
+          cp plugin/packaging/INSTALL.txt "dist/$name/INSTALL.txt"
+          (cd dist && ditto -c -k --keepParent "$name" "$name.zip")
+          echo "zip=dist/$name.zip" >> "$GITHUB_OUTPUT"
+      - name: Upload plugin
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ steps.package.outputs.zip }}
+          archive: false
+          retention-days: 30
+          if-no-files-found: error

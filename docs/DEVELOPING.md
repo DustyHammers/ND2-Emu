@@ -90,6 +90,33 @@ source/core/dspic   CPU: decoder, disassembler, interpreter
 source/core/nd2     ND2 board (peripherals), OS loader, Device API, Engine (plugin core)
 source/core/util    rate converter, MIDI parser/ring, state reader/writer
 source/cli          nd2emu command-line renderer/debugger, nd2render engine renderer
-source/plugin       VST3/AU/standalone (to come)
-tests               core and util self-tests (no firmware needed) + device and engine tests (need the OS)
+plugin              VST3/AU/standalone (JUCE): processor, editor, OS and bank file handling
+plugin/skin         skin runtime without JUCE (RmlUi + Lua + FreeType) and its tests
+skins/default       the built-in default skin (the only images in the repository)
+tools/skin          sources of the default skin's art
+tests               core and util self-tests (no firmware needed) + device, engine and bank tests (need the OS)
 ```
+
+## Plugin
+
+```sh
+scripts/fetch_deps.sh                      # JUCE, RmlUi, Lua, FreeType at the commits in scripts/deps.env
+cmake -S . -B build/plugin -G Ninja -DCMAKE_BUILD_TYPE=Release -DND2_BUILD_PLUGIN=ON -DND2_BUILD_TESTS=OFF -DND2_BUILD_CLI=OFF
+cmake --build build/plugin
+build/plugin/plugin/plugin_test [--editor [screenshot dir]]
+```
+
+`plugin_test` checks bus layouts, silence and state without the OS. With the OS in `~/Documents/ND2/os/` (or
+`ND2_OS_SOURCE=` any update file, located as the plugin does) and `ND2_BANKS=` the factory bank files, it also
+builds the factory memory, plays MIDI and a piezo hit, checks that the channel outputs add up to the main output,
+and round-trips the state. `--editor` opens the window and clicks a button and the encoder.
+
+Plugin data lives in `~/Documents/ND2/` (`os/`, `cache/`, `skins/`, `skin-log.txt`); global settings in
+`~/Library/Application Support/ND2/ND2.settings`.
+
+## CI
+
+`.github/workflows/ci.yml`: `scripts/check_no_data.py` over every commit (firmware and data file types, known
+firmware checksums, images outside `skins/default/`, the original names in files and commit messages), core and
+skin tests on Linux, and on macOS the core tests, the plugin build, `plugin_test`, ad-hoc signing,
+`scripts/check_plugin_identity.py`, `auval` and the downloadable zip (with `plugin/packaging/INSTALL.txt`).

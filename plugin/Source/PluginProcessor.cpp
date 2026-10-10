@@ -73,14 +73,22 @@ void ND2Processor::prepareToPlay(double sampleRate, int samplesPerBlock) {
 
 // Main: stereo. Ch 1-6: stereo or off. Trigger In: off, or all 6 channels (pads 1-6 in order). Fewer channels are
 // refused: hosts that ask for a stereo input first (REAPER does) then keep the 6-channel layout instead of
-// silently getting only pads 1 and 2.
+// silently getting only pads 1 and 2. Ableton Live only: 1-6 channels are accepted (pads 1..n), as in 0.1.0; Live
+// was reported to fail with the six-or-none rule.
 bool ND2Processor::isBusesLayoutSupported(const BusesLayout& layouts) const {
     if (layouts.outputBuses.isEmpty() || layouts.outputBuses[0] != juce::AudioChannelSet::stereo()) return false;
     for (int b = 1; b < layouts.outputBuses.size(); ++b)
         if (!layouts.outputBuses[b].isDisabled() && layouts.outputBuses[b] != juce::AudioChannelSet::stereo()) return false;
-    for (const auto& in : layouts.inputBuses)
-        if (!in.isDisabled() && in.size() != nd2::Engine::kPads) return false;
+    for (const auto& in : layouts.inputBuses) {
+        if (in.isDisabled() || in.size() == nd2::Engine::kPads) continue;
+        if (!(acceptsFewerTriggerChannels() && in.size() < nd2::Engine::kPads)) return false;
+    }
     return true;
+}
+
+bool ND2Processor::acceptsFewerTriggerChannels() {
+    static const bool live = juce::PluginHostType().isAbletonLive();
+    return live;
 }
 
 void ND2Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) {

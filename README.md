@@ -1,5 +1,7 @@
 # ND2
 
+![ND2 with its default skin](skins/default/preview.png)
+
 Low-level emulation of a classic six-channel drum synthesizer, running its original OS on an emulated
 dsPIC33E. VST3, AU and standalone for macOS (Apple Silicon).
 

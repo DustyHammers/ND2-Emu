@@ -30,6 +30,27 @@ On first start, choose the OS update file and then the factory bank files.
 - Encoder and MASTER LEVEL: drag up or down, or use the scroll wheel; hold Shift for fine steps.
 - Right-click the panel for skins, zoom, the OS update file and the factory banks.
 
+## Files and folders
+
+ND2 creates `~/Documents/ND2/` the first time it runs, with three folders:
+
+```
+~/Documents/ND2/
+  os/        os.cab, copied here from the OS update file you choose (only the OS part is kept)
+  skins/     your own skins: a folder <name> containing <name>.rml and its files; listed under right-click > Skin
+  cache/     made by ND2, safe to delete:
+             factory-<id>.flash        the factory memory built from your bank files (shared by new instances)
+             skin-default-<id>/        the built-in skin, unpacked
+  skin-log.txt   skin messages, only while right-click > Developer > Write skin log is on
+```
+
+Settings shared by all instances (chosen skin, window size, skin log on/off) are in
+`~/Library/Application Support/ND2/ND2.settings`. Each project stores its own complete machine, including presets
+saved on the panel, so projects don't depend on these folders except for the OS.
+
+Deleting `os/` makes ND2 ask for the OS update file again; deleting `cache/` makes it ask for the factory bank files
+again (projects keep their own presets).
+
 ## Disclaimer
 
 This project is not affiliated with, endorsed by or connected to the manufacturer of the original

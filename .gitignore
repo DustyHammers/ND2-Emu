@@ -9,3 +9,4 @@ out/
 *.exe
 *.dmg
 .DS_Store
+work/

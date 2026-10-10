@@ -48,7 +48,7 @@ Settings shared by all instances (chosen skin, window size, skin log on/off) are
 `~/Library/Application Support/ND2/ND2.settings`. Each project stores its own complete machine, including presets
 saved on the panel, so projects don't depend on these folders except for the OS.
 
-Deleting `os/` makes ND2 ask for the OS update file again; deleting `cache/` makes it ask for the factory bank files
+Deleting `os/` makes ND2 ask for your firmware/OS again; deleting `cache/` makes it ask for the factory bank files
 again (projects keep their own presets).
 
 ## Disclaimer

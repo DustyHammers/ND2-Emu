@@ -36,7 +36,7 @@ ND2 creates `~/Documents/ND2/` the first time it runs, with three folders:
 
 ```
 ~/Documents/ND2/
-  os/        os.cab, copied here from the OS update file you choose (only the OS part is kept)
+  os/        your firmware/OS
   skins/     your own skins: a folder <name> containing <name>.rml and its files; listed under right-click > Skin
   cache/     made by ND2, safe to delete:
              factory-<id>.flash        the factory memory built from your bank files (shared by new instances)
@@ -48,7 +48,7 @@ Settings shared by all instances (chosen skin, window size, skin log on/off) are
 `~/Library/Application Support/ND2/ND2.settings`. Each project stores its own complete machine, including presets
 saved on the panel, so projects don't depend on these folders except for the OS.
 
-Deleting `os/` makes ND2 ask for the OS update file again; deleting `cache/` makes it ask for the factory bank files
+Deleting `os/` makes ND2 ask for your firmware/OS again; deleting `cache/` makes it ask for the factory bank files
 again (projects keep their own presets).
 
 ## Disclaimer

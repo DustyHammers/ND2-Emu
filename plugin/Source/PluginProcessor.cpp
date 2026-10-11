@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "Diag.h"
 #include "PluginEditor.h"
 #include "Resources.h"
 
@@ -19,7 +20,12 @@ juce::AudioProcessor::BusesProperties ND2Processor::buses() {
 
 ND2Processor::ND2Processor() : AudioProcessor(buses()) {
     events_.reserve(4096);
+    nd2diag::log(juce::String("processor created: ND2 ") + JucePlugin_VersionString + " " + nd2diag::arch() + ", "
+                 + juce::AudioProcessor::getWrapperTypeDescription(wrapperType) + ", host \"" + juce::PluginHostType().getHostDescription()
+                 + "\", " + juce::File::getSpecialLocation(juce::File::hostApplicationPath).getFullPathName());
     Resources::get();                                // finds the OS and the factory memory
+    nd2diag::log("data folder " + Resources::get().dataFolder().getFullPathName() + (Resources::get().dataFolder().isDirectory() ? "" : " (missing)")
+                 + ", OS " + (Resources::get().hasOs() ? "found" : "not found"));
     timerCallback();
     startTimer(kTimerMs);
 }
@@ -137,7 +143,10 @@ void ND2Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuff
         if (outOn[size_t(c)] && !stems_) outs[size_t(c)].clear();
 }
 
-juce::AudioProcessorEditor* ND2Processor::createEditor() { return new ND2Editor(*this); }
+juce::AudioProcessorEditor* ND2Processor::createEditor() {
+    nd2diag::log("createEditor");
+    return new ND2Editor(*this);
+}
 
 // State: magic, version, MASTER LEVEL (0-1), window scale, then the machine (gzip; empty if it was not running).
 void ND2Processor::getStateInformation(juce::MemoryBlock& dest) {

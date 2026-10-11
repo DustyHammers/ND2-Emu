@@ -1,3 +1,4 @@
+#include "Diag.h"
 #include "PluginEditor.h"
 #include "Resources.h"
 #include "RmlSkinComponent.h"
@@ -43,9 +44,11 @@ ND2Editor::ND2Editor(ND2Processor& p) : AudioProcessorEditor(&p), proc(p) {
     applying_ = false;
     showSkin(SkinSettings::skin());
     startTimer(250);
+    nd2diag::log("editor constructed " + juce::String(getWidth()) + " x " + juce::String(getHeight()) + ", skin \"" + SkinSettings::skin() + "\"");
 }
 
 ND2Editor::~ND2Editor() {
+    nd2diag::log("editor closed");
     stopTimer();
     if (scaleDirty_) SkinSettings::setScale(scale_);
     rml_.reset();                                    // closes its OpenGL context first
@@ -81,6 +84,7 @@ void ND2Editor::showSkin(const juce::String& name, const juce::String& notice) {
     }
     current_ = name;
     rml_->onLoaded = [this, name, notice](bool ok, const juce::String& error) {
+        nd2diag::log("skin \"" + name + "\" " + (ok ? juce::String("loaded") : "failed: " + error));
         if (!ok) { skinFailed(name, error); return; }
         if (notice.isNotEmpty() && rml_) rml_->showMessage(notice);
     };
@@ -102,6 +106,7 @@ void ND2Editor::skinFailed(const juce::String& name, const juce::String& reason)
 }
 
 void ND2Editor::showFallback(const juce::String& reason) {
+    nd2diag::log("fallback panel: " + reason);
     rml_.reset();
     if (!fallback_) {
         fallback_ = std::make_unique<FallbackView>();

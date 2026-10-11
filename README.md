@@ -14,6 +14,12 @@ below. Earlier versions are on the [releases page](https://github.com/DustyHamme
 
 ## What's new
 
+### 0.1.6
+
+- A short diagnostic log, `~/Documents/ND2/ND2-log.txt` (also in Console.app, search "ND2:"): each step from the
+  host loading ND2 to its panel appearing. It helps find out why Logic Pro shows a plain "ND2" window instead of
+  the panel.
+
 ### 0.1.5
 
 - Lower CPU use on Apple Silicon: the rest of the faster processor emulation, and a faster sample-rate converter.
@@ -89,6 +95,7 @@ ND2 creates `~/Documents/ND2/` the first time it runs, with three folders:
   cache/     made by ND2, safe to delete:
              factory-<id>.flash        the factory memory built from your bank files (shared by new instances)
   skin-log.txt   skin messages, only while right-click > Developer > Write skin log is on
+  ND2-log.txt    a short log of ND2 starting and its panel opening (for problem reports; kept small)
 ```
 
 Settings shared by all instances (chosen skin, window size, skin log on/off) are in

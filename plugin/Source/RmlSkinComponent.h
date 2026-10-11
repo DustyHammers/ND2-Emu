@@ -90,6 +90,7 @@ private:
     std::atomic<bool> frameWanted_{true};
     std::atomic<double> nextWake_{0};
     uint32_t lastSerial_ = 0;
+    int visibleLogged_ = -1;                           // message thread: last visibility written to the diagnostic log
     bool dropPrefetch_ = false;                        // GL thread: free unused prefetched images after the first frame
     std::atomic<uint64_t> framesDrawn_{0};
 };

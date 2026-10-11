@@ -1,3 +1,4 @@
+#include "Diag.h"
 #include "RmlSkinComponent.h"
 #include "SkinSettings.h"
 #include <RmlUi/Core/Input.h>
@@ -104,7 +105,14 @@ void RmlSkinComponent::timerCallback() {
         message_.clear();
         repaint();
     }
-    if (!visibleOnScreen()) return;
+    const bool visible = visibleOnScreen();
+    if (int(visible) != visibleLogged_) {          // diagnostics: the window became visible / hidden
+        visibleLogged_ = int(visible);
+        auto* peer = getPeer();
+        nd2diag::log(juce::String("panel ") + (visible ? "visible" : "not visible") + " (showing " + (isShowing() ? "yes" : "no")
+                     + ", window " + (peer != nullptr ? "yes" : "no") + ", " + juce::String(getWidth()) + " x " + juce::String(getHeight()) + ")");
+    }
+    if (!visible) return;
     const uint32_t serial = proc_.engine().uiSerial();
     const double now = juce::Time::getMillisecondCounterHiRes() / 1000.0;
     if (frameWanted_.exchange(false) || serial != lastSerial_ || now >= nextWake_.load()) {
@@ -147,6 +155,7 @@ void RmlSkinComponent::startLoad() {
 // ------------------------------------------------------------------ GL thread
 
 void RmlSkinComponent::newOpenGLContextCreated() {
+    nd2diag::log("OpenGL context created");
     std::string message;
     juce::String error;
     if (!RmlGLRenderer::loadGL(message)) error = "OpenGL could not be started: " + juce::String(message);
@@ -155,6 +164,7 @@ void RmlSkinComponent::newOpenGLContextCreated() {
         if (!renderer_->ok()) { error = "The OpenGL skin renderer could not be started."; renderer_.reset(); }
     }
     if (error.isNotEmpty()) {
+        nd2diag::log("OpenGL: " + error);
         juce::Component::SafePointer<RmlSkinComponent> self(this);
         juce::MessageManager::callAsync([self, error] { if (self && self->onLoaded) self->onLoaded(false, error); });
         return;
@@ -190,6 +200,7 @@ void RmlSkinComponent::renderOpenGL() {
     view_->render();
     renderer_->endFrame();
     if (dropPrefetch_) { renderer_->dropPrefetched(); dropPrefetch_ = false; }   // images the skin did not use
+    if (framesDrawn_ == 0) nd2diag::log("first frame drawn " + juce::String(w) + " x " + juce::String(h) + " px");
     ++framesDrawn_;
 }
 

@@ -339,8 +339,9 @@ void CPU::step() { run_end = cycles; step_inline(); }
 
 // The normal run: the same handlers as exec (exec_body.inc), but each handler ends with the next instruction's
 // fetch and an indirect jump of its own (threaded dispatch), so the host predicts each jump from where it is made.
-// Instruction for instruction it does exactly what run_loop<false, false> does.
-void CPU::run_fast(uint64_t end) {
+// Instruction for instruction it does exactly what run_loop<false, StopPc> does (StopPc: also stop at the first
+// instruction boundary with pc == stop_pc, as run_until_pc).
+template <bool StopPc> void CPU::run_fast(uint64_t end, uint32_t stop_pc) {
 #if defined(__GNUC__) || defined(__clang__)
 #define DSPIC_OP_LABEL(n) &&L_##n,
   static void* const labels[I_COUNT] = { DSPIC_OPS(DSPIC_OP_LABEL) };
@@ -348,25 +349,27 @@ void CPU::run_fast(uint64_t end) {
   run_end = end;
   if (slow_at > end) slow_at = end;
   const Insn* ip = nullptr;
+  uint64_t dspic_retired_ = 0;    // instructions retired here, added to instret whenever the fast path is left
 #define I (*ip)
 #define B (ip->byte)
   auto srcv = [&]() -> uint16_t { return I.lit ? (uint16_t)I.k : rd_op(I.smode, I.ws, B, I.sbreg); };
   auto fdest = [&](uint16_t v) { if (I.to_wreg) { if (B) ram[0] = (uint8_t)v; else setW(0, v); } else wr_f(I.f, B, v); };
   auto wreg = [&]() -> uint16_t { return B ? (W(0) & 0xFF) : W(0); };
   auto branch = [&](uint32_t t) { next_pc = t; cycles += 3; };
-#define DSPIC_ENTER() do { ip = &fetch(pc); next_pc = pc + 2 * ip->words; cycles += 1; goto *labels[ip->op]; } while (0)
+#define DSPIC_ENTER() do { if (StopPc && pc == stop_pc) goto L_exit; \
+    ip = &fetch(pc); next_pc = pc + 2 * ip->words; cycles += 1; goto *labels[ip->op]; } while (0)
 #define OPCASE(x) L_##x:
 #define OPDEFAULT
 #define OPEND { dspic_retired_++; pc = next_pc & 0x7FFFFE; if (cycles >= slow_at) goto L_slow; DSPIC_ENTER(); }
-  uint64_t dspic_retired_ = 0;    // instructions retired here, added to instret whenever the fast path is left
   if (cycles < slow_at) DSPIC_ENTER();
 L_slow:
-  instret += dspic_retired_; dspic_retired_ = 0;
-  if (cycles >= end || halted) return;
+  if (cycles >= end || (StopPc && pc == stop_pc) || halted) goto L_exit;
   slow_path();
   if (slow_at > end) slow_at = end;
   DSPIC_ENTER();
 #include "exec_body.inc"
+L_exit:
+  instret += dspic_retired_;
 #undef OPCASE
 #undef OPDEFAULT
 #undef OPEND
@@ -374,16 +377,16 @@ L_slow:
 #undef B
 #undef I
 #else
-  run_loop<false, false>(end, 0);
+  run_loop<false, StopPc>(end, stop_pc);
 #endif
 }
 
 void CPU::run_cycles(uint64_t n) {
-  if (trace) run_loop<true, false>(cycles + n, 0); else run_fast(cycles + n);
+  if (trace) run_loop<true, false>(cycles + n, 0); else run_fast<false>(cycles + n, 0);
 }
 
 void CPU::run_until_pc(uint32_t target, uint64_t max_cycles) {
-  if (trace) run_loop<true, true>(cycles + max_cycles, target); else run_loop<false, true>(cycles + max_cycles, target);
+  if (trace) run_loop<true, true>(cycles + max_cycles, target); else run_fast<true>(cycles + max_cycles, target);
 }
 
 }  // namespace dspic

@@ -12,10 +12,10 @@ os.makedirs(SK)
 
 # ---- background layers (bottom to top); 2x art on a 1725 x 1035 dp canvas
 LAYERS = [('body', 'Red body'), ('panels', 'Black panel print'),
-          ('display', 'Display window'), ('redprint', 'Red print: master scale, encoder ring'),
+          ('display', 'Display window'), ('cutouts', 'Holes around the buttons, with their shadows'), ('redprint', 'Red print: master scale, encoder ring'),
           ('tagboxes', 'Tag boxes (red and STORE)'), ('lines', 'Lines and brackets'), ('text', 'Lettering'),
           ('wordmark', 'Wordmark (placeholder)')]
-LAYER_NAMES = {'body': 'Body', 'panels': 'Panels', 'display': 'Display', 'redprint': 'RedPrint',
+LAYER_NAMES = {'body': 'Body', 'panels': 'Panels', 'display': 'Display', 'cutouts': 'Cutouts', 'redprint': 'RedPrint',
                'tagboxes': 'TagBoxes', 'lines': 'Lines', 'text': 'Text', 'wordmark': 'Wordmark'}
 def layer_file(i, l): return f'ND2Layer{i:02d}{LAYER_NAMES[l]}.png'
 def layer_id(i, l): return f'layer_{i:02d}_{l}'
@@ -35,7 +35,6 @@ cell = Image.open(os.path.join(OUT, 'seg_unlit.png')).size                      
 seg = Image.new('RGBA', (cell[0] * len(SEGS), cell[1]), (0, 0, 0, 0))
 for i, s in enumerate(SEGS): seg.alpha_composite(Image.open(os.path.join(OUT, f'seg_{s}.png')), (i * cell[0], 0))
 seg.save(os.path.join(SK, 'ND2DisplaySegments.png'))
-shutil.copy(os.path.join(OUT, 'trig.png'), os.path.join(SK, 'ND2TrigLamp.png'))     # 184 x 100 px (2x of 92 x 50 dp)
 
 controls = json.load(open(os.path.join(OUT, 'controls.json')))
 
@@ -59,7 +58,7 @@ r.append('body { width: 1725dp; height: 1035dp; background-color: #2b2b2e; }')
 r.append('div.layer { position: absolute; left: 0dp; top: 0dp; width: 1725dp; height: 1035dp; }')
 for i, (l, _) in enumerate(LAYERS, 1):
     r.append(f'#{layer_id(i, l)} {{ decorator: image({layer_file(i, l)}); }}')
-r.append('\npbutton, led, knob, encoder, segdigit, trigin { display: block; position: absolute; }')
+r.append('\npbutton, led, knob, encoder, segdigit { display: block; position: absolute; }')
 r.append('pbutton { width: 122dp; height: 59dp; }')
 r.append('pbutton.black { decorator: image(btn_black_up); }  pbutton.black.pressed, pbutton.black.held { decorator: image(btn_black_down); }')
 r.append('pbutton.grey { decorator: image(btn_grey_up); }    pbutton.grey.pressed, pbutton.grey.held { decorator: image(btn_grey_down); }')
@@ -68,9 +67,6 @@ r.append('led { width: 22dp; height: 22dp; }')
 r.append('led lamp { display: block; position: absolute; left: -3dp; top: -3dp; width: 28dp; height: 28dp; opacity: 0; }')
 r.append('led.red { decorator: image(led_red_off); }      led.red lamp { decorator: image(led_red_on); }')
 r.append('led.green { decorator: image(led_green_off); }  led.green lamp { decorator: image(led_green_on); }')
-r.append('/* trigger inputs: the outline around the CHn lettering is shown while audio comes in on that input */')
-r.append('trigin { width: 92dp; height: 50dp; }')
-r.append('trigin lamp { display: block; position: absolute; left: 0dp; top: 0dp; width: 92dp; height: 50dp; opacity: 0; decorator: image(ND2TrigLamp.png); }')
 r.append('knob#master { frames: 128; spriteprefix: master_; }')
 r.append('encoder#value { frames: 72; detents: 24; spriteprefix: enc_; }')
 r.append('/* display digit: unlit segments as the background, one child per segment, shown with class lit */')
@@ -95,7 +91,6 @@ for c in controls:
     elif t == 'led': m.append(f'\t<led id="{c["id"]}" code="{c["code"]}" class="{c["color"]}"><lamp/></led>')
     elif t == 'knob': m.append(f'\t<knob id="{c["id"]}" control="master"/>')
     elif t == 'encoder': m.append(f'\t<encoder id="{c["id"]}"/>')
-    elif t == 'trigin': m.append(f'\t<trigin id="{c["id"]}" pad="{c["pad"]}"><lamp/></trigin>')
     elif t == 'segdigit': m.append(f'\t<segdigit id="{c["id"]}" pos="{c["pos"]}">' + ''.join(f'<seg class="{s}"/>' for s in SEGS[1:]) + '</segdigit>')
 m += ['</body>', '</rml>']
 open(os.path.join(SK, SKIN + '.rml'), 'w').write('\n'.join(m) + '\n')

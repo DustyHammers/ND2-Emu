@@ -216,13 +216,14 @@ div.layer { position: absolute; left: 0dp; top: 0dp; width: 1725dp; height: 1035
 #layer_01_body { decorator: image(ND2Layer01Body.png); }
 #layer_02_panels { decorator: image(ND2Layer02Panels.png); }
 #layer_03_display { decorator: image(ND2Layer03Display.png); }
-#layer_04_redprint { decorator: image(ND2Layer04RedPrint.png); }
-#layer_05_tagboxes { decorator: image(ND2Layer05TagBoxes.png); }
-#layer_06_lines { decorator: image(ND2Layer06Lines.png); }
-#layer_07_text { decorator: image(ND2Layer07Text.png); }
-#layer_08_wordmark { decorator: image(ND2Layer08Wordmark.png); }
+#layer_04_cutouts { decorator: image(ND2Layer04Cutouts.png); }
+#layer_05_redprint { decorator: image(ND2Layer05RedPrint.png); }
+#layer_06_tagboxes { decorator: image(ND2Layer06TagBoxes.png); }
+#layer_07_lines { decorator: image(ND2Layer07Lines.png); }
+#layer_08_text { decorator: image(ND2Layer08Text.png); }
+#layer_09_wordmark { decorator: image(ND2Layer09Wordmark.png); }
 
-pbutton, led, knob, encoder, segdigit, trigin { display: block; position: absolute; }
+pbutton, led, knob, encoder, segdigit { display: block; position: absolute; }
 pbutton { width: 122dp; height: 59dp; }
 pbutton.black { decorator: image(btn_black_up); }  pbutton.black.pressed, pbutton.black.held { decorator: image(btn_black_down); }
 pbutton.grey { decorator: image(btn_grey_up); }    pbutton.grey.pressed, pbutton.grey.held { decorator: image(btn_grey_down); }
@@ -231,9 +232,6 @@ led { width: 22dp; height: 22dp; }
 led lamp { display: block; position: absolute; left: -3dp; top: -3dp; width: 28dp; height: 28dp; opacity: 0; }
 led.red { decorator: image(led_red_off); }      led.red lamp { decorator: image(led_red_on); }
 led.green { decorator: image(led_green_off); }  led.green lamp { decorator: image(led_green_on); }
-/* trigger inputs: the outline around the CHn lettering is shown while audio comes in on that input */
-trigin { width: 92dp; height: 50dp; }
-trigin lamp { display: block; position: absolute; left: 0dp; top: 0dp; width: 92dp; height: 50dp; opacity: 0; decorator: image(ND2TrigLamp.png); }
 knob#master { frames: 128; spriteprefix: master_; }
 encoder#value { frames: 72; detents: 24; spriteprefix: enc_; }
 /* display digit: unlit segments as the background, one child per segment, shown with class lit */
@@ -287,12 +285,6 @@ segdigit seg.a { decorator: image(seg_a); } segdigit seg.b { decorator: image(se
 #l_30 { left: 1422dp; top: 301dp; width: 22dp; height: 22dp; }
 #l_7 { left: 196dp; top: 621dp; width: 22dp; height: 22dp; }
 #master { left: 82.5dp; top: 294.5dp; width: 141dp; height: 141dp; }
-#t1 { left: 498dp; top: 7dp; width: 92dp; height: 50dp; }
-#t2 { left: 625dp; top: 7dp; width: 92dp; height: 50dp; }
-#t3 { left: 753dp; top: 7dp; width: 92dp; height: 50dp; }
-#t4 { left: 880dp; top: 7dp; width: 92dp; height: 50dp; }
-#t5 { left: 1008dp; top: 7dp; width: 92dp; height: 50dp; }
-#t6 { left: 1135dp; top: 7dp; width: 92dp; height: 50dp; }
 #value { left: 789dp; top: 709dp; width: 224dp; height: 224dp; }
 #d0 { left: 496dp; top: 248dp; width: 88dp; height: 106dp; }
 #d1 { left: 554dp; top: 248dp; width: 88dp; height: 106dp; }

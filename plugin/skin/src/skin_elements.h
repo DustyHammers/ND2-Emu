@@ -1,5 +1,5 @@
 // The custom skin elements: <pbutton button>, <led code> (with an optional <lamp> child), <knob control="master">,
-// <encoder>, <segdigit pos> (with <seg class="a".."g"|"dp"> children), <trigin pad> (with an optional <lamp> child).
+// <encoder>, <segdigit pos> (with <seg class="a".."g"|"dp"> children).
 #pragma once
 #include <RmlUi/Core/Element.h>
 #include <string>
@@ -87,21 +87,6 @@ private:
     SkinView* view_;
     int code_ = -1;
     int level_ = -1;
-};
-
-// Trigger input (pad 1-6): class lit while audio comes in; its <lamp> children are shown then (opacity 1, else 0).
-class TrigInElement : public Rml::Element {
-public:
-    explicit TrigInElement(const Rml::String& tag);
-    ~TrigInElement() override;
-    int pad() const { return pad_; }   // 0-5, -1 if none
-    bool setActive(bool on);           // true if anything changed
-protected:
-    void OnAttributeChange(const Rml::ElementAttributes& changed) override;
-private:
-    SkinView* view_;
-    int pad_ = -1;
-    int state_ = -1;                   // -1 unknown, 0 quiet, 1 audio
 };
 
 // One display digit (pos 0 = leftmost); its <seg> children (class a ... g, dp) get class lit.

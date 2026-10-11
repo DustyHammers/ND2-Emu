@@ -21,14 +21,15 @@ each layer paints.
 
 Background layers (bottom to top), one PNG each, all the same size so they stack exactly
 -----------------------------------------------------------------------------------------
-ND2Layer01Body.png       red body with its edge highlight and shadow
+ND2Layer01Body.png       red body; bevelled edge (7 dp top and sides, 16 dp bottom), light from straight above
 ND2Layer02Panels.png     black panel print (main panel, lower-param area, encoder circle, TRIG box)
 ND2Layer03Display.png    display window (the digits are separate sprites on top)
-ND2Layer04RedPrint.png   red print: MASTER LEVEL scale disc and ticks, ring around the encoder
-ND2Layer05TagBoxes.png   tag boxes only (red boxes, white STORE box), no lettering
-ND2Layer06Lines.png      lines and brackets (gaps already left for their titles)
-ND2Layer07Text.png       all lettering, including the lettering of the tags (Liberation Sans Bold)
-ND2Layer08Wordmark.png   wordmark, a plain "ND2 EMU" placeholder
+ND2Layer04Cutouts.png    the holes the buttons come up through (3 dp gap) and the buttons' shadows in them
+ND2Layer05RedPrint.png   red print: MASTER LEVEL scale disc and ticks, ring around the encoder
+ND2Layer06TagBoxes.png   tag boxes only (red boxes, white STORE box), no lettering
+ND2Layer07Lines.png      lines and brackets (gaps already left for their titles)
+ND2Layer08Text.png       all lettering, including the lettering of the tags (Liberation Sans Bold)
+ND2Layer09Wordmark.png   wordmark, "nd2 Emu"
 
 Editing a layer in GIMP and putting it back
 -------------------------------------------
@@ -49,7 +50,6 @@ ND2GreenLed.png         same, green. The six TRIG / MG LEDs.
                         dims some LEDs).
 ND2MasterKnob.png       128 frames, 14 per row, 240 px cells (2x of 120 dp), 240 degrees; sandblasted grain
                         that turns with the knob. Shown in a 141 dp element.
-ND2TrigLamp.png         the trigger input outline, 184 x 100 px (2x of 92 x 50 dp), green with its glow.
 ND2Encoder.png          value encoder: 72 frames = one full turn (5 degrees per frame), 12 per row,
                         448 px cells (2x of 224 dp). Seamless: frame 71 runs straight into frame 0.
                         Modelled on the hardware: flat sandblasted top, 18 flat side facets with fine
@@ -68,5 +68,3 @@ RML elements
 <encoder>               the value encoder: RCSS frames (72, one turn), detents (24 per turn) and
                         spriteprefix (enc_). Drag up/down or use the mouse wheel to turn it.
 <segdigit pos="0..3"><seg class="a"/>...  one display digit; each seg child gets class lit when lit.
-<trigin pad="1..6"><lamp/>  a trigger input: class lit while audio comes in on that input (held 0.3 s);
-                        the lamp is shown then (opacity 1) and hidden otherwise (opacity 0).

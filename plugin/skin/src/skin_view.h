@@ -23,7 +23,6 @@ class EncoderElement;
 class PButtonElement;
 class LedElement;
 class SegDigitElement;
-class TrigInElement;
 
 constexpr double kFrameEventHz = 60;          // body onframe at most this often
 constexpr double kLuaTimeoutSeconds = 3;      // longest a single entry into Lua may run
@@ -92,13 +91,11 @@ public:
     void registerElement(PButtonElement* e);
     void registerElement(LedElement* e);
     void registerElement(SegDigitElement* e);
-    void registerElement(TrigInElement* e);
     void unregisterElement(KnobElement* e);
     void unregisterElement(EncoderElement* e);
     void unregisterElement(PButtonElement* e);
     void unregisterElement(LedElement* e);
     void unregisterElement(SegDigitElement* e);
-    void unregisterElement(TrigInElement* e);
 
     void masterMoved(int raw);                 // the knob moved by the user: send it and tell Lua
     void setMaster(int raw);                   // panel.setMaster: knobs show it, send it, tell Lua
@@ -144,7 +141,6 @@ private:
     std::set<PButtonElement*> buttons_;
     std::set<LedElement*> leds_;
     std::set<SegDigitElement*> digits_;
-    std::set<TrigInElement*> trigins_;
     KnobElement* dragKnob_ = nullptr;
     EncoderElement* dragEncoder_ = nullptr;
     int dragStartY_ = 0, dragStartRaw_ = 0, dragDetents_ = 0;

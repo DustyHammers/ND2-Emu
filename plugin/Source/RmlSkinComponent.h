@@ -89,6 +89,6 @@ private:
     // or the skin's next wake time came, and never while the window cannot be seen.
     std::atomic<bool> frameWanted_{true};
     std::atomic<double> nextWake_{0};
-    uint32_t lastSerial_ = 0, lastTrig_ = 0;
+    uint32_t lastSerial_ = 0;
     std::atomic<uint64_t> framesDrawn_{0};
 };

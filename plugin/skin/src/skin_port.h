@@ -10,7 +10,6 @@ namespace skin {
 constexpr int kButtons = 32;        // panel button index = row * 8 + bit (see source/core/nd2/panel_map.h)
 constexpr int kLeds = 32;           // LED index (column - 4) * 8 + bit
 constexpr int kMasterMax = 1023;    // MASTER LEVEL knob position, 0 ... 1023
-constexpr int kTrigInputs = 6;      // trigger inputs (pads 1-6)
 
 class PanelPort {
 public:
@@ -25,8 +24,6 @@ public:
     // g (middle), dp.
     virtual std::array<uint8_t, 4> segments() = 0;
     virtual uint32_t serial() { return 0; }                   // changes when the display or an LED changed
-    // Audio is coming in on trigger input `pad` (0-5). Not part of the OS's panel.
-    virtual bool trigActive(int pad) { (void)pad; return false; }
 };
 
 struct PluginInfo {

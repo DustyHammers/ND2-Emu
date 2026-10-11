@@ -55,9 +55,6 @@ public:
   float masterLevel() const { return master_.load(); }
   uint32_t uiSerial() const { return uiSerial_.load(); }
   bool trigClip(int pad) const { return pad >= 0 && pad < kPads && clipHold_[pad].load() > 0; }
-  // Audio is coming in on trigger input `pad` (above -48 dBFS as the emulated ADC sees it, held 0.3 s). For the panel's
-  // outline only: the audio is not affected. False while the trigger inputs are off.
-  bool trigActive(int pad) const { return pad >= 0 && pad < kPads && activeHold_[pad].load(std::memory_order_relaxed) > 0; }
 
   // ---- audio thread
   // stems: also produce the six channel outputs (stereo pairs, exact shares of the main output; see Board)
@@ -133,7 +130,6 @@ private:
   std::atomic<bool> masterDirty_{true};
   std::atomic<float> trigGain_[kPads];
   std::atomic<int> clipHold_[kPads];
-  std::atomic<int> activeHold_[kPads];
   void applyPanel(Board& b);
 
   // panel read-out

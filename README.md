@@ -3,16 +3,23 @@
 ![ND2 with its default skin](skins/default/preview.png)
 
 Low-level emulation of a classic six-channel drum synthesizer, running its original OS on an emulated
-dsPIC33E. VST3, AU and standalone for macOS (Apple Silicon).
+dsPIC33E. VST3, AU and standalone for macOS (Apple Silicon; Intel is included but untested).
 
 ## Download
 
-### [Download ND2 for macOS (Apple Silicon): latest version](https://github.com/DustyHammers/ND2-Emu/releases/latest/download/ND2-macOS.zip)
+### [Download ND2 for macOS: latest version](https://github.com/DustyHammers/ND2-Emu/releases/latest/download/ND2-macOS.zip)
 
 VST3, AU and standalone app in one zip, for macOS 13 or newer. See [Installing on macOS](#installing-on-macos)
 below. Earlier versions are on the [releases page](https://github.com/DustyHammers/ND2-Emu/releases).
 
 ## What's new
+
+### 0.1.5
+
+- Lower CPU use on Apple Silicon: the rest of the faster processor emulation, and a faster sample-rate converter.
+  The sound is identical, sample for sample.
+- The plugin is now universal (Apple Silicon and Intel). Logic Pro running under Rosetta showed only a plain
+  "ND2" window instead of the panel; it now gets the panel.
 
 ### 0.1.4
 

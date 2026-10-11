@@ -1,6 +1,7 @@
 // dsPIC33E core emulator (subset sufficient for the original OS v3.00)
 #pragma once
 #include <cstdint>
+#include <cstring>
 #include <vector>
 #include <string>
 #include <functional>
@@ -14,6 +15,10 @@
 #endif
 
 namespace dspic {
+
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
+#error "CPU::ld16/st16 assume a little-endian host"
+#endif
 
 enum : uint16_t {  // core SFR byte addresses
   A_SPLIM = 0x20, A_ACCAL = 0x22, A_ACCAH = 0x24, A_ACCAU = 0x26,
@@ -64,9 +69,11 @@ public:
     sat_cfg[1] = (cc & CC_SATB) ? ((cc & CC_ACCSAT) ? 0x7FFFFFFFFFLL : 0x7FFFFFFFLL) : 0;
     cur_ipl = (cc & CC_IPL3) ? 8 : ((sr() & SR_IPL) >> 5);
     dsp_frac = !(cc & CC_IF);
+    acc_rnd_conv = !(cc & CC_RND); acc_satdw = (cc & CC_SATDW) != 0;
     int us = (cc & CC_US) >> 12; dsp_sm = us == 0 ? 3 : us == 1 ? 0 : 2;   // 10 = mixed: Wm unsigned x Wn signed
   }
   bool dsp_frac = true; int dsp_sm = 3; int64_t sat_cfg[2] = {0, 0};   // cached from CORCON (sat_cfg: max |acc|, 0 = no saturation)
+  bool acc_rnd_conv = true, acc_satdw = true;                          // cached from CORCON: convergent rounding, SATDW
   uint64_t next_event = 0;      // board asks to be synced when cycles reach this
   uint64_t slow_at = 0;         // next cycle at which the step loop must sync / check interrupts
   void attention() { slow_at = 0; }   // call after changing next_event, irq_prio/irq_vec or the CPU priority
@@ -95,9 +102,12 @@ public:
     return lim > cycles + 1 ? lim - cycles - 1 : 0;   // land strictly before the event: the skipped-to instruction must not be one the interpreter would have preempted
   }
 
-  uint16_t W(int n) const { return ram[2*n] | (ram[2*n+1] << 8); }
-  void setW(int n, uint16_t v) { ram[2*n] = (uint8_t)v; ram[2*n+1] = (uint8_t)(v >> 8); }
-  uint16_t core16(uint16_t a) const { return ram[a] | (ram[a+1] << 8); }
+  // 16-bit little-endian words in ram[]: one load/store (the hosts, x86-64 and arm64, are little-endian)
+  uint16_t ld16(uint32_t a) const { uint16_t v; std::memcpy(&v, ram + a, 2); return v; }
+  void st16(uint32_t a, uint16_t v) { std::memcpy(ram + a, &v, 2); }
+  uint16_t W(int n) const { return ld16(2u * (unsigned)n); }
+  void setW(int n, uint16_t v) { st16(2u * (unsigned)n, v); }
+  uint16_t core16(uint16_t a) const { return ld16(a); }
   static bool is_accreg(uint16_t a) { return a >= A_ACCAL && a < A_PCL; }
   uint16_t accreg_rd(uint16_t a) const {      // word view of ACCxL/H/U
     int b = a >= A_ACCBL; int w = (a - (b ? A_ACCBL : A_ACCAL)) >> 1; int64_t v = accv[b];
@@ -109,7 +119,7 @@ public:
     else v = (v & 0xFFFFFFFFull) | ((uint64_t)(uint8_t)x << 32);
     setacc_raw(b, (int64_t)v);
   }
-  void setcore16(uint16_t a, uint16_t v) { ram[a] = (uint8_t)v; ram[a+1] = (uint8_t)(v >> 8); }
+  void setcore16(uint16_t a, uint16_t v) { st16(a, v); }
   uint16_t sr() const { return core16(A_SR); }   // raw: OA/OB/OAB/SAB are not maintained here (see sr_full)
   uint16_t sr_full() const {                       // architectural SR: accumulator overflow bits derived from ACCA/ACCB
     uint16_t s = core16(A_SR) & ~(SR_OA | SR_OB | SR_OAB | SR_SAB);
@@ -124,9 +134,9 @@ public:
 
   // data space access; plain RAM 0x1000..0x7FFF is the inline fast path
   // (0x8000..0xFFFF is RAM too while DSRPAG/DSWPAG select EDS page 0/1)
-  uint16_t rd16(uint16_t a) { a &= 0xFFFE; if ((uint16_t)(a - 0x1000) < rd_lim) return ram[a] | (ram[a + 1] << 8); return rd16_slow(a); }
+  uint16_t rd16(uint16_t a) { a &= 0xFFFE; if ((uint16_t)(a - 0x1000) < rd_lim) return ld16(a); return rd16_slow(a); }
   uint8_t  rd8(uint16_t a)  { if ((uint16_t)(a - 0x1000) < rd_lim) return ram[a]; return rd8_slow(a); }
-  void wr16(uint16_t a, uint16_t v) { a &= 0xFFFE; if ((uint16_t)(a - 0x1000) < wr_lim) { ram[a] = (uint8_t)v; ram[a + 1] = (uint8_t)(v >> 8); return; } wr16_slow(a, v); }
+  void wr16(uint16_t a, uint16_t v) { a &= 0xFFFE; if ((uint16_t)(a - 0x1000) < wr_lim) { st16(a, v); return; } wr16_slow(a, v); }
   void wr8(uint16_t a, uint8_t v)   { if ((uint16_t)(a - 0x1000) < wr_lim) { ram[a] = v; return; } wr8_slow(a, v); }
   uint16_t rd_lim = 0xF000, wr_lim = 0xF000;
   void update_pages() { rd_lim = core16(A_DSRPAG) <= 1 ? 0xF000 : 0x7000; wr_lim = core16(A_DSWPAG) <= 1 ? 0xF000 : 0x7000; }
@@ -147,6 +157,7 @@ private:
   const Insn& fetch(uint32_t addr) { uint32_t i = (addr & 0x7FFFFE) >> 1; return i < dc_n ? dc[i] : bad_insn; }
   void slow_path();
   template <bool Trace, bool StopPc> void run_loop(uint64_t end, uint32_t stop_pc);
+  template <bool StopPc> void run_fast(uint64_t end, uint32_t stop_pc);   // run_loop<false, StopPc>, threaded dispatch
   void exec_outlined(const Insn& I);
   void do_repeat(int count);
   void halt(const char* why) { halted = true; fault = why; slow_at = 0; }
@@ -175,7 +186,7 @@ private:
   // DSP
   DSPIC_FORCEINLINE void store_acc(int b, int64_t v);              // saturate per CORCON, update OA/SA flags
   DSPIC_FORCEINLINE int64_t product(uint16_t a, uint16_t b, int signmode, bool frac) const;
-  uint16_t acc_word(int b, int shift, bool round);   // SAC/SAC.R/AWB value with SATDW
+  DSPIC_FORCEINLINE uint16_t acc_word(int b, int shift, bool round);   // SAC/SAC.R/AWB value with SATDW
   DSPIC_FORCEINLINE void mac_prefetch_awb(const Insn& I, bool do_awb);
 };
 

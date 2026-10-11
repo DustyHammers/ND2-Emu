@@ -175,15 +175,15 @@ DSPIC_FORCEINLINE int64_t CPU::product(uint16_t a, uint16_t b, int signmode, boo
   int64_t p = x * y;
   return frac ? p * 2 : p;
 }
-uint16_t CPU::acc_word(int b, int shift, bool round) {
+DSPIC_FORCEINLINE uint16_t CPU::acc_word(int b, int shift, bool round) {
   int64_t v = acc(b);
   if (shift > 0) v >>= shift; else if (shift < 0) v = (int64_t)((uint64_t)v << (-shift));
   if (round) {
     uint32_t lo = (uint32_t)v & 0xFFFF;
-    if (corcon() & CC_RND) { if (lo >= 0x8000) v += 0x10000; }
+    if (!acc_rnd_conv) { if (lo >= 0x8000) v += 0x10000; }
     else { if (lo > 0x8000 || (lo == 0x8000 && (v & 0x10000))) v += 0x10000; }
   }
-  if (corcon() & CC_SATDW) {
+  if (acc_satdw) {
     if (v > 0x7FFFFFFFLL) return 0x7FFF;
     if (v < -0x80000000LL) return 0x8000;
   }
@@ -634,11 +634,20 @@ DSPIC_FORCEINLINE void CPU::step_inline() {
   pc = next_pc & 0x7FFFFE;
 }
 
+// The end of the slice is folded into slow_at (clamped to `end`), so the common path tests one bound per instruction.
+// Anything that lowers slow_at only ever sets it to 0, which stays within the clamp.
 template <bool Trace, bool StopPc> void CPU::run_loop(uint64_t end, uint32_t stop_pc) {
   run_end = end;
-  while (cycles < end) {
+  if (slow_at > end) slow_at = end;
+  for (;;) {
+    if (cycles >= slow_at) {
+      if (cycles >= end) break;
+      if (StopPc && pc == stop_pc) break;
+      if (halted) break;
+      slow_path();
+      if (slow_at > end) slow_at = end;
+    }
     if (StopPc && pc == stop_pc) break;
-    if (cycles >= slow_at) { if (halted) break; slow_path(); }
     const Insn& I = fetch(pc);
     next_pc = pc + 2 * I.words;
     cycles += 1;

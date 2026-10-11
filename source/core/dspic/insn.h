@@ -40,7 +40,13 @@ enum Op : uint8_t {
   I_COUNT
 };
 
+// 32 bytes (the decoded-program cache holds one per program word).
 struct Insn {
+  int32_t k = 0;                      // literal / offset / displacement
+  union {                             // never both: branches/calls/CPBxx use target, file-register forms use f
+    uint32_t target = 0;              // branch/call target
+    uint16_t f;                       // file register address
+  };
   Op op = I_INVALID;
   uint8_t words = 1;
   bool byte = false;
@@ -48,9 +54,6 @@ struct Insn {
   uint8_t smode = 0, dmode = 0;       // addressing modes (0..7)
   uint8_t sbreg = 0, dbreg = 0;       // offset registers for [Ws+Wb] / [Wd+Wb]
   bool lit = false;                   // operand 2 is literal
-  int32_t k = 0;                      // literal / offset / displacement
-  uint32_t target = 0;                // branch/call target
-  uint16_t f = 0;                     // file register address
   bool to_wreg = false;               // f-form destination WREG
   uint8_t bit = 0;
   uint8_t cond = 0;
@@ -61,6 +64,8 @@ struct Insn {
   int8_t shift = 0;                   // r4 / k6
   uint8_t hook = 0;                   // 1-based index into CPU::hooks (fast-forward handlers)
 };
+
+static_assert(sizeof(Insn) == 32, "Insn should stay 32 bytes");
 
 Insn decode(uint32_t w, uint32_t w2, uint32_t pc);
 std::string disasm(const Insn& I, uint32_t pc);

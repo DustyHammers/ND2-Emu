@@ -357,9 +357,11 @@ void CPU::run_fast(uint64_t end) {
 #define DSPIC_ENTER() do { ip = &fetch(pc); next_pc = pc + 2 * ip->words; cycles += 1; goto *labels[ip->op]; } while (0)
 #define OPCASE(x) L_##x:
 #define OPDEFAULT
-#define OPEND { instret++; pc = next_pc & 0x7FFFFE; if (cycles >= slow_at) goto L_slow; DSPIC_ENTER(); }
+#define OPEND { dspic_retired_++; pc = next_pc & 0x7FFFFE; if (cycles >= slow_at) goto L_slow; DSPIC_ENTER(); }
+  uint64_t dspic_retired_ = 0;    // instructions retired here, added to instret whenever the fast path is left
   if (cycles < slow_at) DSPIC_ENTER();
 L_slow:
+  instret += dspic_retired_; dspic_retired_ = 0;
   if (cycles >= end || halted) return;
   slow_path();
   if (slow_at > end) slow_at = end;

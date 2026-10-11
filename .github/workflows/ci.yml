@@ -1,5 +1,7 @@
 # CI: data guard (firmware, data files, original names), core and skin tests on Linux, and the macOS build of the
 # plugin (VST3 + AU + Standalone, ad-hoc signed) as a downloadable zip. No job uses firmware, and none may ever need it.
+# On main, a version without a release yet (vX.Y.Z from CMakeLists.txt) is released with that zip as ND2-macOS.zip,
+# so the README's link to releases/latest/download/ND2-macOS.zip always gets the newest version.
 name: CI
 
 on:
@@ -25,6 +27,8 @@ jobs:
           fetch-depth: 0            # every commit is checked, not only the final tree
       - name: Check every commit
         run: python3 scripts/check_no_data.py HEAD
+      - name: README notes for this version
+        run: python3 scripts/release_notes.py --check
 
   linux-tests:
     name: Linux tests (no firmware)
@@ -54,6 +58,8 @@ jobs:
   macos-plugin:
     name: macOS plugin (VST3 + AU + Standalone, Apple Silicon)
     runs-on: macos-15
+    permissions:
+      contents: write           # the release step only, which runs on pushes to main
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_MAXSIZE: 500M
@@ -145,3 +151,14 @@ jobs:
           archive: false
           retention-days: 30
           if-no-files-found: error
+      - name: Release (main only, once per version)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(sed -n 's/^project(ND2Emu VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          if gh release view "v$version" > /dev/null 2>&1; then echo "v$version is already released"; exit 0; fi
+          python3 scripts/release_notes.py > dist/notes.md
+          cp "${{ steps.package.outputs.zip }}" dist/ND2-macOS.zip
+          gh release create "v$version" dist/ND2-macOS.zip --target "$GITHUB_SHA" --title "ND2 $version" \
+            --notes-file dist/notes.md --latest

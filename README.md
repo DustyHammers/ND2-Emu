@@ -5,6 +5,32 @@
 Low-level emulation of a classic six-channel drum synthesizer, running its original OS on an emulated
 dsPIC33E. VST3, AU and standalone for macOS (Apple Silicon).
 
+## Download
+
+### [Download ND2 for macOS (Apple Silicon): latest version](https://github.com/DustyHammers/ND2-Emu/releases/latest/download/ND2-macOS.zip)
+
+VST3, AU and standalone app in one zip, for macOS 13 or newer. See [Installing on macOS](#installing-on-macos)
+below. Earlier versions are on the [releases page](https://github.com/DustyHammers/ND2-Emu/releases).
+
+## What's new
+
+### 0.1.2
+
+- Ableton Live: the VST3 no longer crashes when loaded and the AU is accepted. In Live, Trigger In takes one to
+  six channels; every other host, REAPER included, keeps the six-channel Trigger In.
+- Every build is now tested in a plugin host test (VST3 and AU).
+
+### 0.1.1
+
+- Trigger In takes all six channels (pads 1 to 6) or none. Hosts that asked for a stereo input first got only
+  pads 1 and 2.
+
+### 0.1.0
+
+- First public version: VST3, AU and standalone with the default skin. Main output, six stereo channel outputs,
+  six trigger inputs, MIDI in and out. Each project saves the complete machine, including presets stored on the
+  panel.
+
 ## Firmware
 
 No firmware, OS images, ROMs or presets are included in this repository or its releases, and none will

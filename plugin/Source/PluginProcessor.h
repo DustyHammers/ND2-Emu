@@ -79,6 +79,8 @@ private:
     std::array<std::vector<float>, nd2::Engine::kPads> trig_;
     std::vector<float> scratch_;
     int trigChannels_ = 0;
+    std::atomic<bool> processed_{false};             // diagnostics: processBlock has run
+    bool processedLogged_ = false, runningLogged_ = false;
     bool stems_ = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ND2Processor)

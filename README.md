@@ -16,6 +16,10 @@ below. Earlier versions are on the [releases page](https://github.com/DustyHamme
 
 ### 0.1.6
 
+- Logic Pro, GarageBand and MainStage: ND2 stayed silent and showed a plain "ND2" window. Apple's hosts offer an
+  instrument a mono or stereo input, which ND2's Trigger In refused (all six channels or none), so the host could
+  not start it. There, as in Ableton Live, Trigger In now also takes one to six channels; every other host keeps
+  six or none.
 - A short diagnostic log, `~/Documents/ND2/ND2-log.txt` (also in Console.app, search "ND2:"): each step from the
   host loading ND2 to its panel appearing. It helps find out why Logic Pro shows a plain "ND2" window instead of
   the panel.

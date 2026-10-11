@@ -1,16 +1,19 @@
 // The instruction handlers, shared by the two dispatchers in cpu.cpp (included twice):
 //   switch dispatch (CPU::exec: tracing, stepping, REPEAT, hooks):  OPCASE(x) = case x:, OPEND = break;
 //   threaded dispatch (CPU::run_fast, the normal run):  OPCASE(x) = label, OPEND = next instruction's dispatch.
+// A handler that can change the flow (next_pc other than the following instruction) ends with OPJUMP instead of
+// OPEND. DSPIC_SPILL()/DSPIC_FILL() write the threaded dispatcher's registers (pc, next_pc, cycles) back to the CPU
+// object and reload them, around calls that use the CPU object's copies.
 // In a handler, I is the instruction, B its byte flag, srcv/fdest/wreg/branch the operand helpers. Inner switches
 // and loops use plain break; only OPEND ends a handler.
   OPCASE(I_NOP) OPEND
   // ---------------- control
-  OPCASE(I_BRA) branch(I.target); OPEND
-  OPCASE(I_BRACC) if (cond(I.cond)) branch(I.target); OPEND
-  OPCASE(I_BRAW) branch(pc + 2 + 2 * (int16_t)W(I.ws)); OPEND
-  OPCASE(I_GOTO) next_pc = I.target; cycles += 3; OPEND
-  OPCASE(I_GOTOW) next_pc = W(I.ws) & 0xFFFE; cycles += 3; OPEND
-  OPCASE(I_GOTOL) next_pc = ((W(I.wb) & 0x7F) << 16) | (W(I.ws) & 0xFFFE); cycles += 3; OPEND
+  OPCASE(I_BRA) branch(I.target); OPJUMP
+  OPCASE(I_BRACC) if (cond(I.cond)) branch(I.target); OPJUMP
+  OPCASE(I_BRAW) branch(pc + 2 + 2 * (int16_t)W(I.ws)); OPJUMP
+  OPCASE(I_GOTO) next_pc = I.target; cycles += 3; OPJUMP
+  OPCASE(I_GOTOW) next_pc = W(I.ws) & 0xFFFE; cycles += 3; OPJUMP
+  OPCASE(I_GOTOL) next_pc = ((W(I.wb) & 0x7F) << 16) | (W(I.ws) & 0xFFFE); cycles += 3; OPJUMP
   OPCASE(I_CALL) OPCASE(I_RCALL) OPCASE(I_CALLW) OPCASE(I_RCALLW) OPCASE(I_CALLL) {
     uint32_t ret = next_pc;
     uint32_t t = I.op == I_CALL || I.op == I_RCALL ? I.target
@@ -18,23 +21,23 @@
                : I.op == I_RCALLW ? pc + 2 + 2 * (int16_t)W(I.ws)
                : (((W(I.wb) & 0x7F) << 16) | (W(I.ws) & 0xFFFE));
     push16((uint16_t)ret); push16((ret >> 16) & 0x7F);
-    next_pc = t; cycles += 3; OPEND }
-  OPCASE(I_RETURN) { uint16_t hi = pop16(), lo = pop16(); next_pc = ((hi & 0x7F) << 16) | lo; cycles += 5; OPEND }
+    next_pc = t; cycles += 3; OPJUMP }
+  OPCASE(I_RETURN) { uint16_t hi = pop16(), lo = pop16(); next_pc = ((hi & 0x7F) << 16) | lo; cycles += 5; OPJUMP }
   OPCASE(I_RETLW) { if (B) ram[2 * I.wd] = (uint8_t)I.k; else setW(I.wd, I.k);
-    uint16_t hi = pop16(), lo = pop16(); next_pc = ((hi & 0x7F) << 16) | lo; cycles += 5; OPEND }
+    uint16_t hi = pop16(), lo = pop16(); next_pc = ((hi & 0x7F) << 16) | lo; cycles += 5; OPJUMP }
   OPCASE(I_RETFIE) {
     uint16_t hi = pop16(), lo = pop16();
     setsr((sr() & 0xFF00) | (hi >> 8));
     uint16_t cc = corcon(); setcore16(A_CORCON, (hi & 0x80) ? (cc | CC_IPL3) : (cc & ~CC_IPL3));
     update_ipl();
-    next_pc = ((hi & 0x7F) << 16) | lo; cycles += 5; OPEND }
-  OPCASE(I_REPEAT) do_repeat(I.k); OPEND
-  OPCASE(I_REPEATW) do_repeat(W(I.ws) & 0x3FFF); OPEND
+    next_pc = ((hi & 0x7F) << 16) | lo; cycles += 5; OPJUMP }
+  OPCASE(I_REPEAT) DSPIC_SPILL(); do_repeat(I.k); DSPIC_FILL(); OPJUMP
+  OPCASE(I_REPEATW) DSPIC_SPILL(); do_repeat(W(I.ws) & 0x3FFF); DSPIC_FILL(); OPJUMP
   OPCASE(I_HOOK) {
     const Hook& h = hooks[I.hook - 1];
-    cycles -= 1; h.fn(*this, h.ctx); cycles += 1;     // hook sees the state before this instruction
-    Insn orig = I; orig.op = hooked_op[I.hook - 1]; exec_outlined(orig);
-    OPEND }
+    cycles -= 1; DSPIC_SPILL(); h.fn(*this, h.ctx); DSPIC_FILL(); cycles += 1;     // hook sees the state before this instruction
+    Insn orig = I; orig.op = hooked_op[I.hook - 1]; DSPIC_SPILL(); exec_outlined(orig); DSPIC_FILL();
+    OPJUMP }
   OPCASE(I_DISI) disi_until = cycles + I.k + 1; setcore16(A_DISICNT, I.k); OPEND
   OPCASE(I_RESET) halt("reset instruction"); OPEND
   OPCASE(I_BREAK) halt("break"); OPEND
@@ -188,7 +191,7 @@
     }
     if (I.op >= I_CPBEQ) { if (t) { next_pc = I.target; cycles += 4; } }
     else if (t) skip_next();
-    OPEND }
+    OPJUMP }
   // ---------------- bit ops
   OPCASE(I_BSET) OPCASE(I_BCLR) OPCASE(I_BTG) OPCASE(I_BTST) OPCASE(I_BTSTS) OPCASE(I_BTSS) OPCASE(I_BTSC) OPCASE(I_BTSTW) OPCASE(I_BSW) {
     bool byte = (I.op == I_BSET || I.op == I_BCLR || I.op == I_BTG) ? B : false;
@@ -211,7 +214,7 @@
     default: break;
     }
     if (write) { if (reg) { if (byte) ram[2 * I.ws] = (uint8_t)v; else setW(I.ws, v); } else { if (byte) wr8(a, (uint8_t)v); else wr16(a, v); } }
-    OPEND }
+    OPJUMP }
   OPCASE(I_BSETF) OPCASE(I_BCLRF) OPCASE(I_BTGF) OPCASE(I_BTSTF) OPCASE(I_BTSTSF) OPCASE(I_BTSSF) OPCASE(I_BTSCF) {
     uint16_t a = I.f + (I.bit >> 3); int bit = I.bit & 7;
     uint8_t v = rd8(a); bool bv = (v >> bit) & 1;
@@ -225,7 +228,7 @@
     case I_BTSCF: if (!bv) skip_next(); break;
     default: break;
     }
-    OPEND }
+    OPJUMP }
   OPCASE(I_FBCL) {
     uint16_t v = rd_op(I.smode, I.ws, false); int s = (v >> 15) & 1; int r = -15; bool found = false;
     for (int i = 14; i >= 0; i--) if (((v >> i) & 1) != s) { r = -(14 - i); found = true; break; }
@@ -333,5 +336,5 @@
   OPCASE(I_INVALID) OPCASE(I_DO) OPCASE(I_DOW) OPCASE(I_ED) OPCASE(I_EDAC) OPDEFAULT {
     char b[96]; snprintf(b, sizeof b, "unimplemented/invalid instruction %06x at %06x (%s)", progword(pc), pc, disasm(I, pc).c_str());
     halt(b);
-    OPEND }
+    OPJUMP }
 

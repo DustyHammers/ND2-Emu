@@ -157,6 +157,10 @@ private:
   void slow_path();
   template <bool Trace, bool StopPc> void run_loop(uint64_t end, uint32_t stop_pc);
   template <bool StopPc> void run_fast(uint64_t end, uint32_t stop_pc);   // run_loop<false, StopPc>, threaded dispatch
+  // run_fast keeps pc, next_pc and cycles in registers; these move them to and from the object
+  void store_pc_cycles(uint32_t p, uint32_t np, uint64_t c) { pc = p; next_pc = np; cycles = c; }
+  void load_pc_cycles(uint32_t& p, uint32_t& np, uint64_t& c) const { p = pc; np = next_pc; c = cycles; }
+  void store_cycles(uint64_t c) { cycles = c; }
   void exec_outlined(const Insn& I);
   void do_repeat(int count);
   void halt(const char* why) { halted = true; fault = why; slow_at = 0; }
@@ -190,7 +194,7 @@ private:
 public:
   // data space (W regs, core SFRs, RAM incl. EDS page 1). Last member on purpose: the hot scalars above stay at
   // small offsets from `this` (short addressing on arm64, fewer pinned registers on x86-64).
-  uint8_t ram[0x10000];
+  alignas(64) uint8_t ram[0x10000];
 };
 
 }  // namespace dspic

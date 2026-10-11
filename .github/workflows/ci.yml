@@ -109,6 +109,23 @@ jobs:
           killall -9 AudioComponentRegistrar 2>/dev/null || true
           auval -a | grep -i nd2e || true
           auval -v aumu Nd2E DHmr
+      - name: Host tests with pluginval (VST3 and AU, strictness 10; no firmware)
+        run: |
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_macOS.zip
+          unzip -q pluginval.zip
+          pv=pluginval.app/Contents/MacOS/pluginval
+          mkdir -p ~/Library/Audio/Plug-Ins/VST3
+          cp -R build/plugin/plugin/ND2_artefacts/Release/VST3/ND2.vst3 ~/Library/Audio/Plug-Ins/VST3/
+          $pv --strictness-level 10 --timeout-ms 300000 --output-dir pluginval-logs ~/Library/Audio/Plug-Ins/VST3/ND2.vst3
+          $pv --strictness-level 10 --timeout-ms 300000 --output-dir pluginval-logs ~/Library/Audio/Plug-Ins/Components/ND2.component
+      - name: Upload pluginval logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pluginval-logs
+          path: pluginval-logs
+          retention-days: 7
+          if-no-files-found: ignore
       - name: Package
         id: package
         run: |

@@ -64,6 +64,7 @@ private:
     };
 
     static BusesProperties buses();
+    static bool acceptsFewerTriggerChannels();       // the host takes no 6-channel Trigger In (Ableton Live)
     void timerCallback() override;
     void startMachine();                             // the OS (and the factory memory) are there: boot or restore
     bool channelOutsEnabled() const;

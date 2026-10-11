@@ -199,6 +199,8 @@ static const uint8_t kWm[8][2] = {{4,5},{4,6},{4,7},{0,0},{5,6},{5,7},{6,7},{0,0
 //   smode / dmode  X / Y prefetch: 0 none, 1 [Wr] with post-modify, 2 [W9+W12] / [W11+W12]
 //   wb / ws        X / Y register for kind 1 (W8/W9, W10/W11);  sbreg / dbreg  its post-modify (int8)
 //   wd             write-back: 0 none, 1 W13, 2 [W13]+=2 (none for MPY, MPY.N, MAC/MPY Wm*Wm)
+//   bit / cond     the multiplicand registers
+// SFTAC #k: k clamped to -16..16.
 static void prefetch_kind(int c, int base, uint8_t& kind, uint8_t& reg, uint8_t& inc) {
   if (c == 0xC) { kind = 2; reg = 0; inc = 0; }
   else if ((c & 7) == 4) { kind = 0; reg = 0; inc = 0; }
@@ -211,7 +213,14 @@ static void predecode(Insn& I) {
     prefetch_kind(I.jjjj, 10, I.dmode, I.ws, I.dbreg);
     const bool awb = I.op == I_MAC || I.op == I_MSC || I.op == I_CLRAC || I.op == I_MOVSAC;
     I.wd = awb && I.aa < 2 ? (uint8_t)(I.aa + 1) : 0;
+    // bit / cond: the multiplicand registers (Wm*Wn; Wm*Wm for the squaring forms)
+    if (I.op == I_MACSQ || I.op == I_MPYSQ) { I.bit = I.cond = (uint8_t)(4 + I.mm); }
+    else { I.bit = kWm[I.mm][0]; I.cond = kWm[I.mm][1]; }
     break; }
+  case I_SFTACK:                                  // the constant shift, clamped as the instruction does
+    if (I.shift > 16) I.shift = 16;
+    if (I.shift < -16) I.shift = -16;
+    break;
   default: break;
   }
 }

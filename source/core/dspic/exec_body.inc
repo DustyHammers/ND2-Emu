@@ -242,14 +242,23 @@
     for (int i = 0; i < 16; i++) if ((v >> i) & 1) { r = i + 1; break; }
     setW(I.wd, (uint16_t)r); setflag(SR_C, v == 0); OPEND }
   // ---------------- multiply / divide
-  OPCASE(I_MUL) OPCASE(I_MULW) OPCASE(I_MULACC) {
+  // MUL / MULW / MULACC: Wb x Ws (or #lit5, unsigned); separate handlers, same arithmetic
+  OPCASE(I_MUL) {
     uint16_t s = I.lit ? (uint16_t)I.k : rd_op(I.smode, I.ws, false);
     int sm = I.sign; if (I.lit) sm &= 1;     // literal is unsigned
     int64_t p = product(W(I.wb), s, sm, false);
-    if (I.op == I_MUL) { setW(I.wd, (uint16_t)p); setW(I.wd + 1, (uint16_t)((uint64_t)p >> 16)); }
-    else if (I.op == I_MULW) setW(I.wd, (uint16_t)p);
-    else { if (mul_acc_fractional && !(corcon() & CC_IF)) p *= 2; store_acc(I.acc, p); }
-    OPEND }
+    setW(I.wd, (uint16_t)p); setW(I.wd + 1, (uint16_t)((uint64_t)p >> 16)); OPEND }
+  OPCASE(I_MULW) {
+    uint16_t s = I.lit ? (uint16_t)I.k : rd_op(I.smode, I.ws, false);
+    int sm = I.sign; if (I.lit) sm &= 1;
+    int64_t p = product(W(I.wb), s, sm, false);
+    setW(I.wd, (uint16_t)p); OPEND }
+  OPCASE(I_MULACC) {
+    uint16_t s = I.lit ? (uint16_t)I.k : rd_op(I.smode, I.ws, false);
+    int sm = I.sign; if (I.lit) sm &= 1;
+    int64_t p = product(W(I.wb), s, sm, false);
+    if (mul_acc_fractional && dsp_frac) p *= 2;   // dsp_frac = !CORCON.IF
+    store_acc(I.acc, p); OPEND }
   OPCASE(I_DIV) {
     uint16_t s = sr() & ~(SR_N | SR_Z | SR_C | SR_OV);
     int32_t q = 0, r = 0; bool ov = false;
@@ -305,13 +314,14 @@
   // ---------------- DSP
   // MAC class: one case per operation (same arithmetic and order as one shared case: product, accumulator, then
   // the prefetches and the accumulator write-back; MPY/MPYN/MACSQ/MPYSQ have no write-back)
-  OPCASE(I_MAC) { int64_t p = product(W(kWm[I.mm][0]), W(kWm[I.mm][1]), dsp_sm, dsp_frac);
+  // multiplicand registers (Wm, Wn) pre-decoded into bit / cond (see predecode in cpu.cpp)
+  OPCASE(I_MAC) { int64_t p = product(W(I.bit), W(I.cond), dsp_sm, dsp_frac);
     store_acc(I.acc, acc(I.acc) + p); mac_prefetch_awb(I, true); OPEND }
-  OPCASE(I_MSC) { int64_t p = product(W(kWm[I.mm][0]), W(kWm[I.mm][1]), dsp_sm, dsp_frac);
+  OPCASE(I_MSC) { int64_t p = product(W(I.bit), W(I.cond), dsp_sm, dsp_frac);
     store_acc(I.acc, acc(I.acc) - p); mac_prefetch_awb(I, true); OPEND }
-  OPCASE(I_MPY) { int64_t p = product(W(kWm[I.mm][0]), W(kWm[I.mm][1]), dsp_sm, dsp_frac);
+  OPCASE(I_MPY) { int64_t p = product(W(I.bit), W(I.cond), dsp_sm, dsp_frac);
     store_acc(I.acc, p); mac_prefetch_awb(I, false); OPEND }
-  OPCASE(I_MPYN) { int64_t p = product(W(kWm[I.mm][0]), W(kWm[I.mm][1]), dsp_sm, dsp_frac);
+  OPCASE(I_MPYN) { int64_t p = product(W(I.bit), W(I.cond), dsp_sm, dsp_frac);
     store_acc(I.acc, -p); mac_prefetch_awb(I, false); OPEND }
   OPCASE(I_CLRAC) store_acc(I.acc, 0); mac_prefetch_awb(I, true); OPEND
   OPCASE(I_MOVSAC) mac_prefetch_awb(I, true); OPEND
@@ -319,20 +329,31 @@
     store_acc(I.acc, acc(I.acc) + p); mac_prefetch_awb(I, false); OPEND }
   OPCASE(I_MPYSQ) { uint16_t v = W(4 + I.mm); int64_t p = product(v, v, dsp_sm, dsp_frac);
     store_acc(I.acc, p); mac_prefetch_awb(I, false); OPEND }
-  OPCASE(I_SFTACK) OPCASE(I_SFTACW) {
-    int k = I.op == I_SFTACK ? I.shift : (int)(int16_t)W(I.wb);
-    if (k > 16) k = 16; if (k < -16) k = -16;
+  OPCASE(I_SFTACK) {                          // shift clamped to -16..16 at decode time
+    const int k = I.shift;
     int64_t v = acc(I.acc);
     v = k >= 0 ? (v >> k) : (int64_t)((uint64_t)v << (-k));
     store_acc(I.acc, v); OPEND }
-  OPCASE(I_LAC) OPCASE(I_ADDACW) {
+  OPCASE(I_SFTACW) {
+    int k = (int)(int16_t)W(I.wb);
+    if (k > 16) k = 16;
+    if (k < -16) k = -16;
+    int64_t v = acc(I.acc);
+    v = k >= 0 ? (v >> k) : (int64_t)((uint64_t)v << (-k));
+    store_acc(I.acc, v); OPEND }
+  OPCASE(I_LAC) {
     int64_t x = (int64_t)(int16_t)rd_op(I.smode, I.ws, false, I.sbreg) * 65536;
     x = I.shift >= 0 ? (x >> I.shift) : (int64_t)((uint64_t)x << (-I.shift));
-    store_acc(I.acc, I.op == I_LAC ? x : acc(I.acc) + x); OPEND }
+    store_acc(I.acc, x); OPEND }
+  OPCASE(I_ADDACW) {
+    int64_t x = (int64_t)(int16_t)rd_op(I.smode, I.ws, false, I.sbreg) * 65536;
+    x = I.shift >= 0 ? (x >> I.shift) : (int64_t)((uint64_t)x << (-I.shift));
+    store_acc(I.acc, acc(I.acc) + x); OPEND }
   OPCASE(I_ADDAB) store_acc(I.acc, acc(I.acc) + acc(!I.acc)); OPEND
   OPCASE(I_SUBAB) store_acc(I.acc, acc(I.acc) - acc(!I.acc)); OPEND
   OPCASE(I_NEGAB) store_acc(I.acc, -acc(I.acc)); OPEND
-  OPCASE(I_SAC) OPCASE(I_SACR) wr_op(I.smode, I.ws, false, acc_word(I.acc, I.shift, I.op == I_SACR), I.sbreg); OPEND
+  OPCASE(I_SAC) wr_op(I.smode, I.ws, false, acc_word(I.acc, I.shift, false), I.sbreg); OPEND
+  OPCASE(I_SACR) wr_op(I.smode, I.ws, false, acc_word(I.acc, I.shift, true), I.sbreg); OPEND
   OPCASE(I_INVALID) OPCASE(I_DO) OPCASE(I_DOW) OPCASE(I_ED) OPCASE(I_EDAC) OPDEFAULT {
     char b[96]; snprintf(b, sizeof b, "unimplemented/invalid instruction %06x at %06x (%s)", progword(pc), pc, disasm(I, pc).c_str());
     halt(b);

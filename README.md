@@ -20,6 +20,7 @@ below. Earlier versions are on the [releases page](https://github.com/DustyHamme
   The sound is identical, sample for sample.
 - The plugin is now universal (Apple Silicon and Intel). Logic Pro running under Rosetta showed only a plain
   "ND2" window instead of the panel; it now gets the panel.
+- The panel opens faster: its images are decoded on all cores at once instead of one after another.
 
 ### 0.1.4
 

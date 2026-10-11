@@ -21,7 +21,7 @@ each layer paints.
 
 Background layers (bottom to top), one PNG each, all the same size so they stack exactly
 -----------------------------------------------------------------------------------------
-ND2Layer01Body.png       red body; bevelled edge (7 dp top and sides, 16 dp bottom), light from straight above
+ND2Layer01Body.png       red body; bevelled top and sides (7 dp), rounded bottom edge (16 dp), light from above
 ND2Layer02Panels.png     black panel print (main panel, lower-param area, encoder circle, TRIG box)
 ND2Layer03Display.png    display window (the digits are separate sprites on top)
 ND2Layer04Cutouts.png    the holes the buttons come up through (3 dp gap) and the buttons' shadows in them
@@ -49,7 +49,7 @@ ND2GreenLed.png         same, green. The six TRIG / MG LEDs.
                         The lit frame fades in over the unlit one at the LED's brightness (the OS
                         dims some LEDs).
 ND2MasterKnob.png       128 frames, 14 per row, 240 px cells (2x of 120 dp), 240 degrees; sandblasted grain
-                        that turns with the knob. Shown in a 141 dp element.
+                        that turns with the knob. Shown in a 131 dp element.
 ND2Encoder.png          value encoder: 72 frames = one full turn (5 degrees per frame), 12 per row,
                         448 px cells (2x of 224 dp). Seamless: frame 71 runs straight into frame 0.
                         Modelled on the hardware: flat sandblasted top, 18 flat side facets with fine

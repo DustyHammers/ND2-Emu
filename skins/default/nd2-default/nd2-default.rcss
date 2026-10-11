@@ -284,7 +284,7 @@ segdigit seg.a { decorator: image(seg_a); } segdigit seg.b { decorator: image(se
 #l_28 { left: 1422dp; top: 262dp; width: 22dp; height: 22dp; }
 #l_30 { left: 1422dp; top: 301dp; width: 22dp; height: 22dp; }
 #l_7 { left: 196dp; top: 621dp; width: 22dp; height: 22dp; }
-#master { left: 82.5dp; top: 294.5dp; width: 141dp; height: 141dp; }
+#master { left: 87.5dp; top: 299.5dp; width: 131dp; height: 131dp; }
 #value { left: 789dp; top: 709dp; width: 224dp; height: 224dp; }
 #d0 { left: 496dp; top: 248dp; width: 88dp; height: 106dp; }
 #d1 { left: 554dp; top: 248dp; width: 88dp; height: 106dp; }

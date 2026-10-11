@@ -60,16 +60,17 @@ const text = (t, x, y, extra = '', cls = 'lbl ctr') => el('text', `left:${x}px;t
 const tag = (t, x, y, extra = '', cls = 'tag') => el('tagboxes text', `left:${x}px;top:${y}px;${extra}`, t, cls);
 
 // 02 body
-// body with a bevelled edge: 7 dp at the top and sides, 16 dp at the bottom. Light from straight above: the bevel
-// faces turn away from it, so they are a little darker than the top, the steeper bottom one most.
+// body: bevelled top and sides (7 dp), the bottom edge rounded over (16 dp). Light from straight above: the bevels
+// turn away from it a little; the rounded edge darkens as it curves down (brightness ~ the cosine of its slope).
 const BEV = { side: 7, top: 7, bottom: 16 }, BW = 1725, BH = 1035;
 { const facet = (pts, bg) => `<div style="position:absolute;inset:0;clip-path:polygon(${pts});background:${bg}"></div>`;
   const s = BEV.side, t = BEV.top, b = BEV.bottom;
+  // the rounded lip first, then the bevels as shades over it (so they run into the lip at the corners)
   el('body', `left:0;top:0;width:${BW}px;height:${BH}px;border-radius:12px;overflow:hidden;background:var(--red)`,
-    facet(`0 0,${BW}px 0,${BW - s}px ${t}px,${s}px ${t}px`, 'linear-gradient(to bottom,#b51c25,#bf1f28)') +
-    facet(`0 0,${s}px ${t}px,${s}px ${BH - b}px,0 ${BH}px`, 'linear-gradient(to right,#ad1a23,#b91e27)') +
-    facet(`${BW}px 0,${BW}px ${BH}px,${BW - s}px ${BH - b}px,${BW - s}px ${t}px`, 'linear-gradient(to left,#ad1a23,#b91e27)') +
-    facet(`${s}px ${BH - b}px,${BW - s}px ${BH - b}px,${BW}px ${BH}px,0 ${BH}px`, 'linear-gradient(to bottom,#a3171f,#86121a)')); }
+    `<div style="position:absolute;left:0;right:0;bottom:0;height:${b}px;background:linear-gradient(to bottom,rgb(201,33,42) 0%,rgb(200,33,42) 15%,rgb(196,32,41) 30%,rgb(189,31,39) 45%,rgb(178,29,37) 60%,rgb(165,27,35) 72%,rgb(151,25,32) 82%,rgb(135,22,28) 90%,rgb(117,19,24) 96%,rgb(84,14,18) 100%)"></div>` +
+    facet(`0 0,${BW}px 0,${BW - s}px ${t}px,${s}px ${t}px`, 'linear-gradient(to bottom,rgba(0,0,0,.10),rgba(0,0,0,.05))') +
+    facet(`0 0,${s}px ${t}px,${s}px ${BH - b}px,0 ${BH}px`, 'linear-gradient(to right,rgba(0,0,0,.14),rgba(0,0,0,.08))') +
+    facet(`${BW}px 0,${BW}px ${BH}px,${BW - s}px ${BH - b}px,${BW - s}px ${t}px`, 'linear-gradient(to left,rgba(0,0,0,.14),rgba(0,0,0,.08))')); }
 // 03 panels (black print)
 el('panels', `left:100px;top:175px;width:1515px;height:520px;border-radius:42px;background:var(--panel)`);
 el('panels', `left:445px;top:712px;width:520px;height:236px;border-radius:34px;background:var(--panel)`);
@@ -123,7 +124,7 @@ text('REPEAT TEMPO', 557, 834);
 text('TRIG', 1398, 724);
 text('TRIG LEVEL', 1398, 832);
 // 09 wordmark (placeholder lettering)
-el('wordmark', `right:85px;top:880px;color:#fff;font-weight:800;font-size:88px;letter-spacing:-.01em;line-height:1;font-family:'Liberation Sans',Arial,sans-serif`, 'nd2 Emu');
+el('wordmark', `right:85px;top:893px;color:#fff;font-weight:800;font-size:75px;letter-spacing:-.01em;line-height:1;font-family:'Liberation Sans',Arial,sans-serif`, 'nd2 Emu');
 
 // ---- controls (sprite elements in the skin; drawn here for the preview / GIMP reference layer)
 const C = (o) => controls.push(o);
@@ -152,8 +153,8 @@ const led = (code, x, y, green) => {
 parX.forEach((x,i) => { led(LED_UP[i], x, 425); led(LED_LO[i], x, 512); });
 chX.forEach((x,i) => { led(LED_PK[i], x, 273, false); led(LED_TG[i], x, 312, true); });
 led(LED_SOLO, 207, 632);
-// master knob: 128 frames, 240 px cells at 2x (the knob is 172 px of its cell); shown 7.5 % larger than first drawn
-{ const c = 141, f = Math.round(PREVIEW.master * 127), sc = c / 240;
+// master knob: 128 frames, 240 px cells at 2x (the knob is 172 px of its cell -> 131 dp element)
+{ const c = 131, f = Math.round(PREVIEW.master * 127), sc = c / 240;
   C({ type: 'knob', id: 'master', x: 153 - c/2, y: 365 - c/2, w: c, h: c, frames: 128 });
   el('controls', `left:${153 - c/2}px;top:${365 - c/2}px;width:${c}px;height:${c}px;background:url(../../skins/default/nd2-default/ND2MasterKnob.png) ${-(f % 14) * c}px ${-Math.floor(f / 14) * c}px/${3360 * sc}px ${2400 * sc}px`); }
 

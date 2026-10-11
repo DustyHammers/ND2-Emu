@@ -51,7 +51,6 @@ class CPU {
 public:
   CPU();
   std::vector<uint32_t> prog;   // 24-bit program words, index = pc/2
-  uint8_t ram[0x10000];         // data space (W regs, core SFRs, RAM incl. EDS page 1)
   Bus* bus = nullptr;
   bool mul_acc_fractional = true;   // MUL.xx Wb,Ws,Acc obeys CORCON.IF (fractional <<1)
 
@@ -188,6 +187,10 @@ private:
   DSPIC_FORCEINLINE int64_t product(uint16_t a, uint16_t b, int signmode, bool frac) const;
   DSPIC_FORCEINLINE uint16_t acc_word(int b, int shift, bool round);   // SAC/SAC.R/AWB value with SATDW
   DSPIC_FORCEINLINE void mac_prefetch_awb(const Insn& I, bool do_awb);
+public:
+  // data space (W regs, core SFRs, RAM incl. EDS page 1). Last member on purpose: the hot scalars above stay at
+  // small offsets from `this` (short addressing on arm64, fewer pinned registers on x86-64).
+  uint8_t ram[0x10000];
 };
 
 }  // namespace dspic

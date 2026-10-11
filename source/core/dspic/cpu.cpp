@@ -352,12 +352,18 @@ template <bool StopPc> void CPU::run_fast(uint64_t end, uint32_t stop_pc) {
   uint64_t dspic_retired_ = 0;    // instructions retired here, added to instret whenever the fast path is left
 #define I (*ip)
 #define B (ip->byte)
-  auto srcv = [&]() -> uint16_t { return I.lit ? (uint16_t)I.k : rd_op(I.smode, I.ws, B, I.sbreg); };
-  auto fdest = [&](uint16_t v) { if (I.to_wreg) { if (B) ram[0] = (uint8_t)v; else setW(0, v); } else wr_f(I.f, B, v); };
-  auto wreg = [&]() -> uint16_t { return B ? (W(0) & 0xFF) : W(0); };
-  auto branch = [&](uint32_t t) { next_pc = t; cycles += 3; };
+  // the operand helpers as macros (lambdas capturing ip by reference would keep ip in memory); each argument is
+  // evaluated exactly once, as with the lambdas in exec
+#define srcv() (I.lit ? (uint16_t)I.k : rd_op(I.smode, I.ws, B, I.sbreg))
+#define fdest(v) do { uint16_t fdv_ = (uint16_t)(v); \
+    if (I.to_wreg) { if (B) ram[0] = (uint8_t)fdv_; else setW(0, fdv_); } else wr_f(I.f, B, fdv_); } while (0)
+#define wreg() ((uint16_t)(B ? (W(0) & 0xFF) : W(0)))
+#define branch(t) do { uint32_t brt_ = (t); next_pc = brt_; cycles += 3; } while (0)
+  // the decoded program: entries may be re-decoded during a run (flash writes, hooks), but the table never moves
+  const Insn* const dcl = dc; const uint32_t dcn = dc_n; const Insn* const badp = &bad_insn;
 #define DSPIC_ENTER() do { if (StopPc && pc == stop_pc) goto L_exit; \
-    ip = &fetch(pc); next_pc = pc + 2 * ip->words; cycles += 1; goto *labels[ip->op]; } while (0)
+    { uint32_t ix_ = (pc & 0x7FFFFE) >> 1; ip = ix_ < dcn ? dcl + ix_ : badp; } \
+    next_pc = pc + 2 * ip->words; cycles += 1; goto *labels[ip->op]; } while (0)
 #define OPCASE(x) L_##x:
 #define OPDEFAULT
 #define OPEND { dspic_retired_++; pc = next_pc & 0x7FFFFE; if (cycles >= slow_at) goto L_slow; DSPIC_ENTER(); }
@@ -374,6 +380,10 @@ L_exit:
 #undef OPDEFAULT
 #undef OPEND
 #undef DSPIC_ENTER
+#undef srcv
+#undef fdest
+#undef wreg
+#undef branch
 #undef B
 #undef I
 #else

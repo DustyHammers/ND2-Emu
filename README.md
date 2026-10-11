@@ -14,6 +14,10 @@ below. Earlier versions are on the [releases page](https://github.com/DustyHamme
 
 ## What's new
 
+### 0.1.3
+
+- Slightly lower CPU use from a faster emulation of the processor. The sound is identical, sample for sample.
+
 ### 0.1.2
 
 - Ableton Live: the VST3 no longer crashes when loaded and the AU is accepted. In Live, Trigger In takes one to

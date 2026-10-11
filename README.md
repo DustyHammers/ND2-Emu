@@ -21,6 +21,8 @@ below. Earlier versions are on the [releases page](https://github.com/DustyHamme
 - The plugin is now universal (Apple Silicon and Intel). Logic Pro running under Rosetta showed only a plain
   "ND2" window instead of the panel; it now gets the panel.
 - The panel opens faster: its images are decoded on all cores at once instead of one after another.
+- Smaller download: the panel's images are stored once in each plugin instead of inside the program (where a
+  universal build would hold them twice), and the two animation sheets are compressed better.
 
 ### 0.1.4
 
@@ -86,7 +88,6 @@ ND2 creates `~/Documents/ND2/` the first time it runs, with three folders:
   skins/     your own skins: a folder <name> containing <name>.rml and its files; listed under right-click > Skin
   cache/     made by ND2, safe to delete:
              factory-<id>.flash        the factory memory built from your bank files (shared by new instances)
-             skin-default-<id>/        the built-in skin, unpacked
   skin-log.txt   skin messages, only while right-click > Developer > Write skin log is on
 ```
 

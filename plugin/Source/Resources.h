@@ -45,8 +45,7 @@ public:
     // Changes whenever the OS or the factory memory changes (instances react to it).
     uint32_t serial() const { return serial_.load(); }
 
-    // The Default skin unpacked from the plugin into the cache folder (once per build of the plugin). Returns its
-    // folder (empty on failure).
+    // The Default skin's folder inside the plugin bundle (Contents/Resources/nd2-default); empty if it is missing.
     juce::File defaultSkinFolder();
 
 private:

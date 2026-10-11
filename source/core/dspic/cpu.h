@@ -51,7 +51,6 @@ class CPU {
 public:
   CPU();
   std::vector<uint32_t> prog;   // 24-bit program words, index = pc/2
-  uint8_t ram[0x10000];         // data space (W regs, core SFRs, RAM incl. EDS page 1)
   Bus* bus = nullptr;
   bool mul_acc_fractional = true;   // MUL.xx Wb,Ws,Acc obeys CORCON.IF (fractional <<1)
 
@@ -158,6 +157,10 @@ private:
   void slow_path();
   template <bool Trace, bool StopPc> void run_loop(uint64_t end, uint32_t stop_pc);
   template <bool StopPc> void run_fast(uint64_t end, uint32_t stop_pc);   // run_loop<false, StopPc>, threaded dispatch
+  // run_fast keeps pc, next_pc and cycles in registers; these move them to and from the object
+  void store_pc_cycles(uint32_t p, uint32_t np, uint64_t c) { pc = p; next_pc = np; cycles = c; }
+  void load_pc_cycles(uint32_t& p, uint32_t& np, uint64_t& c) const { p = pc; np = next_pc; c = cycles; }
+  void store_cycles(uint64_t c) { cycles = c; }
   void exec_outlined(const Insn& I);
   void do_repeat(int count);
   void halt(const char* why) { halted = true; fault = why; slow_at = 0; }
@@ -188,6 +191,10 @@ private:
   DSPIC_FORCEINLINE int64_t product(uint16_t a, uint16_t b, int signmode, bool frac) const;
   DSPIC_FORCEINLINE uint16_t acc_word(int b, int shift, bool round);   // SAC/SAC.R/AWB value with SATDW
   DSPIC_FORCEINLINE void mac_prefetch_awb(const Insn& I, bool do_awb);
+public:
+  // data space (W regs, core SFRs, RAM incl. EDS page 1). Last member on purpose: the hot scalars above stay at
+  // small offsets from `this` (short addressing on arm64, fewer pinned registers on x86-64).
+  alignas(64) uint8_t ram[0x10000];
 };
 
 }  // namespace dspic

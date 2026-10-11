@@ -64,7 +64,7 @@ void ND2Editor::showSkin(const juce::String& name, const juce::String& notice) {
     if (name == SkinSettings::kDefault) {
         folder = Resources::get().defaultSkinFolder();
         file = "nd2-default";
-        if (!folder.isDirectory()) { showFallback("The Default skin could not be unpacked to ~/Documents/ND2/cache/."); return; }
+        if (!folder.isDirectory()) { showFallback("The Default skin is missing from the plugin (Contents/Resources/nd2-default). Please reinstall ND2."); return; }
     } else {
         if (!skinNames().contains(name)) {
             skinFailed(name, "it is not in ~/Documents/ND2/skins/ (a skin is a folder <name> containing <name>.rml)");

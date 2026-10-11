@@ -1,7 +1,11 @@
 // ROM-free tests: rate converter, MIDI parser and message ring.
 #include "util/midi_stream.h"
 #include "util/rate_converter.h"
+#include "rate_converter_v1.h"
+#include <cstring>
+#include <random>
 #include <cmath>
+#include <numeric>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -44,8 +48,61 @@ static double snrDb(int host, double f, int block) {
   return 10 * std::log10(sig / std::max(err, 1e-30));
 }
 
+// The current converter against the 0.1.2 one (tests/reference): bit-identical output for both engine designs,
+// several channel counts and host rates, with blocks of varying size. Run on every CI platform, so it checks each
+// compiler's floating-point code generation (on arm64 the rounding of a multiply-add depends on the code shape).
+template <class Conv> static std::vector<float> convert(const RateConverter::Design& d, int channels, uint32_t seed) {
+  Conv rc;
+  typename Conv::Design dd;
+  dd.inHz = d.inHz; dd.outHz = d.outHz; dd.inStep = d.inStep; dd.outStep = d.outStep;
+  dd.taps = d.taps; dd.passHz = d.passHz; dd.beta = d.beta;
+  rc.setup(channels, dd);
+  std::mt19937 rng(seed);
+  std::uniform_real_distribution<float> u(-1.0f, 1.0f);
+  std::uniform_int_distribution<int> blk(1, 300);
+  std::vector<float> all;
+  std::vector<std::vector<float>> in(static_cast<size_t>(channels));
+  std::vector<std::vector<float>> out(static_cast<size_t>(channels), std::vector<float>(300));
+  for (int done = 0; done < 6000;) {
+    const int n = blk(rng);
+    const int64_t need = rc.inputNeeded(n);
+    std::vector<const float*> ip(static_cast<size_t>(channels));
+    for (int c = 0; c < channels; c++) {
+      in[size_t(c)].resize(size_t(need));
+      for (auto& v : in[size_t(c)]) v = u(rng);
+      ip[size_t(c)] = in[size_t(c)].data();
+    }
+    rc.push(ip.data(), int(need));
+    std::vector<float*> op(static_cast<size_t>(channels));
+    for (int c = 0; c < channels; c++) op[size_t(c)] = out[size_t(c)].data();
+    rc.produce(op.data(), n);
+    for (int c = 0; c < channels; c++) all.insert(all.end(), out[size_t(c)].begin(), out[size_t(c)].begin() + n);
+    done += n;
+  }
+  return all;
+}
+
+static void identicalToV1() {
+  for (int host : {44100, 48000, 88200, 96000}) {
+    RateConverter::Design od = outDesign(host);
+    { const int64_t g = std::gcd(od.inStep, od.outStep); od.inStep /= g; od.outStep /= g; }
+    RateConverter::Design td;                                     // the trigger inputs: host rate -> ADC scan rate
+    td.inHz = host; td.outHz = 78e6 / 5168; td.inStep = int64_t(host) * 5168; td.outStep = 78000000;
+    { const int64_t g = std::gcd(td.inStep, td.outStep); td.inStep /= g; td.outStep /= g; }
+    td.taps = 32; td.beta = 6.0; td.passHz = 6000;
+    for (const RateConverter::Design* d : {&od, &td})
+      for (int ch : {1, 2, 6, 14}) {
+        const auto a = convert<RateConverter>(*d, ch, uint32_t(host + ch));
+        const auto b = convert<reference::RateConverterV1>(*d, ch, uint32_t(host + ch));
+        CHECK(a.size() == b.size() && std::memcmp(a.data(), b.data(), a.size() * sizeof(float)) == 0,
+              "converter output differs from 0.1.2 (%s, %d Hz, %d channels)", d == &od ? "output" : "trigger", host, ch);
+      }
+  }
+}
+
 int main() {
   // ---- rate converter
+  identicalToV1();
   for (int host : {44100, 48000, 96000}) {
     const double s = snrDb(host, 1000.0, 256);
     printf("38085.9375 -> %d Hz, 1 kHz sine: SNR %.1f dB\n", host, s);

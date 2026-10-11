@@ -21,11 +21,13 @@ bool decodeImage(const std::vector<uint8_t>& file, std::vector<uint8_t>& rgba, i
     rgba.resize(size_t(w) * size_t(h) * 4);
     const juce::Image::BitmapData bd(img, juce::Image::BitmapData::readOnly);
     uint8_t* out = rgba.data();
-    for (int y = 0; y < h; ++y)
-        for (int x = 0; x < w; ++x) {
-            const auto* p = reinterpret_cast<const juce::PixelARGB*>(bd.getPixelPointer(x, y));   // premultiplied
+    for (int y = 0; y < h; ++y) {
+        const uint8_t* line = bd.getLinePointer(y);
+        for (int x = 0; x < w; ++x, line += bd.pixelStride) {
+            const auto* p = reinterpret_cast<const juce::PixelARGB*>(line);                     // premultiplied
             *out++ = p->getRed(); *out++ = p->getGreen(); *out++ = p->getBlue(); *out++ = p->getAlpha();
         }
+    }
     return true;
 }
 }  // namespace
@@ -124,6 +126,13 @@ void RmlSkinComponent::writeLog(void* self, const std::string& line) {
 void RmlSkinComponent::startLoad() {
     if (!view_ || name_.empty()) return;
     writeLog(this, "--- " + juce::Time::getCurrentTime().toString(true, true).toStdString() + ": loading skin \"" + name_ + "\" from " + folder_);
+    {                                                  // decode the skin's images in parallel before the first frame
+        std::vector<std::string> images;
+        for (const auto& f : juce::File(juce::String::fromUTF8(folder_.c_str())).findChildFiles(juce::File::findFiles, false, "*.png;*.jpg;*.jpeg;*.gif"))
+            images.push_back(f.getFullPathName().toStdString());
+        renderer_->prefetch(images);
+        dropPrefetch_ = true;
+    }
     std::string err;
     const bool ok = view_->load(folder_, name_, err);
     writeLog(this, ok ? std::string("loaded") : "not loaded: " + err);
@@ -180,6 +189,7 @@ void RmlSkinComponent::renderOpenGL() {
     renderer_->beginFrame(w, h);
     view_->render();
     renderer_->endFrame();
+    if (dropPrefetch_) { renderer_->dropPrefetched(); dropPrefetch_ = false; }   // images the skin did not use
     ++framesDrawn_;
 }
 

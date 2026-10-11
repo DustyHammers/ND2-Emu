@@ -37,6 +37,7 @@ private:
   int taps_ = 0, half_ = 0;
   static constexpr int kPhases = 512;
   std::vector<float> table_;
+  std::vector<float> row_;              // the interpolated kernel of the current output frame (shared by all channels)
   int64_t ip_ = 0, frac_ = 0;
   std::vector<std::vector<float>> hist_;
   int64_t base_ = 0, pushed_ = 0;

@@ -19,10 +19,9 @@ target_compile_definitions(nd2_skin_gl PRIVATE GL_SILENCE_DEPRECATION)
 set_target_properties(nd2_skin_gl PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(nd2_skin_gl PUBLIC nd2_skin ${CMAKE_DL_LIBS})
 
-# The default skin, compiled in (unpacked to the cache folder at run time; the skin system reads files).
-file(GLOB ND2_DEFAULT_SKIN_FILES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/skins/default/nd2-default/*")
-juce_add_binary_data(nd2_default_skin NAMESPACE ND2DefaultSkin HEADER_NAME ND2DefaultSkin.h SOURCES ${ND2_DEFAULT_SKIN_FILES})
-set_target_properties(nd2_default_skin PROPERTIES POSITION_INDEPENDENT_CODE ON)
+# The default skin ships as files in each bundle (Contents/Resources/nd2-default), not compiled in: resources are
+# stored once per bundle, while compiled-in data would be repeated in every architecture of a universal binary.
+set(ND2_DEFAULT_SKIN_DIR "${CMAKE_SOURCE_DIR}/skins/default/nd2-default")
 
 if(APPLE)
   set(ND2_FORMATS VST3 AU Standalone)
@@ -72,7 +71,6 @@ target_link_libraries(ND2
   PRIVATE
     nd2core
     nd2_skin_gl
-    nd2_default_skin
     juce::juce_audio_processors
     juce::juce_audio_utils
     juce::juce_opengl
@@ -80,14 +78,22 @@ target_link_libraries(ND2
     juce::juce_recommended_config_flags
     juce::juce_recommended_lto_flags
     juce::juce_recommended_warning_flags)
+if(APPLE)
+  foreach(fmt IN LISTS ND2_FORMATS)
+    juce_add_bundle_resources_directory(ND2_${fmt} "${ND2_DEFAULT_SKIN_DIR}")
+  endforeach()
+else()                                   # other systems (looking at skins only): the skin from the source tree
+  target_compile_definitions(ND2 PRIVATE ND2_DEFAULT_SKIN_DIR="${ND2_DEFAULT_SKIN_DIR}")
+endif()
 
 # The plugin end to end without a plugin wrapper (processor + editor sources with JUCE): see tests/plugin_test.cpp.
 add_executable(plugin_test tests/plugin_test.cpp ${ND2_PLUGIN_SOURCES})
 target_include_directories(plugin_test PRIVATE Source)
 target_compile_definitions(plugin_test PRIVATE
   JucePlugin_Name="ND2" JucePlugin_VersionString="0.0-test" JUCE_MODAL_LOOPS_PERMITTED=1
-  JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_STANDALONE_APPLICATION=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
-target_link_libraries(plugin_test PRIVATE nd2core nd2_skin_gl nd2_default_skin
+  JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_STANDALONE_APPLICATION=0 JUCE_DISPLAY_SPLASH_SCREEN=0
+  ND2_DEFAULT_SKIN_DIR="${ND2_DEFAULT_SKIN_DIR}")
+target_link_libraries(plugin_test PRIVATE nd2core nd2_skin_gl
   juce::juce_audio_processors juce::juce_audio_utils juce::juce_opengl juce::juce_recommended_config_flags)
 if(APPLE)
   target_sources(plugin_test PRIVATE Source/MacWindow.mm)

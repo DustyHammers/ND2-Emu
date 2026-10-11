@@ -20,6 +20,10 @@ public:
     ~RmlGLRenderer();
     bool ok() const;
     Rml::RenderInterface* rml();
+    // Decodes these image files now, in parallel on all cores, so the skin's first frame does not decode them one by
+    // one. LoadTexture takes a prefetched image if there is one; dropPrefetched frees the ones no texture took.
+    void prefetch(const std::vector<std::string>& paths);
+    void dropPrefetched();
     void beginFrame(int widthPx, int heightPx);
     void endFrame();
 

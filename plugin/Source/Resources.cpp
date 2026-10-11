@@ -1,5 +1,4 @@
 #include "Resources.h"
-#include <ND2DefaultSkin.h>
 #include "OsFiles.h"
 
 namespace {
@@ -110,24 +109,17 @@ void Resources::buildFactory(const juce::Array<juce::File>& chosen, std::functio
 
 juce::File Resources::defaultSkinFolder() {
     if (skinFolder_.isDirectory()) return skinFolder_;
-    // One folder per build: its name carries a hash of the compiled-in files, so a new plugin version unpacks anew.
-    uint64_t h = 1469598103934665603ULL;
-    for (int i = 0; i < ND2DefaultSkin::namedResourceListSize; ++i) {
-        int size = 0;
-        const char* data = ND2DefaultSkin::getNamedResource(ND2DefaultSkin::namedResourceList[i], size);
-        for (int j = 0; j < size; j += 997) { h ^= uint8_t(data[j]); h *= 1099511628211ULL; }
-        h ^= uint64_t(size); h *= 1099511628211ULL;
-    }
-    const juce::File folder = cacheFolder().getChildFile("skin-default-" + hex64(h)).getChildFile("nd2-default");
-    if (!folder.getChildFile("nd2-default.rml").existsAsFile()) {
-        folder.createDirectory();
-        for (int i = 0; i < ND2DefaultSkin::namedResourceListSize; ++i) {
-            int size = 0;
-            const char* data = ND2DefaultSkin::getNamedResource(ND2DefaultSkin::namedResourceList[i], size);
-            const char* name = ND2DefaultSkin::getNamedResourceOriginalFilename(ND2DefaultSkin::namedResourceList[i]);
-            if (!folder.getChildFile(name).replaceWithData(data, size_t(size))) return {};
-        }
-    }
+    // The plugin's own bundle: <bundle>/Contents/MacOS/<binary> -> <bundle>/Contents/Resources/nd2-default
+    // (stored once per bundle, so a universal binary does not carry it twice).
+    const juce::File exe = juce::File::getSpecialLocation(juce::File::currentExecutableFile);
+    juce::File folder = exe.getParentDirectory().getSiblingFile("Resources").getChildFile("nd2-default");
+   #ifdef ND2_DEFAULT_SKIN_DIR
+    if (!folder.getChildFile("nd2-default.rml").existsAsFile()) folder = juce::File(ND2_DEFAULT_SKIN_DIR);   // tests
+   #endif
+    if (!folder.getChildFile("nd2-default.rml").existsAsFile()) return {};
+    // Versions up to 0.1.4 unpacked the skin into cache/skin-default-<id>/; those copies are no longer used.
+    for (const auto& old : cacheFolder().findChildFiles(juce::File::findDirectories, false, "skin-default-*"))
+        old.deleteRecursively();
     skinFolder_ = folder;
     return folder;
 }

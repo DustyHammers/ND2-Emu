@@ -1,12 +1,13 @@
 cmake_minimum_required(VERSION 3.22)
 
-# Apple Silicon, macOS 13+. Must be set before project().
+# macOS 13+, universal (Apple Silicon + Intel). Must be set before project(). The Intel half is also what a host
+# running under Rosetta loads in its own process (Logic Pro: otherwise the AU runs out of process, without its panel).
 set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0" CACHE STRING "Minimum macOS version")
 if(APPLE AND NOT CMAKE_OSX_ARCHITECTURES)
-  set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "Target architectures")
+  set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Target architectures")
 endif()
 
-project(ND2Emu VERSION 0.1.4 LANGUAGES C CXX)
+project(ND2Emu VERSION 0.1.5 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -52,8 +53,12 @@ if(ND2_BUILD_TESTS)
   add_executable(nd2tests tests/test_core.cpp)
   target_link_libraries(nd2tests PRIVATE nd2core)
   add_test(NAME core COMMAND nd2tests)
-  add_executable(nd2utiltests tests/test_util.cpp)
+  add_executable(nd2utiltests tests/test_util.cpp tests/reference/rate_converter_v1.cpp)
+  target_include_directories(nd2utiltests PRIVATE tests/reference)
   target_link_libraries(nd2utiltests PRIVATE nd2core)
+  if(NOT MSVC)   # the reference converter is compiled as the library is (same floating-point code generation)
+    target_compile_options(nd2utiltests PRIVATE $<$<CONFIG:Release>:-O3>)
+  endif()
   add_test(NAME util COMMAND nd2utiltests)
   add_executable(nd2enginetest tests/test_engine.cpp)
   target_link_libraries(nd2enginetest PRIVATE nd2core)

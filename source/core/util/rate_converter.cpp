@@ -27,6 +27,7 @@ void RateConverter::setup(int channels, const Design& d) {
   const double fc = 0.5 * (passEdge + stopEdge) / d.inHz;                  // cycles per input frame
   const double i0b = besselI0(d.beta);
   table_.assign(size_t(kPhases + 1) * size_t(taps_), 0.0f);
+  row_.assign(size_t(taps_), 0.0f);
   std::vector<double> row(static_cast<size_t>(taps_));
   for (int ph = 0; ph <= kPhases; ++ph) {
     const double t = double(ph) / kPhases;
@@ -93,10 +94,14 @@ void RateConverter::produce(float* const* out, int nOut) {
         const float a = float(pos - ph), b = 1.0f - a;
         const float* c0 = &table_[size_t(ph) * size_t(taps_)];
         const float* c1 = c0 + taps_;
+        float* row = row_.data();
+        for (int j = 0; j < taps_; ++j) row[j] = c0[j] * b + c1[j] * a;   // once per frame, the same for all channels
+        // each channel's sum keeps the original shape: on arm64 the compiler's choice between a fused and a separate
+        // multiply-add depends on it, and the output must stay bit-identical (tests/test_util.cpp checks this)
         for (int c = 0; c < ch_; ++c) {
           const float* x = &hist_[size_t(c)][size_t(first - base_)];
           float s = 0;
-          for (int j = 0; j < taps_; ++j) s += x[j] * (c0[j] * b + c1[j] * a);
+          for (int j = 0; j < taps_; ++j) s += x[j] * row[j];
           out[c][k] = s;
         }
       }

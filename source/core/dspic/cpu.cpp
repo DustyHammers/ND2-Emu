@@ -1,6 +1,7 @@
 #include "cpu.h"
 #include <cstring>
 #include <cstdio>
+#include <cstdlib>
 
 namespace dspic {
 
@@ -17,14 +18,16 @@ void CPU::reset(uint32_t start_pc) {
   update_ipl(); update_pages();
   pc = start_pc; halted = false; rcount = 0; in_repeat = false; disi_until = 0;
   hooks.clear(); hooked_op.clear();
-  dcache.resize(prog.size());
-  dc = dcache.data(); dc_n = (uint32_t)dcache.size();
+  dcache.assign(prog.size() + 2, Insn());          // + 2 invalid sentinels: stepping past the end of the program
+  dc = dcache.data(); dc_n = (uint32_t)prog.size();  // stops there exactly as fetch's bad_insn does
   for (uint32_t i = 0; i < prog.size(); i++) redecode(i);      // eager decode of the whole program space
 }
 
+static void predecode(Insn& I);
 void CPU::redecode(uint32_t i) {
   uint32_t addr = i << 1;
   dcache[i] = decode(progword(addr), progword(addr + 2), addr);
+  predecode(dcache[i]);
   for (size_t h = 0; h < hooks.size(); h++) if (hooks[h].pc == addr) {
     hooked_op[h] = dcache[i].op; dcache[i].op = I_HOOK; dcache[i].hook = (uint8_t)(h + 1);
   }
@@ -32,17 +35,17 @@ void CPU::redecode(uint32_t i) {
 
 void CPU::invalidate(uint32_t addr) {
   uint32_t i = (addr & 0x7FFFFE) >> 1;
-  if (i < dcache.size()) redecode(i);
-  if (i > 0 && i - 1 < dcache.size()) redecode(i - 1);      // a 2-word instruction may end here
+  if (i < dc_n) redecode(i);
+  if (i > 0 && i - 1 < dc_n) redecode(i - 1);      // a 2-word instruction may end here
 }
 
 void CPU::add_hook(uint32_t addr, HookFn fn, void* ctx) {
   hooks.push_back({addr, fn, ctx}); hooked_op.push_back(I_NOP);
   uint32_t i = (addr & 0x7FFFFE) >> 1;
-  if (i < dcache.size()) redecode(i);
+  if (i < dc_n) redecode(i);
 }
 
-std::string CPU::disasm_at(uint32_t addr) { return disasm(fetch(addr), addr); }
+std::string CPU::disasm_at(uint32_t addr) { return disasm(decode(progword(addr), progword(addr + 2), addr), addr); }
 
 // ---------------------------------------------------------------- data space
 uint16_t CPU::rd16_slow(uint16_t a) {
@@ -191,22 +194,50 @@ DSPIC_FORCEINLINE uint16_t CPU::acc_word(int b, int shift, bool round) {
 }
 static const int8_t kPre[8] = {0, 2, 4, 6, 0, -6, -4, -2};
 static const uint8_t kWm[8][2] = {{4,5},{4,6},{4,7},{0,0},{5,6},{5,7},{6,7},{0,0}};   // MAC multiplicand pairs
-DSPIC_FORCEINLINE void CPU::mac_prefetch_awb(const Insn& I, bool do_awb) {
-  // X prefetch: W8/W9 (+W12 indexed), Y prefetch: W10/W11; operands are fetched before any register update
-  int ci = I.iiii, cj = I.jjjj;
+// MAC-class operand prefetch and accumulator write-back, worked out once per decoded instruction (CPU-side only:
+// the disassembler reads iiii/jjjj/xx/yy/aa, which stay as decoded). Fields the MAC class does not otherwise use:
+//   smode / dmode  X / Y prefetch: 0 none, 1 [Wr] with post-modify, 2 [W9+W12] / [W11+W12]
+//   wb / ws        X / Y register for kind 1 (W8/W9, W10/W11);  sbreg / dbreg  its post-modify (int8)
+//   wd             write-back: 0 none, 1 W13, 2 [W13]+=2 (none for MPY, MPY.N, MAC/MPY Wm*Wm)
+//   bit / cond     the multiplicand registers
+// SFTAC #k: k clamped to -16..16.
+static void prefetch_kind(int c, int base, uint8_t& kind, uint8_t& reg, uint8_t& inc) {
+  if (c == 0xC) { kind = 2; reg = 0; inc = 0; }
+  else if ((c & 7) == 4) { kind = 0; reg = 0; inc = 0; }
+  else { kind = 1; reg = (uint8_t)(base + (c >> 3)); inc = (uint8_t)kPre[c & 7]; }
+}
+static void predecode(Insn& I) {
+  switch (I.op) {
+  case I_MAC: case I_MSC: case I_CLRAC: case I_MOVSAC: case I_MPY: case I_MPYN: case I_MACSQ: case I_MPYSQ: {
+    prefetch_kind(I.iiii, 8, I.smode, I.wb, I.sbreg);
+    prefetch_kind(I.jjjj, 10, I.dmode, I.ws, I.dbreg);
+    const bool awb = I.op == I_MAC || I.op == I_MSC || I.op == I_CLRAC || I.op == I_MOVSAC;
+    I.wd = awb && I.aa < 2 ? (uint8_t)(I.aa + 1) : 0;
+    // bit / cond: the multiplicand registers (Wm*Wn; Wm*Wm for the squaring forms)
+    if (I.op == I_MACSQ || I.op == I_MPYSQ) { I.bit = I.cond = (uint8_t)(4 + I.mm); }
+    else { I.bit = kWm[I.mm][0]; I.cond = kWm[I.mm][1]; }
+    break; }
+  case I_SFTACK:                                  // the constant shift, clamped as the instruction does
+    if (I.shift > 16) I.shift = 16;
+    if (I.shift < -16) I.shift = -16;
+    break;
+  default: break;
+  }
+}
+// X prefetch: W8/W9 (+W12 indexed), Y prefetch: W10/W11; operands are fetched before any register update.
+// do_awb is decided at decode time (Insn::wd); the argument documents it at the call.
+DSPIC_FORCEINLINE void CPU::mac_prefetch_awb(const Insn& I, bool) {
   uint16_t vx = 0, vy = 0;
-  bool hx = true, hy = true;
-  if (ci == 0xC) vx = rd16(W(9) + W(12));
-  else if ((ci & 7) == 4) hx = false;
-  else { int r = 8 + (ci >> 3); uint16_t a = W(r); vx = rd16(a); setW(r, (uint16_t)(a + kPre[ci & 7])); }
-  if (cj == 0xC) vy = rd16(W(11) + W(12));
-  else if ((cj & 7) == 4) hy = false;
-  else { int r = 10 + (cj >> 3); uint16_t a = W(r); vy = rd16(a); setW(r, (uint16_t)(a + kPre[cj & 7])); }
-  if (hx) setW(4 + I.xx, vx);
-  if (hy) setW(4 + I.yy, vy);
-  if (do_awb && I.aa < 2) {
+  const int xk = I.smode, yk = I.dmode;
+  if (xk == 2) vx = rd16(W(9) + W(12));
+  else if (xk == 1) { const int r = I.wb; uint16_t a = W(r); vx = rd16(a); setW(r, (uint16_t)(a + (int8_t)I.sbreg)); }
+  if (yk == 2) vy = rd16(W(11) + W(12));
+  else if (yk == 1) { const int r = I.ws; uint16_t a = W(r); vy = rd16(a); setW(r, (uint16_t)(a + (int8_t)I.dbreg)); }
+  if (xk) setW(4 + I.xx, vx);
+  if (yk) setW(4 + I.yy, vy);
+  if (I.wd) {
     uint16_t v = acc_word(!I.acc, 0, true);
-    if (I.aa == 0) setW(13, v); else { wr16(W(13), v); setW(13, (uint16_t)(W(13) + 2)); }
+    if (I.wd == 1) setW(13, v); else { wr16(W(13), v); setW(13, (uint16_t)(W(13) + 2)); }
   }
 }
 
@@ -258,10 +289,16 @@ DSPIC_FORCEINLINE void CPU::exec(const Insn& I) {
 #define OPCASE(x) case x:
 #define OPDEFAULT default:
 #define OPEND break;
+#define OPJUMP break;
+#define DSPIC_SPILL()
+#define DSPIC_FILL()
 #include "exec_body.inc"
 #undef OPCASE
 #undef OPDEFAULT
 #undef OPEND
+#undef OPJUMP
+#undef DSPIC_SPILL
+#undef DSPIC_FILL
   }
 }
 
@@ -338,7 +375,12 @@ template <bool Trace, bool StopPc> void CPU::run_loop(uint64_t end, uint32_t sto
 void CPU::step() { run_end = cycles; step_inline(); }
 
 // The normal run: the same handlers as exec (exec_body.inc), but each handler ends with the next instruction's
-// fetch and an indirect jump of its own (threaded dispatch), so the host predicts each jump from where it is made.
+// dispatch and an indirect jump of its own (threaded dispatch), so the host predicts each jump from where it is made.
+// pc, next_pc and cycles live in registers here: cycles is stored to the CPU object at the start of every
+// instruction (peripherals read it during SFR accesses), pc and next_pc are written back around the calls that
+// use them (interrupts, REPEAT, hooks) and on exit. After an instruction that cannot change the flow (OPEND) the
+// next one is the cache entry the instruction's length (as used for next_pc) further on; after OPJUMP it is looked
+// up from next_pc.
 // Instruction for instruction it does exactly what run_loop<false, StopPc> does (StopPc: also stop at the first
 // instruction boundary with pc == stop_pc, as run_until_pc).
 template <bool StopPc> void CPU::run_fast(uint64_t end, uint32_t stop_pc) {
@@ -350,30 +392,73 @@ template <bool StopPc> void CPU::run_fast(uint64_t end, uint32_t stop_pc) {
   if (slow_at > end) slow_at = end;
   const Insn* ip = nullptr;
   uint64_t dspic_retired_ = 0;    // instructions retired here, added to instret whenever the fast path is left
+  uint32_t dspic_pc_ = pc, dspic_npc_ = next_pc;
+  uint64_t dspic_cyc_ = cycles;
+  uint32_t dspic_w_ = 0;          // length (words) of the current instruction, as used for next_pc
+  // the decoded program: entries may be re-decoded during a run (flash writes, hooks), but the table never moves
+  const Insn* const dcl = dc; const uint32_t dcn = dc_n; const Insn* const badp = &bad_insn;
 #define I (*ip)
 #define B (ip->byte)
-  auto srcv = [&]() -> uint16_t { return I.lit ? (uint16_t)I.k : rd_op(I.smode, I.ws, B, I.sbreg); };
-  auto fdest = [&](uint16_t v) { if (I.to_wreg) { if (B) ram[0] = (uint8_t)v; else setW(0, v); } else wr_f(I.f, B, v); };
-  auto wreg = [&]() -> uint16_t { return B ? (W(0) & 0xFF) : W(0); };
-  auto branch = [&](uint32_t t) { next_pc = t; cycles += 3; };
-#define DSPIC_ENTER() do { if (StopPc && pc == stop_pc) goto L_exit; \
-    ip = &fetch(pc); next_pc = pc + 2 * ip->words; cycles += 1; goto *labels[ip->op]; } while (0)
+#define pc dspic_pc_
+#define next_pc dspic_npc_
+#define cycles dspic_cyc_
+  // the operand helpers as macros (lambdas capturing ip by reference would keep ip in memory); each argument is
+  // evaluated exactly once, as with the lambdas in exec
+#define srcv() (I.lit ? (uint16_t)I.k : rd_op(I.smode, I.ws, B, I.sbreg))
+#define fdest(v) do { uint16_t fdv_ = (uint16_t)(v); \
+    if (I.to_wreg) { if (B) ram[0] = (uint8_t)fdv_; else setW(0, fdv_); } else wr_f(I.f, B, fdv_); } while (0)
+#define wreg() ((uint16_t)(B ? (W(0) & 0xFF) : W(0)))
+#define branch(t) do { uint32_t brt_ = (t); next_pc = brt_; cycles += 3; } while (0)
+#define skip_next() do { uint32_t top_ = progword(next_pc) >> 16; bool two_ = (top_ == 0x02 || top_ == 0x04 || top_ == 0x08); \
+    next_pc += two_ ? 4 : 2; cycles += two_ ? 2 : 1; } while (0)
+#define DSPIC_SPILL() store_pc_cycles(dspic_pc_, dspic_npc_, dspic_cyc_)
+#define DSPIC_FILL() load_pc_cycles(dspic_pc_, dspic_npc_, dspic_cyc_)
+#define DSPIC_LOOKUP() do { uint32_t ix_ = dspic_pc_ >> 1; ip = ix_ < dcn ? dcl + ix_ : badp; } while (0)
+#define DSPIC_RUN() do { if (StopPc && dspic_pc_ == stop_pc) goto L_exit; \
+    dspic_w_ = ip->words; dspic_npc_ = dspic_pc_ + 2 * dspic_w_; dspic_cyc_ += 1; store_cycles(dspic_cyc_); \
+    goto *labels[ip->op]; } while (0)
+#ifdef ND2_CHECK_FLOW
+#define DSPIC_CHECK_SEQ() do { if (dspic_npc_ != dspic_pc_ + 2 * ip->words) { std::fprintf(stderr, "flow changed by %s at %06x\n", disasm(I, dspic_pc_).c_str(), dspic_pc_); std::abort(); } } while (0)
+#else
+#define DSPIC_CHECK_SEQ() do {} while (0)
+#endif
 #define OPCASE(x) L_##x:
 #define OPDEFAULT
-#define OPEND { dspic_retired_++; pc = next_pc & 0x7FFFFE; if (cycles >= slow_at) goto L_slow; DSPIC_ENTER(); }
-  if (cycles < slow_at) DSPIC_ENTER();
+#define OPEND { DSPIC_CHECK_SEQ(); dspic_retired_++; \
+    if (dspic_cyc_ >= slow_at) { dspic_pc_ = dspic_npc_ & 0x7FFFFE; goto L_slow; } \
+    ip += dspic_w_; dspic_pc_ = dspic_npc_; DSPIC_RUN(); }
+#define OPJUMP { dspic_retired_++; dspic_pc_ = dspic_npc_ & 0x7FFFFE; if (dspic_cyc_ >= slow_at) goto L_slow; \
+    DSPIC_LOOKUP(); DSPIC_RUN(); }
+  if (dspic_cyc_ < slow_at) { DSPIC_LOOKUP(); DSPIC_RUN(); }
 L_slow:
-  if (cycles >= end || (StopPc && pc == stop_pc) || halted) goto L_exit;
+  instret += dspic_retired_; dspic_retired_ = 0;
+  if (dspic_cyc_ >= end || (StopPc && dspic_pc_ == stop_pc) || halted) goto L_exit;
+  DSPIC_SPILL();
   slow_path();
+  DSPIC_FILL();
   if (slow_at > end) slow_at = end;
-  DSPIC_ENTER();
+  DSPIC_LOOKUP(); DSPIC_RUN();
 #include "exec_body.inc"
 L_exit:
   instret += dspic_retired_;
+  DSPIC_SPILL();
 #undef OPCASE
 #undef OPDEFAULT
 #undef OPEND
-#undef DSPIC_ENTER
+#undef OPJUMP
+#undef DSPIC_CHECK_SEQ
+#undef DSPIC_RUN
+#undef DSPIC_LOOKUP
+#undef DSPIC_SPILL
+#undef DSPIC_FILL
+#undef skip_next
+#undef srcv
+#undef fdest
+#undef wreg
+#undef branch
+#undef cycles
+#undef next_pc
+#undef pc
 #undef B
 #undef I
 #else

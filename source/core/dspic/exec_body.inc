@@ -1,16 +1,19 @@
 // The instruction handlers, shared by the two dispatchers in cpu.cpp (included twice):
 //   switch dispatch (CPU::exec: tracing, stepping, REPEAT, hooks):  OPCASE(x) = case x:, OPEND = break;
 //   threaded dispatch (CPU::run_fast, the normal run):  OPCASE(x) = label, OPEND = next instruction's dispatch.
+// A handler that can change the flow (next_pc other than the following instruction) ends with OPJUMP instead of
+// OPEND. DSPIC_SPILL()/DSPIC_FILL() write the threaded dispatcher's registers (pc, next_pc, cycles) back to the CPU
+// object and reload them, around calls that use the CPU object's copies.
 // In a handler, I is the instruction, B its byte flag, srcv/fdest/wreg/branch the operand helpers. Inner switches
 // and loops use plain break; only OPEND ends a handler.
   OPCASE(I_NOP) OPEND
   // ---------------- control
-  OPCASE(I_BRA) branch(I.target); OPEND
-  OPCASE(I_BRACC) if (cond(I.cond)) branch(I.target); OPEND
-  OPCASE(I_BRAW) branch(pc + 2 + 2 * (int16_t)W(I.ws)); OPEND
-  OPCASE(I_GOTO) next_pc = I.target; cycles += 3; OPEND
-  OPCASE(I_GOTOW) next_pc = W(I.ws) & 0xFFFE; cycles += 3; OPEND
-  OPCASE(I_GOTOL) next_pc = ((W(I.wb) & 0x7F) << 16) | (W(I.ws) & 0xFFFE); cycles += 3; OPEND
+  OPCASE(I_BRA) branch(I.target); OPJUMP
+  OPCASE(I_BRACC) if (cond(I.cond)) branch(I.target); OPJUMP
+  OPCASE(I_BRAW) branch(pc + 2 + 2 * (int16_t)W(I.ws)); OPJUMP
+  OPCASE(I_GOTO) next_pc = I.target; cycles += 3; OPJUMP
+  OPCASE(I_GOTOW) next_pc = W(I.ws) & 0xFFFE; cycles += 3; OPJUMP
+  OPCASE(I_GOTOL) next_pc = ((W(I.wb) & 0x7F) << 16) | (W(I.ws) & 0xFFFE); cycles += 3; OPJUMP
   OPCASE(I_CALL) OPCASE(I_RCALL) OPCASE(I_CALLW) OPCASE(I_RCALLW) OPCASE(I_CALLL) {
     uint32_t ret = next_pc;
     uint32_t t = I.op == I_CALL || I.op == I_RCALL ? I.target
@@ -18,23 +21,23 @@
                : I.op == I_RCALLW ? pc + 2 + 2 * (int16_t)W(I.ws)
                : (((W(I.wb) & 0x7F) << 16) | (W(I.ws) & 0xFFFE));
     push16((uint16_t)ret); push16((ret >> 16) & 0x7F);
-    next_pc = t; cycles += 3; OPEND }
-  OPCASE(I_RETURN) { uint16_t hi = pop16(), lo = pop16(); next_pc = ((hi & 0x7F) << 16) | lo; cycles += 5; OPEND }
+    next_pc = t; cycles += 3; OPJUMP }
+  OPCASE(I_RETURN) { uint16_t hi = pop16(), lo = pop16(); next_pc = ((hi & 0x7F) << 16) | lo; cycles += 5; OPJUMP }
   OPCASE(I_RETLW) { if (B) ram[2 * I.wd] = (uint8_t)I.k; else setW(I.wd, I.k);
-    uint16_t hi = pop16(), lo = pop16(); next_pc = ((hi & 0x7F) << 16) | lo; cycles += 5; OPEND }
+    uint16_t hi = pop16(), lo = pop16(); next_pc = ((hi & 0x7F) << 16) | lo; cycles += 5; OPJUMP }
   OPCASE(I_RETFIE) {
     uint16_t hi = pop16(), lo = pop16();
     setsr((sr() & 0xFF00) | (hi >> 8));
     uint16_t cc = corcon(); setcore16(A_CORCON, (hi & 0x80) ? (cc | CC_IPL3) : (cc & ~CC_IPL3));
     update_ipl();
-    next_pc = ((hi & 0x7F) << 16) | lo; cycles += 5; OPEND }
-  OPCASE(I_REPEAT) do_repeat(I.k); OPEND
-  OPCASE(I_REPEATW) do_repeat(W(I.ws) & 0x3FFF); OPEND
+    next_pc = ((hi & 0x7F) << 16) | lo; cycles += 5; OPJUMP }
+  OPCASE(I_REPEAT) DSPIC_SPILL(); do_repeat(I.k); DSPIC_FILL(); OPJUMP
+  OPCASE(I_REPEATW) DSPIC_SPILL(); do_repeat(W(I.ws) & 0x3FFF); DSPIC_FILL(); OPJUMP
   OPCASE(I_HOOK) {
     const Hook& h = hooks[I.hook - 1];
-    cycles -= 1; h.fn(*this, h.ctx); cycles += 1;     // hook sees the state before this instruction
-    Insn orig = I; orig.op = hooked_op[I.hook - 1]; exec_outlined(orig);
-    OPEND }
+    cycles -= 1; DSPIC_SPILL(); h.fn(*this, h.ctx); DSPIC_FILL(); cycles += 1;     // hook sees the state before this instruction
+    Insn orig = I; orig.op = hooked_op[I.hook - 1]; DSPIC_SPILL(); exec_outlined(orig); DSPIC_FILL();
+    OPJUMP }
   OPCASE(I_DISI) disi_until = cycles + I.k + 1; setcore16(A_DISICNT, I.k); OPEND
   OPCASE(I_RESET) halt("reset instruction"); OPEND
   OPCASE(I_BREAK) halt("break"); OPEND
@@ -188,7 +191,7 @@
     }
     if (I.op >= I_CPBEQ) { if (t) { next_pc = I.target; cycles += 4; } }
     else if (t) skip_next();
-    OPEND }
+    OPJUMP }
   // ---------------- bit ops
   OPCASE(I_BSET) OPCASE(I_BCLR) OPCASE(I_BTG) OPCASE(I_BTST) OPCASE(I_BTSTS) OPCASE(I_BTSS) OPCASE(I_BTSC) OPCASE(I_BTSTW) OPCASE(I_BSW) {
     bool byte = (I.op == I_BSET || I.op == I_BCLR || I.op == I_BTG) ? B : false;
@@ -211,7 +214,7 @@
     default: break;
     }
     if (write) { if (reg) { if (byte) ram[2 * I.ws] = (uint8_t)v; else setW(I.ws, v); } else { if (byte) wr8(a, (uint8_t)v); else wr16(a, v); } }
-    OPEND }
+    OPJUMP }
   OPCASE(I_BSETF) OPCASE(I_BCLRF) OPCASE(I_BTGF) OPCASE(I_BTSTF) OPCASE(I_BTSTSF) OPCASE(I_BTSSF) OPCASE(I_BTSCF) {
     uint16_t a = I.f + (I.bit >> 3); int bit = I.bit & 7;
     uint8_t v = rd8(a); bool bv = (v >> bit) & 1;
@@ -225,7 +228,7 @@
     case I_BTSCF: if (!bv) skip_next(); break;
     default: break;
     }
-    OPEND }
+    OPJUMP }
   OPCASE(I_FBCL) {
     uint16_t v = rd_op(I.smode, I.ws, false); int s = (v >> 15) & 1; int r = -15; bool found = false;
     for (int i = 14; i >= 0; i--) if (((v >> i) & 1) != s) { r = -(14 - i); found = true; break; }
@@ -239,14 +242,23 @@
     for (int i = 0; i < 16; i++) if ((v >> i) & 1) { r = i + 1; break; }
     setW(I.wd, (uint16_t)r); setflag(SR_C, v == 0); OPEND }
   // ---------------- multiply / divide
-  OPCASE(I_MUL) OPCASE(I_MULW) OPCASE(I_MULACC) {
+  // MUL / MULW / MULACC: Wb x Ws (or #lit5, unsigned); separate handlers, same arithmetic
+  OPCASE(I_MUL) {
     uint16_t s = I.lit ? (uint16_t)I.k : rd_op(I.smode, I.ws, false);
     int sm = I.sign; if (I.lit) sm &= 1;     // literal is unsigned
     int64_t p = product(W(I.wb), s, sm, false);
-    if (I.op == I_MUL) { setW(I.wd, (uint16_t)p); setW(I.wd + 1, (uint16_t)((uint64_t)p >> 16)); }
-    else if (I.op == I_MULW) setW(I.wd, (uint16_t)p);
-    else { if (mul_acc_fractional && !(corcon() & CC_IF)) p *= 2; store_acc(I.acc, p); }
-    OPEND }
+    setW(I.wd, (uint16_t)p); setW(I.wd + 1, (uint16_t)((uint64_t)p >> 16)); OPEND }
+  OPCASE(I_MULW) {
+    uint16_t s = I.lit ? (uint16_t)I.k : rd_op(I.smode, I.ws, false);
+    int sm = I.sign; if (I.lit) sm &= 1;
+    int64_t p = product(W(I.wb), s, sm, false);
+    setW(I.wd, (uint16_t)p); OPEND }
+  OPCASE(I_MULACC) {
+    uint16_t s = I.lit ? (uint16_t)I.k : rd_op(I.smode, I.ws, false);
+    int sm = I.sign; if (I.lit) sm &= 1;
+    int64_t p = product(W(I.wb), s, sm, false);
+    if (mul_acc_fractional && dsp_frac) p *= 2;   // dsp_frac = !CORCON.IF
+    store_acc(I.acc, p); OPEND }
   OPCASE(I_DIV) {
     uint16_t s = sr() & ~(SR_N | SR_Z | SR_C | SR_OV);
     int32_t q = 0, r = 0; bool ov = false;
@@ -302,13 +314,14 @@
   // ---------------- DSP
   // MAC class: one case per operation (same arithmetic and order as one shared case: product, accumulator, then
   // the prefetches and the accumulator write-back; MPY/MPYN/MACSQ/MPYSQ have no write-back)
-  OPCASE(I_MAC) { int64_t p = product(W(kWm[I.mm][0]), W(kWm[I.mm][1]), dsp_sm, dsp_frac);
+  // multiplicand registers (Wm, Wn) pre-decoded into bit / cond (see predecode in cpu.cpp)
+  OPCASE(I_MAC) { int64_t p = product(W(I.bit), W(I.cond), dsp_sm, dsp_frac);
     store_acc(I.acc, acc(I.acc) + p); mac_prefetch_awb(I, true); OPEND }
-  OPCASE(I_MSC) { int64_t p = product(W(kWm[I.mm][0]), W(kWm[I.mm][1]), dsp_sm, dsp_frac);
+  OPCASE(I_MSC) { int64_t p = product(W(I.bit), W(I.cond), dsp_sm, dsp_frac);
     store_acc(I.acc, acc(I.acc) - p); mac_prefetch_awb(I, true); OPEND }
-  OPCASE(I_MPY) { int64_t p = product(W(kWm[I.mm][0]), W(kWm[I.mm][1]), dsp_sm, dsp_frac);
+  OPCASE(I_MPY) { int64_t p = product(W(I.bit), W(I.cond), dsp_sm, dsp_frac);
     store_acc(I.acc, p); mac_prefetch_awb(I, false); OPEND }
-  OPCASE(I_MPYN) { int64_t p = product(W(kWm[I.mm][0]), W(kWm[I.mm][1]), dsp_sm, dsp_frac);
+  OPCASE(I_MPYN) { int64_t p = product(W(I.bit), W(I.cond), dsp_sm, dsp_frac);
     store_acc(I.acc, -p); mac_prefetch_awb(I, false); OPEND }
   OPCASE(I_CLRAC) store_acc(I.acc, 0); mac_prefetch_awb(I, true); OPEND
   OPCASE(I_MOVSAC) mac_prefetch_awb(I, true); OPEND
@@ -316,22 +329,33 @@
     store_acc(I.acc, acc(I.acc) + p); mac_prefetch_awb(I, false); OPEND }
   OPCASE(I_MPYSQ) { uint16_t v = W(4 + I.mm); int64_t p = product(v, v, dsp_sm, dsp_frac);
     store_acc(I.acc, p); mac_prefetch_awb(I, false); OPEND }
-  OPCASE(I_SFTACK) OPCASE(I_SFTACW) {
-    int k = I.op == I_SFTACK ? I.shift : (int)(int16_t)W(I.wb);
-    if (k > 16) k = 16; if (k < -16) k = -16;
+  OPCASE(I_SFTACK) {                          // shift clamped to -16..16 at decode time
+    const int k = I.shift;
     int64_t v = acc(I.acc);
     v = k >= 0 ? (v >> k) : (int64_t)((uint64_t)v << (-k));
     store_acc(I.acc, v); OPEND }
-  OPCASE(I_LAC) OPCASE(I_ADDACW) {
+  OPCASE(I_SFTACW) {
+    int k = (int)(int16_t)W(I.wb);
+    if (k > 16) k = 16;
+    if (k < -16) k = -16;
+    int64_t v = acc(I.acc);
+    v = k >= 0 ? (v >> k) : (int64_t)((uint64_t)v << (-k));
+    store_acc(I.acc, v); OPEND }
+  OPCASE(I_LAC) {
     int64_t x = (int64_t)(int16_t)rd_op(I.smode, I.ws, false, I.sbreg) * 65536;
     x = I.shift >= 0 ? (x >> I.shift) : (int64_t)((uint64_t)x << (-I.shift));
-    store_acc(I.acc, I.op == I_LAC ? x : acc(I.acc) + x); OPEND }
+    store_acc(I.acc, x); OPEND }
+  OPCASE(I_ADDACW) {
+    int64_t x = (int64_t)(int16_t)rd_op(I.smode, I.ws, false, I.sbreg) * 65536;
+    x = I.shift >= 0 ? (x >> I.shift) : (int64_t)((uint64_t)x << (-I.shift));
+    store_acc(I.acc, acc(I.acc) + x); OPEND }
   OPCASE(I_ADDAB) store_acc(I.acc, acc(I.acc) + acc(!I.acc)); OPEND
   OPCASE(I_SUBAB) store_acc(I.acc, acc(I.acc) - acc(!I.acc)); OPEND
   OPCASE(I_NEGAB) store_acc(I.acc, -acc(I.acc)); OPEND
-  OPCASE(I_SAC) OPCASE(I_SACR) wr_op(I.smode, I.ws, false, acc_word(I.acc, I.shift, I.op == I_SACR), I.sbreg); OPEND
+  OPCASE(I_SAC) wr_op(I.smode, I.ws, false, acc_word(I.acc, I.shift, false), I.sbreg); OPEND
+  OPCASE(I_SACR) wr_op(I.smode, I.ws, false, acc_word(I.acc, I.shift, true), I.sbreg); OPEND
   OPCASE(I_INVALID) OPCASE(I_DO) OPCASE(I_DOW) OPCASE(I_ED) OPCASE(I_EDAC) OPDEFAULT {
     char b[96]; snprintf(b, sizeof b, "unimplemented/invalid instruction %06x at %06x (%s)", progword(pc), pc, disasm(I, pc).c_str());
     halt(b);
-    OPEND }
+    OPJUMP }
 

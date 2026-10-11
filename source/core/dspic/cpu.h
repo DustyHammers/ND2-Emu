@@ -157,6 +157,7 @@ private:
   const Insn& fetch(uint32_t addr) { uint32_t i = (addr & 0x7FFFFE) >> 1; return i < dc_n ? dc[i] : bad_insn; }
   void slow_path();
   template <bool Trace, bool StopPc> void run_loop(uint64_t end, uint32_t stop_pc);
+  void run_fast(uint64_t end);   // run_loop<false, false> with threaded dispatch
   void exec_outlined(const Insn& I);
   void do_repeat(int count);
   void halt(const char* why) { halted = true; fault = why; slow_at = 0; }

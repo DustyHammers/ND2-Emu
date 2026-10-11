@@ -379,7 +379,8 @@ void CPU::step() { run_end = cycles; step_inline(); }
 // pc, next_pc and cycles live in registers here: cycles is stored to the CPU object at the start of every
 // instruction (peripherals read it during SFR accesses), pc and next_pc are written back around the calls that
 // use them (interrupts, REPEAT, hooks) and on exit. After an instruction that cannot change the flow (OPEND) the
-// next one is the following cache entry; after OPJUMP it is looked up from next_pc.
+// next one is the cache entry the instruction's length (as used for next_pc) further on; after OPJUMP it is looked
+// up from next_pc.
 // Instruction for instruction it does exactly what run_loop<false, StopPc> does (StopPc: also stop at the first
 // instruction boundary with pc == stop_pc, as run_until_pc).
 template <bool StopPc> void CPU::run_fast(uint64_t end, uint32_t stop_pc) {
@@ -393,6 +394,7 @@ template <bool StopPc> void CPU::run_fast(uint64_t end, uint32_t stop_pc) {
   uint64_t dspic_retired_ = 0;    // instructions retired here, added to instret whenever the fast path is left
   uint32_t dspic_pc_ = pc, dspic_npc_ = next_pc;
   uint64_t dspic_cyc_ = cycles;
+  uint32_t dspic_w_ = 0;          // length (words) of the current instruction, as used for next_pc
   // the decoded program: entries may be re-decoded during a run (flash writes, hooks), but the table never moves
   const Insn* const dcl = dc; const uint32_t dcn = dc_n; const Insn* const badp = &bad_insn;
 #define I (*ip)
@@ -413,7 +415,8 @@ template <bool StopPc> void CPU::run_fast(uint64_t end, uint32_t stop_pc) {
 #define DSPIC_FILL() load_pc_cycles(dspic_pc_, dspic_npc_, dspic_cyc_)
 #define DSPIC_LOOKUP() do { uint32_t ix_ = dspic_pc_ >> 1; ip = ix_ < dcn ? dcl + ix_ : badp; } while (0)
 #define DSPIC_RUN() do { if (StopPc && dspic_pc_ == stop_pc) goto L_exit; \
-    dspic_npc_ = dspic_pc_ + 2 * ip->words; dspic_cyc_ += 1; store_cycles(dspic_cyc_); goto *labels[ip->op]; } while (0)
+    dspic_w_ = ip->words; dspic_npc_ = dspic_pc_ + 2 * dspic_w_; dspic_cyc_ += 1; store_cycles(dspic_cyc_); \
+    goto *labels[ip->op]; } while (0)
 #ifdef ND2_CHECK_FLOW
 #define DSPIC_CHECK_SEQ() do { if (dspic_npc_ != dspic_pc_ + 2 * ip->words) { std::fprintf(stderr, "flow changed by %s at %06x\n", disasm(I, dspic_pc_).c_str(), dspic_pc_); std::abort(); } } while (0)
 #else
@@ -423,7 +426,7 @@ template <bool StopPc> void CPU::run_fast(uint64_t end, uint32_t stop_pc) {
 #define OPDEFAULT
 #define OPEND { DSPIC_CHECK_SEQ(); dspic_retired_++; \
     if (dspic_cyc_ >= slow_at) { dspic_pc_ = dspic_npc_ & 0x7FFFFE; goto L_slow; } \
-    ip += (dspic_npc_ - dspic_pc_) >> 1; dspic_pc_ = dspic_npc_; DSPIC_RUN(); }
+    ip += dspic_w_; dspic_pc_ = dspic_npc_; DSPIC_RUN(); }
 #define OPJUMP { dspic_retired_++; dspic_pc_ = dspic_npc_ & 0x7FFFFE; if (dspic_cyc_ >= slow_at) goto L_slow; \
     DSPIC_LOOKUP(); DSPIC_RUN(); }
   if (dspic_cyc_ < slow_at) { DSPIC_LOOKUP(); DSPIC_RUN(); }

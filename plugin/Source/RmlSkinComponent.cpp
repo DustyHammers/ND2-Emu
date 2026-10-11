@@ -104,9 +104,11 @@ void RmlSkinComponent::timerCallback() {
     }
     if (!visibleOnScreen()) return;
     const uint32_t serial = proc_.engine().uiSerial();
+    uint32_t trig = 0;                                 // trigger input activity (not part of the OS's panel serial)
+    for (int p = 0; p < skin::kTrigInputs; ++p) trig |= uint32_t(proc_.panelPort().trigActive(p)) << p;
     const double now = juce::Time::getMillisecondCounterHiRes() / 1000.0;
-    if (frameWanted_.exchange(false) || serial != lastSerial_ || now >= nextWake_.load()) {
-        lastSerial_ = serial;
+    if (frameWanted_.exchange(false) || serial != lastSerial_ || trig != lastTrig_ || now >= nextWake_.load()) {
+        lastSerial_ = serial; lastTrig_ = trig;
         gl_.triggerRepaint();
     }
 }

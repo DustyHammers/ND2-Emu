@@ -251,6 +251,7 @@ bool SkinView::poll() {
         callLua(onDisplayFns, {segs_[0], segs_[1], segs_[2], segs_[3]});
     }
     for (SegDigitElement* d : digits_) if (d->setByte(segs_[size_t(d->pos())])) changed = true;
+    for (TrigInElement* t : trigins_) if (t->setActive(t->pad() >= 0 && port_.trigActive(t->pad()))) changed = true;
     const int m = port_.master();
     if (m != master_ && !dragKnob_) {
         master_ = m;
@@ -439,10 +440,12 @@ void SkinView::registerElement(EncoderElement* e) { encoders_.insert(e); }
 void SkinView::registerElement(PButtonElement* e) { buttons_.insert(e); }
 void SkinView::registerElement(LedElement* e) { leds_.insert(e); }
 void SkinView::registerElement(SegDigitElement* e) { digits_.insert(e); }
+void SkinView::registerElement(TrigInElement* e) { trigins_.insert(e); }
 void SkinView::unregisterElement(KnobElement* e) { knobs_.erase(e); if (dragKnob_ == e) dragKnob_ = nullptr; }
 void SkinView::unregisterElement(EncoderElement* e) { encoders_.erase(e); if (dragEncoder_ == e) dragEncoder_ = nullptr; }
 void SkinView::unregisterElement(PButtonElement* e) { buttons_.erase(e); if (mousePressed_ == e) mousePressed_ = nullptr; }
 void SkinView::unregisterElement(LedElement* e) { leds_.erase(e); }
 void SkinView::unregisterElement(SegDigitElement* e) { digits_.erase(e); }
+void SkinView::unregisterElement(TrigInElement* e) { trigins_.erase(e); }
 
 }  // namespace skin

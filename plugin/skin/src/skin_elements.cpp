@@ -38,6 +38,7 @@ void registerElements() {
     add<PButtonElement>("pbutton");
     add<LedElement>("led");
     add<SegDigitElement>("segdigit");
+    add<TrigInElement>("trigin");
 }
 
 // ------------------------------------------------------------------ sprites
@@ -176,6 +177,31 @@ bool LedElement::setLevel(int eighths) {
     const float opacity = std::sqrt(float(eighths) / 8.0f);
     for (int i = 0; i < GetNumChildren(); ++i)
         if (Rml::Element* c = GetChild(i); c->GetTagName() == "lamp") c->SetProperty("opacity", std::to_string(opacity));
+    return true;
+}
+
+// ------------------------------------------------------------------ trigger input activity
+
+TrigInElement::TrigInElement(const Rml::String& tag) : Rml::Element(tag), view_(SkinView::current()) {
+    if (view_) view_->registerElement(this);
+}
+TrigInElement::~TrigInElement() { if (view_) view_->unregisterElement(this); }
+
+void TrigInElement::OnAttributeChange(const Rml::ElementAttributes& changed) {
+    Rml::Element::OnAttributeChange(changed);
+    if (changed.count("pad")) {
+        const int p = parseInt(attr(*this, "pad"), 0);
+        pad_ = p >= 1 && p <= kTrigInputs ? p - 1 : -1;
+        state_ = -1;
+    }
+}
+
+bool TrigInElement::setActive(bool on) {
+    if (int(on) == state_) return false;
+    state_ = int(on);
+    SetClass("lit", on);
+    for (int i = 0; i < GetNumChildren(); ++i)
+        if (Rml::Element* c = GetChild(i); c->GetTagName() == "lamp") c->SetProperty("opacity", on ? "1" : "0");
     return true;
 }
 

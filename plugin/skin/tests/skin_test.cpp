@@ -21,12 +21,14 @@ struct FakePort : PanelPort {
     int masterRaw = 1023, detents = 0;
     std::array<int, kLeds> levels{};
     std::array<uint8_t, 4> segs{0xFF, 0xFF, 0xFF, 0xFF};
+    std::array<bool, kTrigInputs> trig{};
     void sendButton(int i, bool down) override { log.push_back("button " + std::to_string(i) + (down ? " down" : " up")); }
     void turnEncoder(int d) override { detents += d; log.push_back("encoder " + std::to_string(d)); }
     void setMaster(int raw) override { masterRaw = raw; log.push_back("master " + std::to_string(raw)); }
     int master() override { return masterRaw; }
     int ledLevel(int led) override { return led >= 0 && led < kLeds ? levels[size_t(led)] : 0; }
     std::array<uint8_t, 4> segments() override { return segs; }
+    bool trigActive(int pad) override { return pad >= 0 && pad < kTrigInputs && trig[size_t(pad)]; }
 };
 
 static Rml::Element* byId(SkinView& v, const char* id) {
@@ -45,7 +47,7 @@ int main() {
     }
     FakePort port;
     SkinView v(port, PluginInfo{"ND2", "DHammers", "test"}, nullptr);
-    v.setViewport(1725, 1075, 1.0f);
+    v.setViewport(1725, 1035, 1.0f);
     std::string err;
     CHECK(v.load(skins + "/test", "test", err), "load: %s", err.c_str());
     double t = 1.0;
@@ -107,6 +109,16 @@ int main() {
     port.levels[21] = 0; v.update(t += 0.02);
     CHECK(!byId(v, "l21")->IsClassSet("lit") && v.evalForTest("lastEvent()") == "led21 0", "off");
 
+    // ---- trigger input activity: on / off, class lit and the lamp shown (pad attribute 1-6 = input 0-5)
+    port.trig[1] = true; v.update(t += 0.02);
+    {
+        Rml::Element* ti = byId(v, "t2");
+        const float op = ti->GetChild(0)->GetProperty<float>("opacity");
+        CHECK(ti->IsClassSet("lit") && op > 0.99f, "trigger input 2: lit %d, opacity %.3f", int(ti->IsClassSet("lit")), op);
+    }
+    port.trig[1] = false; v.update(t += 0.02);
+    CHECK(!byId(v, "t2")->IsClassSet("lit") && byId(v, "t2")->GetChild(0)->GetProperty<float>("opacity") < 0.01f, "trigger input 2 quiet");
+
     // ---- display: active-low bytes to seg classes
     port.segs = {uint8_t(~0x41), 0xFF, 0xFF, uint8_t(~0x08)};          // digit 0: a and g lit; digit 3: d lit
     v.update(t += 0.02);
@@ -139,22 +151,23 @@ int main() {
     {
         FakePort p2;
         SkinView d(p2, PluginInfo{"ND2", "DHammers", "test"}, nullptr);
-        d.setViewport(1725, 1075, 1.0f);
+        d.setViewport(1725, 1035, 1.0f);
         std::string e2;
         CHECK(d.load(ND2_DEFAULT_SKIN, "nd2-default", e2), "default skin: %s", e2.c_str());
-        p2.levels[29] = 8; p2.levels[6] = 8;
+        p2.levels[29] = 8; p2.levels[6] = 8; p2.trig[3] = true;
         d.update(1.0); d.update(1.1);
         for (const std::string& l : d.log())
             CHECK(l.rfind("warning", 0) != 0 && l.rfind("error", 0) != 0, "default skin log: %s", l.c_str());
-        int n[5] = {};
+        int n[6] = {};
         Rml::ElementDocument* doc = d.context()->GetDocument(0);
         Rml::ElementList list;
-        const char* tags[5] = {"pbutton", "led", "knob", "encoder", "segdigit"};
-        for (int i = 0; i < 5; ++i) { list.clear(); doc->GetElementsByTagName(list, tags[i]); n[i] = int(list.size()); }
-        CHECK(n[0] == 15 && n[1] == 29 && n[2] == 1 && n[3] == 1 && n[4] == 4, "controls %d %d %d %d %d", n[0], n[1], n[2], n[3], n[4]);
+        const char* tags[6] = {"pbutton", "led", "knob", "encoder", "segdigit", "trigin"};
+        for (int i = 0; i < 6; ++i) { list.clear(); doc->GetElementsByTagName(list, tags[i]); n[i] = int(list.size()); }
+        CHECK(n[0] == 15 && n[1] == 29 && n[2] == 1 && n[3] == 1 && n[4] == 4 && n[5] == 6, "controls %d %d %d %d %d %d", n[0], n[1], n[2], n[3], n[4], n[5]);
+        CHECK(doc->GetElementById("t4")->IsClassSet("lit") && !doc->GetElementById("t1")->IsClassSet("lit"), "trigger input 4 lit, 1 not");
         CHECK(doc->GetElementById("l_29")->IsClassSet("lit") && doc->GetElementById("l_6")->IsClassSet("green"), "LED 29 lit, LED 6 green");
-        // the Program button sits where the art has it: 359,311 .. 481,370 dp
-        d.mouseMove(420, 340, 0); d.mouseDown(0, 0); d.mouseUp(0, 0);
+        // the Program button sits where the art has it: 359,271 .. 481,330 dp
+        d.mouseMove(420, 300, 0); d.mouseDown(0, 0); d.mouseUp(0, 0);
         CHECK(p2.log.size() >= 2 && p2.log[p2.log.size() - 2] == "button 1 down", "Program button at its place");
     }
 

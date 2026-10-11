@@ -1,5 +1,5 @@
 // Window size (no JUCE, so it can be tested alone). The size is a scale of the skin's 100 % size, 50-200 %, aspect
-// locked. For skins 100 % is 3/4 of the body's dp size in points (1725 x 1075 dp -> 1294 x 806 points), so
+// locked. For skins 100 % is 3/4 of the body's dp size in points (1725 x 1035 dp -> 1294 x 776 points), so
 // 133 % (4/3) shows the art at its native resolution on a Retina screen ("full size"); above that it is enlarged
 // beyond its native resolution. Drawing always follows the dp ratio (no bitmap stretching). Built-in's 100 % is its
 // own size in points.

@@ -11,6 +11,7 @@
 	<pbutton id="bParam1" button="8"/>
 	<led id="l21" code="21"><lamp/></led>
 	<led id="l6" code="6"><lamp/></led>
+	<trigin id="t2" pad="2"><lamp/></trigin>
 	<segdigit id="d0" pos="0"><seg class="a"/><seg class="b"/><seg class="g"/><seg class="dp"/></segdigit>
 	<segdigit id="d3" pos="3"><seg class="a"/><seg class="d"/></segdigit>
 	<div id="shown" onshow="shownCount = (shownCount or 0) + 1"/>

@@ -5,11 +5,12 @@
 <title>ND2 skin source</title>
 <style>
 /* One source for every layer of the default skin. ?layer=<name> shows one layer on a transparent canvas;
-   ?layer=all shows everything (preview). Canvas = 1725 x 1075 dp; the body starts 40 dp down (the jacks stick up). */
+   ?layer=all shows everything (preview); &bg=1 leaves the controls out, &notext=1 the lettering. ?seg=<segment> draws
+   one display segment cell, ?trig=1 the trigger input outline. Canvas = 1725 x 1035 dp = the body. */
 :root{--red:#c9212a;--accent:#e3262d;--panel:#1b1b1b}
 html,body{margin:0;background:transparent}
-#canvas{position:relative;width:1725px;height:1075px;overflow:hidden;font-family:'Liberation Sans',Arial,sans-serif}
-#unit{position:absolute;left:0;top:40px;width:1725px;height:1035px}
+#canvas{position:relative;width:1725px;height:1035px;overflow:hidden;font-family:'Liberation Sans',Arial,sans-serif}
+#unit{position:absolute;left:0;top:0;width:1725px;height:1035px}
 #unit>*{position:absolute}
 .lbl{color:#fff;font-weight:700;font-size:20px;letter-spacing:.02em;white-space:nowrap;line-height:1.05}
 .ctr{transform:translateX(-50%);text-align:center}
@@ -28,6 +29,9 @@ body.L-text .tag{background:transparent!important}
 .led i{position:absolute;inset:-3px;background:url(../../skins/default/nd2-default/ND2RedLed.png) 0 -28px/28px 56px}
 .led.green i{background-image:url(../../skins/default/nd2-default/ND2GreenLed.png)}
 .seg{position:absolute;border-radius:3px}
+/* trigger input outline (lit while audio comes in): 76 x 34 dp box in a 92 x 50 dp cell (room for the glow) */
+.trig{width:92px;height:50px;margin:-25px 0 0 -46px;background:url(../../skins/default/nd2-default/ND2TrigLamp.png) 0 0/92px 50px}
+.trigbox{position:absolute;left:8px;top:8px;width:76px;height:34px;border:2px solid #6dff7c;border-radius:6px;box-sizing:border-box;box-shadow:0 0 9px rgba(60,255,90,.85),inset 0 0 6px rgba(60,255,90,.4)}
 </style>
 </head>
 <body>
@@ -36,6 +40,7 @@ body.L-text .tag{background:transparent!important}
 const P = new URLSearchParams(location.search);
 const LAYER = P.get('layer') || 'all';
 const SEGMODE = P.get('seg');            // digit sprite mode: unlit | a..g | dp
+const TRIGMODE = P.get('trig');          // trigger input outline sprite
 document.body.classList.add('L-' + LAYER);
 
 // ---- panel model (unit coordinates, same as the approved mockup)
@@ -46,10 +51,11 @@ const LO = [['SPECTRA','WAVE'],['DYN TIMB','TIMBRE'],['HI DECAY','PUNCH'],['DECA
 const SHIFT = ['COPY','PASTE','PANIC','SYSTEM','MIDI','TRIG TYPE','INP THRES','INP SENS'];
 const BTN_PARAM = [8,9,10,11,16,17,18,19];
 // preview state: solo edit, ch 1 filter, pads 1 and 4 hit; display "  15" (segment bytes, active-low)
-const PREVIEW = { seg: [255,255,249,146], led: {4:1,7:1,21:.89,6:.71,23:.49}, master: 0.75, enc: 6 };
-if (P.get('unlit')) { PREVIEW.seg = [255,255,255,255]; PREVIEW.led = {}; }
+const PREVIEW = { seg: [255,255,249,146], led: {4:1,7:1,21:.89,6:.71,23:.49}, master: 0.75, enc: 6, trig: [1,0,0,1,0,0] };
+if (P.get('unlit')) { PREVIEW.seg = [255,255,255,255]; PREVIEW.led = {}; PREVIEW.trig = [0,0,0,0,0,0]; }
 if (P.get('prog')) { PREVIEW.seg = [140,121,255,249]; PREVIEW.led = {}; }
 
+const TRX = [0,1,2,3,4,5].map(i => Math.round(862.5 + (i - 2.5) * 127.4));   // trigger inputs, centred
 const U = document.getElementById('unit');
 const controls = [];                      // exported for the RML generator
 let html = '';
@@ -57,11 +63,6 @@ const el = (layer, style, inner = '', cls = '') => { html += `<div class="${cls}
 const text = (t, x, y, extra = '', cls = 'lbl ctr') => el('text', `left:${x}px;top:${y}px;${extra}`, t, cls);
 const tag = (t, x, y, extra = '', cls = 'tag') => el('tagboxes text', `left:${x}px;top:${y}px;${extra}`, t, cls);
 
-// 01 jacks (behind the body)
-[118,180,300,762,888,1017,1144,1271,1399,1606].forEach((x,i) => {
-  const w = (i === 0 || i === 9) ? 44 : 74;
-  el('jacks', `left:${x - w/2}px;top:-26px;width:${w}px;height:30px;border-radius:10px 10px 4px 4px;background:#1a1a1a;box-shadow:inset 0 3px 0 #444`);
-});
 // 02 body
 el('body', `left:0;top:0;width:1725px;height:1035px;background:var(--red);border-radius:10px;box-shadow:inset 0 3px 0 #e2434b,inset 0 -6px 0 #8f141b`);
 // 03 panels (black print)
@@ -76,13 +77,12 @@ el('redprint', `left:81px;top:293px;width:144px;height:144px;border-radius:50%;b
 for (let i = 0; i < 11; i++) el('redprint', `left:150px;top:293px;width:6px;height:22px;background:#8f141b;transform-origin:3px 72px;transform:rotate(${-135 + 27 * i}deg)`);
 el('redprint', `left:785px;top:705px;width:232px;height:232px;border-radius:50%;border:4px solid var(--accent);box-sizing:border-box`);
 
-// 08 text: jack row
-[['LEFT OUT',180],['RIGHT OUT',300],['MIDI IN',452],['MIDI OUT',617],['CH1',762],['CH2',888],['CH3',1017],['CH4',1144],['CH5',1271],['CH6',1399]]
-  .forEach(([t,x]) => text(t, x, 22, 'font-size:19px'));
+// 08 text: trigger inputs
+TRX.forEach((x,i) => text('CH' + (i + 1), x, 22, 'font-size:19px'));
 // knocked-out lines: [x0, x1, y, labelCentre, labelText, labelTop, fontSize, pad]
 const knock = [];
-knock.push([726, 1434, 58, 1080, 'TRIG INPUTS', 48, 19, 10]);
-text('TRIG INPUTS', 1080, 48, 'font-size:19px', 'lbl ctr knock0');
+knock.push([TRX[0] - 36, TRX[5] + 36, 58, 862.5, 'TRIG INPUTS', 48, 19, 10]);
+text('TRIG INPUTS', 862.5, 48, 'font-size:19px', 'lbl ctr knock0');
 // master level
 text('MASTER<br>LEVEL', 153, 228);
 // program + display
@@ -139,10 +139,13 @@ const led = (code, x, y, green) => {
 parX.forEach((x,i) => { led(LED_UP[i], x, 425); led(LED_LO[i], x, 512); });
 chX.forEach((x,i) => { led(LED_PK[i], x, 273, false); led(LED_TG[i], x, 312, true); });
 led(LED_SOLO, 207, 632);
-// master knob: knob.png (128 frames, 120 px cells; the knob is 86 px of its cell -> 131 dp element)
-{ const c = 131, f = Math.round(PREVIEW.master * 127), sc = c / 120;
+// master knob: 128 frames, 240 px cells at 2x (the knob is 172 px of its cell); shown 7.5 % larger than first drawn
+{ const c = 141, f = Math.round(PREVIEW.master * 127), sc = c / 240;
   C({ type: 'knob', id: 'master', x: 153 - c/2, y: 365 - c/2, w: c, h: c, frames: 128 });
-  el('controls', `left:${153 - c/2}px;top:${365 - c/2}px;width:${c}px;height:${c}px;background:url(../../skins/default/nd2-default/ND2MasterKnob.png) ${-(f % 14) * c}px ${-Math.floor(f / 14) * c}px/${1680 * sc}px ${1200 * sc}px`); }
+  el('controls', `left:${153 - c/2}px;top:${365 - c/2}px;width:${c}px;height:${c}px;background:url(../../skins/default/nd2-default/ND2MasterKnob.png) ${-(f % 14) * c}px ${-Math.floor(f / 14) * c}px/${3360 * sc}px ${2400 * sc}px`); }
+// trigger input activity: an outline around the CHn lettering while audio comes in
+TRX.forEach((x,i) => { C({ type: 'trigin', id: 't' + (i + 1), pad: i + 1, x: x - 46, y: 32 - 25, w: 92, h: 50 });
+  el('controls', `left:${x}px;top:32px;opacity:${PREVIEW.trig[i]}`, '', 'trig'); });
 // encoder: 72 frames, 448 px cells (2x of 224 dp)
 { const c = 224, f = PREVIEW.enc;
   C({ type: 'encoder', id: 'value', x: 901 - c/2, y: 821 - c/2, w: c, h: c, frames: 72 });
@@ -170,7 +173,11 @@ PREVIEW.seg.forEach((b,i) => {
   el('controls', `left:${x}px;top:${y}px;width:56px;height:82px;transform:skewX(-7deg)`, digitHTML(b));
 });
 
-if (SEGMODE) {
+if (TRIGMODE) {
+  document.getElementById('canvas').style.cssText = 'position:relative;width:92px;height:50px;overflow:hidden';
+  U.style.cssText = 'position:absolute;left:0;top:0';
+  U.innerHTML = '<div class="trigbox"></div>';
+} else if (SEGMODE) {
   // one digit cell for the segment sprite sheet
   const bitOf = { unlit: -1, a: 0, b: 1, c: 2, d: 3, e: 4, f: 5, g: 6, dp: 7 };
   document.getElementById('canvas').style.cssText = `position:relative;width:${DIG.w + 2*DIG.padX}px;height:${DIG.h + 2*DIG.padY}px;overflow:hidden`;
@@ -192,6 +199,9 @@ if (SEGMODE) {
     add(x, y, 2, 12); add(x + w - 2, y, 2, 12); add(x, y, l - x, 2); add(rr, y, x + w - rr, 2);
   });
   U.insertAdjacentHTML('beforeend', lines.join(''));
+  if (P.get('bg')) U.querySelectorAll('[data-layer="controls"]').forEach(e => e.classList.add('hide'));
+  if (P.get('notext')) U.querySelectorAll('[data-layer]').forEach(e => { const L = e.dataset.layer.split(' ');
+    if (L.includes('tagboxes')) e.style.color = 'transparent'; else if (L.includes('text') || L.includes('wordmark')) e.classList.add('hide'); });
   if (LAYER !== 'all') U.querySelectorAll('[data-layer]').forEach(e => { if (!e.dataset.layer.split(' ').includes(LAYER)) e.classList.add('hide'); });
 }
 window.__controls = controls;

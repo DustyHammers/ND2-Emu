@@ -152,8 +152,8 @@ int main(int argc, char** argv) {
             pump(4000);
             std::printf("editor %d x %d\n", ed->getWidth(), ed->getHeight());
             const auto* display = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay();
-            if (display == nullptr || (display->userArea.getWidth() >= 1294 && display->userArea.getHeight() >= 806))
-                CHECK(ed->getWidth() == 1294 && ed->getHeight() == 806, "100 %% size");
+            if (display == nullptr || (display->userArea.getWidth() >= 1294 && display->userArea.getHeight() >= 776))
+                CHECK(ed->getWidth() == 1294 && ed->getHeight() == 776, "100 %% size");
             else                                         // a small screen: the window is never larger than it
                 CHECK(ed->getWidth() <= display->userArea.getWidth() && ed->getHeight() <= display->userArea.getHeight(),
                       "the window fits the screen");
@@ -178,7 +178,7 @@ int main(int argc, char** argv) {
                     }
                 };
                 const auto seg0 = p.engine().panel().seg;
-                click(418, 612, false);                                 // parameter button 1 (FILTER) at 357..479, 583..642 dp
+                click(418, 572, false);                                 // parameter button 1 (FILTER) at 357..479, 543..602 dp
                 pump(1500);
                 const auto seg1 = p.engine().panel().seg;
                 std::printf("display before %02x %02x %02x %02x, after FILTER %02x %02x %02x %02x; FILTER LED level %d\n", seg0[0], seg0[1],
@@ -189,20 +189,20 @@ int main(int argc, char** argv) {
                     const auto src = juce::MouseInputSource::InputSourceType::mouse;
                     const auto L = juce::ModifierKeys::leftButtonModifier;
                     auto t = juce::Time::currentTimeMillis();
-                    peer->handleMouseEvent(src, {901 * k, 861 * k}, {}, juce::MouseInputSource::defaultPressure, 0, t);
-                    peer->handleMouseEvent(src, {901 * k, 861 * k}, L, juce::MouseInputSource::defaultPressure, 0, ++t);
+                    peer->handleMouseEvent(src, {901 * k, 821 * k}, {}, juce::MouseInputSource::defaultPressure, 0, t);
+                    peer->handleMouseEvent(src, {901 * k, 821 * k}, L, juce::MouseInputSource::defaultPressure, 0, ++t);
                     for (int dy = 4; dy <= 80; dy += 4) {
                         pump(30);
-                        peer->handleMouseEvent(src, {901 * k, (861 - float(dy)) * k}, L, juce::MouseInputSource::defaultPressure, 0, t += 30);
+                        peer->handleMouseEvent(src, {901 * k, (821 - float(dy)) * k}, L, juce::MouseInputSource::defaultPressure, 0, t += 30);
                     }
                     pump(30);
-                    peer->handleMouseEvent(src, {901 * k, 781 * k}, {}, juce::MouseInputSource::defaultPressure, 0, t += 30);
+                    peer->handleMouseEvent(src, {901 * k, 741 * k}, {}, juce::MouseInputSource::defaultPressure, 0, t += 30);
                 }
                 pump(1200);
                 const auto seg2 = p.engine().panel().seg;
                 if (res.hasOs()) CHECK(seg2 != seg1, "dragging the encoder changes the value");
                 shot("3_after_encoder");
-                click(900, 560, true);                                  // the menu
+                click(900, 520, true);                                  // the menu
                 pump(1200);
                 shot("4_menu");
             }

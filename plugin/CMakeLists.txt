@@ -40,6 +40,7 @@ juce_add_plugin(ND2
   PLUGIN_NAME "ND2"
   BUNDLE_ID com.dhammers.nd2
   DESCRIPTION "ND2 drum synthesizer"
+  ICON_BIG "${CMAKE_SOURCE_DIR}/skins/default/app-icon.png"
   FORMATS ${ND2_FORMATS}
   IS_SYNTH TRUE
   NEEDS_MIDI_INPUT TRUE

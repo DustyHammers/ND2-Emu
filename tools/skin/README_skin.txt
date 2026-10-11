@@ -11,25 +11,24 @@ nd2-default_layers.ora      The background art as one layered file. GIMP opens i
                             LEDs, knobs and display sit; hide it before exporting.
 preview.png                 Everything together (2x).
 encoder_turning.gif         The value encoder turning one full loop.
-_source/                    The scripts that made all of this (layer source page, encoder renderer,
-                            packager), so any part can be regenerated.
+_source/                    The scripts that made all of this (layer source page, app icon page, encoder
+                            renderer, button/knob grain, packager), so any part can be regenerated.
 
 Canvas
 ------
-1725 x 1075 dp. All background art is drawn at 2x: 3450 x 2150 px, transparent outside what each
-layer paints. The body starts 40 dp down from the top so the rear jacks can stick up above it.
+1725 x 1035 dp = the body. All background art is drawn at 2x: 3450 x 2070 px, transparent outside what
+each layer paints.
 
 Background layers (bottom to top), one PNG each, all the same size so they stack exactly
 -----------------------------------------------------------------------------------------
-ND2Layer01Jacks.png      rear jacks (drawn behind the body)
-ND2Layer02Body.png       red body with its edge highlight and shadow
-ND2Layer03Panels.png     black panel print (main panel, lower-param area, encoder circle, TRIG box)
-ND2Layer04Display.png    display window (the digits are separate sprites on top)
-ND2Layer05RedPrint.png   red print: MASTER LEVEL scale disc and ticks, ring around the encoder
-ND2Layer06TagBoxes.png   tag boxes only (red boxes, white STORE box), no lettering
-ND2Layer07Lines.png      lines and brackets (gaps already left for their titles)
-ND2Layer08Text.png       all lettering, including the lettering of the tags (Liberation Sans Bold)
-ND2Layer09Wordmark.png   wordmark, a plain "ND2 EMU" placeholder
+ND2Layer01Body.png       red body with its edge highlight and shadow
+ND2Layer02Panels.png     black panel print (main panel, lower-param area, encoder circle, TRIG box)
+ND2Layer03Display.png    display window (the digits are separate sprites on top)
+ND2Layer04RedPrint.png   red print: MASTER LEVEL scale disc and ticks, ring around the encoder
+ND2Layer05TagBoxes.png   tag boxes only (red boxes, white STORE box), no lettering
+ND2Layer06Lines.png      lines and brackets (gaps already left for their titles)
+ND2Layer07Text.png       all lettering, including the lettering of the tags (Liberation Sans Bold)
+ND2Layer08Wordmark.png   wordmark, a plain "ND2 EMU" placeholder
 
 Editing a layer in GIMP and putting it back
 -------------------------------------------
@@ -41,13 +40,16 @@ Editing a layer in GIMP and putting it back
 
 Control sprites
 ---------------
-ND2BlackButton.png      2 frames (up, pressed), 122 x 59 px each, 1x. Program, Channel Select, Row Select.
-ND2GreyButton.png       same, grey (made from the black one). Parameter buttons, Shift, Lower Param, Trig.
+ND2BlackButton.png      2 frames (up, pressed), 244 x 118 px each (2x of 122 x 59 dp). Program, Channel Select,
+                        Row Select. Sandblasted grain like the value encoder (texture_sprites.py).
+ND2GreyButton.png       same, grey. Parameter buttons, Shift, Lower Param, Trig.
 ND2RedLed.png           2 frames (unlit, lit), 31 x 31 px each, shown as a 22 dp lamp. All LEDs except:
 ND2GreenLed.png         same, green. The six TRIG / MG LEDs.
                         The lit frame fades in over the unlit one at the LED's brightness (the OS
                         dims some LEDs).
-ND2MasterKnob.png       128 frames, 14 per row, 120 px cells, 240 degrees.
+ND2MasterKnob.png       128 frames, 14 per row, 240 px cells (2x of 120 dp), 240 degrees; sandblasted grain
+                        that turns with the knob. Shown in a 141 dp element.
+ND2TrigLamp.png         the trigger input outline, 184 x 100 px (2x of 92 x 50 dp), green with its glow.
 ND2Encoder.png          value encoder: 72 frames = one full turn (5 degrees per frame), 12 per row,
                         448 px cells (2x of 224 dp). Seamless: frame 71 runs straight into frame 0.
                         Modelled on the hardware: flat sandblasted top, 18 flat side facets with fine
@@ -66,3 +68,5 @@ RML elements
 <encoder>               the value encoder: RCSS frames (72, one turn), detents (24 per turn) and
                         spriteprefix (enc_). Drag up/down or use the mouse wheel to turn it.
 <segdigit pos="0..3"><seg class="a"/>...  one display digit; each seg child gets class lit when lit.
+<trigin pad="1..6"><lamp/>  a trigger input: class lit while audio comes in on that input (held 0.3 s);
+                        the lamp is shown then (opacity 1) and hidden otherwise (opacity 0).

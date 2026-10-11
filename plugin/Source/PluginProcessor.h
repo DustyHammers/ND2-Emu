@@ -60,6 +60,7 @@ private:
         int ledLevel(int led) override { return engine.ledLevel(led); }
         std::array<uint8_t, 4> segments() override { return engine.panel().seg; }
         uint32_t serial() override { return engine.uiSerial(); }
+        bool trigActive(int pad) override { return engine.trigActive(pad); }
         nd2::Engine& engine;
     };
 

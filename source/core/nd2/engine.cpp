@@ -43,7 +43,7 @@ struct Engine::TrigFifo : Board::AdcSource {
 
 Engine::Engine() {
   for (uint32_t i = 0; i < kButtonRing; i++) buttons_[i].seq.store(i, std::memory_order_relaxed);
-  for (int p = 0; p < kPads; p++) { trigGain_[p].store(1.0f); clipHold_[p].store(0); }
+  for (int p = 0; p < kPads; p++) { trigGain_[p].store(1.0f); clipHold_[p].store(0); activeHold_[p].store(0); }
   hostBytes_.resize(size_t(1) << 20);
   hostEvents_.reserve(8192);
   snap_.reserve(size_t(4) << 20);
@@ -245,6 +245,7 @@ void Engine::midiOut(Board& b, int n) {
 void Engine::prepare(double hostRate, int maxBlock, bool trigIn, bool stems) {
   std::lock_guard<std::mutex> l(mtx_);
   hostRate_ = hostRate; maxBlock_ = std::max(1, maxBlock); trigOn_ = trigIn; stemsOn_ = stems;
+  for (int p = 0; p < kPads; p++) activeHold_[p].store(0);
   cps_ = FCY / hostRate;
   const int64_t host = std::llround(hostRate);
   RateConverter::Design od;
@@ -330,15 +331,22 @@ void Engine::process(float* left, float* right, int n, const MidiEvent* events, 
     const int64_t avail = std::min<int64_t>(trigConv_.available(), int64_t(trigTmp_[0].size()));
     float* outs[kPads]; for (int p = 0; p < kPads; p++) outs[p] = trigTmp_[p].data();
     trigConv_.produce(outs, int(avail));
+    float peak[kPads] = {};
     for (int64_t k = 0; k < avail; k++) {
       float v[kPads];
       for (int p = 0; p < kPads; p++) {
         v[p] = std::max(-1.0f, std::min(1.0f, trigTmp_[p][size_t(k)] * gains[p]));
+        peak[p] = std::max(peak[p], std::fabs(v[p]));
         if (std::fabs(v[p]) >= 0.999f) clipHold_[p].store(int(0.3 * FCY / kAdcPeriod));
       }
       fifo_->pushFrame(v);
     }
-    for (int p = 0; p < kPads; p++) { int h = clipHold_[p].load(); if (h > 0) clipHold_[p].store(std::max(0, h - int(avail))); }
+    const int hold = int(0.3 * FCY / kAdcPeriod);
+    for (int p = 0; p < kPads; p++) {
+      int h = clipHold_[p].load(); if (h > 0) clipHold_[p].store(std::max(0, h - int(avail)));
+      const int a = activeHold_[p].load(std::memory_order_relaxed);         // audio present: above -48 dBFS
+      activeHold_[p].store(peak[p] >= 0.004f ? hold : std::max(0, a - int(avail)), std::memory_order_relaxed);
+    }
   }
 
   // run the machine until the converter has the native frames it needs

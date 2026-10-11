@@ -26,7 +26,7 @@ class SegDigitElement;
 
 constexpr double kFrameEventHz = 60;          // body onframe at most this often
 constexpr double kLuaTimeoutSeconds = 3;      // longest a single entry into Lua may run
-constexpr float kBodyWidthDp = 1725, kBodyHeightDp = 1075;   // document body size; window = body x zoom
+constexpr float kBodyWidthDp = 1725, kBodyHeightDp = 1035;   // document body size; window = body x zoom
 
 // Modifier bits for input (same values as Rml::Input::KeyModifier).
 enum Modifier { ModCtrl = 1, ModShift = 2, ModAlt = 4, ModMeta = 8 };

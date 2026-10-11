@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ND2 app icon</title>
+<style>
+/* The standalone app's icon (1024 x 1024, macOS grid: an 824 px rounded square): the value encoder on the red body. */
+html,body{margin:0;background:transparent}
+.cell{position:relative;width:1024px;height:1024px}
+.sq{position:absolute;left:100px;top:100px;width:824px;height:824px;border-radius:185px;overflow:hidden;
+  background:linear-gradient(#d4262f,#b81d26);box-shadow:0 18px 30px rgba(0,0,0,.35),inset 0 4px 0 #e85058,inset 0 -8px 0 #8f141b}
+.blk{position:absolute;left:52px;top:52px;width:720px;height:720px;border-radius:50%;background:#1b1b1b}
+.ring{position:absolute;left:152px;top:152px;width:520px;height:520px;border-radius:50%;border:12px solid #ff3a40;box-sizing:border-box}
+.enc{position:absolute;width:560px;height:560px;left:132px;top:132px;background:url(../../skins/default/nd2-default/ND2Encoder.png) 0 0/6720px 3360px}
+</style>
+</head>
+<body>
+<div class="cell"><div class="sq"><div class="blk"></div><div class="ring"></div><div class="enc"></div></div></div>
+<script>window.__ready = true;</script>
+</body>
+</html>

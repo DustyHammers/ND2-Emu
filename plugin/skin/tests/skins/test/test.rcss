@@ -1,5 +1,5 @@
 /* Test skin: plain coloured boxes, no images. Positions are what skin_test clicks on (1 dp = 1 px at ratio 1). */
-body { width: 1725dp; height: 1075dp; background-color: #202020; }
+body { width: 1725dp; height: 1035dp; background-color: #202020; }
 knob, encoder, pbutton, led, segdigit, div { display: block; position: absolute; }
 knob { left: 0dp; top: 0dp; width: 100dp; height: 100dp; background-color: #604080; frames: 128; spriteprefix: master_; }
 encoder { left: 200dp; top: 0dp; width: 100dp; height: 100dp; background-color: #406080; frames: 72; detents: 24; spriteprefix: enc_; }

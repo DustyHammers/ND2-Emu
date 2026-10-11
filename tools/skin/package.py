@@ -10,12 +10,12 @@ SK = os.path.join(PKG, SKIN)
 shutil.rmtree(PKG, ignore_errors=True)
 os.makedirs(SK)
 
-# ---- background layers (bottom to top); 2x art on a 1725 x 1075 dp canvas
-LAYERS = [('jacks', 'Rear jacks (behind the body)'), ('body', 'Red body'), ('panels', 'Black panel print'),
-          ('display', 'Display window'), ('redprint', 'Red print: master scale, encoder ring'),
+# ---- background layers (bottom to top); 2x art on a 1725 x 1035 dp canvas
+LAYERS = [('body', 'Red body'), ('panels', 'Black panel print'),
+          ('display', 'Display window'), ('cutouts', 'Holes around the buttons, with their shadows'), ('redprint', 'Red print: master scale, encoder ring'),
           ('tagboxes', 'Tag boxes (red and STORE)'), ('lines', 'Lines and brackets'), ('text', 'Lettering'),
           ('wordmark', 'Wordmark (placeholder)')]
-LAYER_NAMES = {'jacks': 'Jacks', 'body': 'Body', 'panels': 'Panels', 'display': 'Display', 'redprint': 'RedPrint',
+LAYER_NAMES = {'body': 'Body', 'panels': 'Panels', 'display': 'Display', 'cutouts': 'Cutouts', 'redprint': 'RedPrint',
                'tagboxes': 'TagBoxes', 'lines': 'Lines', 'text': 'Text', 'wordmark': 'Wordmark'}
 def layer_file(i, l): return f'ND2Layer{i:02d}{LAYER_NAMES[l]}.png'
 def layer_id(i, l): return f'layer_{i:02d}_{l}'
@@ -41,21 +41,21 @@ controls = json.load(open(os.path.join(OUT, 'controls.json')))
 # ---- RCSS
 def dp(v): return f'{round(v, 2):g}dp'
 r = []
-r.append('/* ND2 default skin. Canvas 1725 x 1075 dp; art at 2x (1 dp = 2 px). Generated from the layered source; */')
+r.append('/* ND2 default skin. Canvas 1725 x 1035 dp; art at 2x (1 dp = 2 px). Generated from the layered source; */')
 r.append('/* positions match the background layers, so move a control here and in the art together. */\n')
-r.append('@spritesheet buttons_black { src: ND2BlackButton.png; resolution: 1x; btn_black_up: 0px 0px 122px 59px; btn_black_down: 0px 59px 122px 59px; }')
-r.append('@spritesheet buttons_grey { src: ND2GreyButton.png; resolution: 1x; btn_grey_up: 0px 0px 122px 59px; btn_grey_down: 0px 59px 122px 59px; }')
+r.append('@spritesheet buttons_black { src: ND2BlackButton.png; resolution: 2x; btn_black_up: 0px 0px 244px 118px; btn_black_down: 0px 118px 244px 118px; }')
+r.append('@spritesheet buttons_grey { src: ND2GreyButton.png; resolution: 2x; btn_grey_up: 0px 0px 244px 118px; btn_grey_down: 0px 118px 244px 118px; }')
 r.append('@spritesheet leds_red { src: ND2RedLed.png; resolution: 1x; led_red_off: 0px 0px 31px 31px; led_red_on: 0px 31px 31px 31px; }')
 r.append('@spritesheet leds_green { src: ND2GreenLed.png; resolution: 1x; led_green_off: 0px 0px 31px 31px; led_green_on: 0px 31px 31px 31px; }')
 cw, ch = cell
 r.append('@spritesheet segments { src: ND2DisplaySegments.png; resolution: 2x; ' +
          ' '.join(f'seg_{s}: {i * cw}px 0px {cw}px {ch}px;' for i, s in enumerate(SEGS)) + ' }')
-r.append('@spritesheet master { src: ND2MasterKnob.png; resolution: 1x;\n' +
-         '\n'.join(f'  master_{f:03d}: {(f % 14) * 120}px {(f // 14) * 120}px 120px 120px;' for f in range(128)) + '\n}')
+r.append('@spritesheet master { src: ND2MasterKnob.png; resolution: 2x;\n' +
+         '\n'.join(f'  master_{f:03d}: {(f % 14) * 240}px {(f // 14) * 240}px 240px 240px;' for f in range(128)) + '\n}')
 r.append('@spritesheet encoder { src: ND2Encoder.png; resolution: 2x;\n' +
          '\n'.join(f'  enc_{f:03d}: {(f % 12) * 448}px {(f // 12) * 448}px 448px 448px;' for f in range(72)) + '\n}\n')
-r.append('body { width: 1725dp; height: 1075dp; background-color: #2b2b2e; }')
-r.append('div.layer { position: absolute; left: 0dp; top: 0dp; width: 1725dp; height: 1075dp; }')
+r.append('body { width: 1725dp; height: 1035dp; background-color: #2b2b2e; }')
+r.append('div.layer { position: absolute; left: 0dp; top: 0dp; width: 1725dp; height: 1035dp; }')
 for i, (l, _) in enumerate(LAYERS, 1):
     r.append(f'#{layer_id(i, l)} {{ decorator: image({layer_file(i, l)}); }}')
 r.append('\npbutton, led, knob, encoder, segdigit { display: block; position: absolute; }')
@@ -76,7 +76,7 @@ r.append('segdigit seg.lit { visibility: visible; }')
 r.append(' '.join(f'segdigit seg.{s} {{ decorator: image(seg_{s}); }}' for s in SEGS[1:]))
 r.append('')
 for c in controls:
-    r.append(f'#{c["id"]} {{ left: {dp(c["x"])}; top: {dp(c["y"] + 40)}; width: {dp(c["w"])}; height: {dp(c["h"])}; }}')
+    r.append(f'#{c["id"]} {{ left: {dp(c["x"])}; top: {dp(c["y"])}; width: {dp(c["w"])}; height: {dp(c["h"])}; }}')
 open(os.path.join(SK, SKIN + '.rcss'), 'w').write('\n'.join(r) + '\n')
 
 # ---- RML
@@ -122,7 +122,7 @@ shutil.copy(os.path.join(HERE, 'README_skin.txt'), os.path.join(PKG, 'README.txt
 gif = os.path.join(HERE, 'out', 'encoder_turning.gif')
 if os.path.exists(gif): shutil.copy(gif, os.path.join(PKG, 'encoder_turning.gif'))
 src = os.path.join(PKG, '_source'); os.makedirs(src, exist_ok=True)
-for f in ['skin_source.html', 'build.js', 'package.py', 'README_skin.txt']: shutil.copy(os.path.join(HERE, f), src)
+for f in ['skin_source.html', 'app_icon.html', 'build.js', 'package.py', 'texture_sprites.py', 'README_skin.txt']: shutil.copy(os.path.join(HERE, f), src)
 enc = os.path.join(HERE, 'render_encoder2.py')
 if os.path.exists(enc): shutil.copy(enc, src)
 print('controls', len(controls), 'layers', len(LAYERS))

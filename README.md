@@ -14,6 +14,14 @@ below. Earlier versions are on the [releases page](https://github.com/DustyHamme
 
 ## What's new
 
+### 0.1.4
+
+- Panel: the strip of jacks above the panel and the output and MIDI labels are gone; CH1 to CH6 are centred.
+- The body has bevelled sides and a rounded bottom edge, and the buttons come up through small cutouts in the panel.
+- The buttons and the MASTER LEVEL knob have the same sandblasted finish as the value encoder, drawn at twice the
+  resolution. The wordmark reads "nd2 Emu".
+- The standalone app has its own icon.
+
 ### 0.1.3
 
 - Slightly lower CPU use from a faster emulation of the processor. The sound is identical, sample for sample.

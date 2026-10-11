@@ -45,7 +45,7 @@ int main() {
     }
     FakePort port;
     SkinView v(port, PluginInfo{"ND2", "DHammers", "test"}, nullptr);
-    v.setViewport(1725, 1075, 1.0f);
+    v.setViewport(1725, 1035, 1.0f);
     std::string err;
     CHECK(v.load(skins + "/test", "test", err), "load: %s", err.c_str());
     double t = 1.0;
@@ -139,7 +139,7 @@ int main() {
     {
         FakePort p2;
         SkinView d(p2, PluginInfo{"ND2", "DHammers", "test"}, nullptr);
-        d.setViewport(1725, 1075, 1.0f);
+        d.setViewport(1725, 1035, 1.0f);
         std::string e2;
         CHECK(d.load(ND2_DEFAULT_SKIN, "nd2-default", e2), "default skin: %s", e2.c_str());
         p2.levels[29] = 8; p2.levels[6] = 8;
@@ -153,8 +153,8 @@ int main() {
         for (int i = 0; i < 5; ++i) { list.clear(); doc->GetElementsByTagName(list, tags[i]); n[i] = int(list.size()); }
         CHECK(n[0] == 15 && n[1] == 29 && n[2] == 1 && n[3] == 1 && n[4] == 4, "controls %d %d %d %d %d", n[0], n[1], n[2], n[3], n[4]);
         CHECK(doc->GetElementById("l_29")->IsClassSet("lit") && doc->GetElementById("l_6")->IsClassSet("green"), "LED 29 lit, LED 6 green");
-        // the Program button sits where the art has it: 359,311 .. 481,370 dp
-        d.mouseMove(420, 340, 0); d.mouseDown(0, 0); d.mouseUp(0, 0);
+        // the Program button sits where the art has it: 359,271 .. 481,330 dp
+        d.mouseMove(420, 300, 0); d.mouseDown(0, 0); d.mouseUp(0, 0);
         CHECK(p2.log.size() >= 2 && p2.log[p2.log.size() - 2] == "button 1 down", "Program button at its place");
     }
 

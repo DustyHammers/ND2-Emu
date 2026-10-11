@@ -190,6 +190,7 @@ DSPIC_FORCEINLINE uint16_t CPU::acc_word(int b, int shift, bool round) {
   return (uint16_t)(v >> 16);
 }
 static const int8_t kPre[8] = {0, 2, 4, 6, 0, -6, -4, -2};
+static const uint8_t kWm[8][2] = {{4,5},{4,6},{4,7},{0,0},{5,6},{5,7},{6,7},{0,0}};   // MAC multiplicand pairs
 DSPIC_FORCEINLINE void CPU::mac_prefetch_awb(const Insn& I, bool do_awb) {
   // X prefetch: W8/W9 (+W12 indexed), Y prefetch: W10/W11; operands are fetched before any register update
   int ci = I.iiii, cj = I.jjjj;
@@ -551,22 +552,22 @@ DSPIC_FORCEINLINE void CPU::exec(const Insn& I) {
     if (bus) bus->tblwt(paddr, v, I.op == I_TBLWTH, B);
     cycles += 1; break; }
   // ---------------- DSP
-  case I_MAC: case I_MSC: case I_MPY: case I_MPYN: case I_CLRAC: case I_MOVSAC: case I_MACSQ: case I_MPYSQ: {
-    static const uint8_t wm[8][2] = {{4,5},{4,6},{4,7},{0,0},{5,6},{5,7},{6,7},{0,0}};
-    const bool frac = dsp_frac; const int sm = dsp_sm;
-    int64_t p = 0;
-    if (I.op == I_MACSQ || I.op == I_MPYSQ) { uint16_t v = W(4 + I.mm); p = product(v, v, sm, frac); }
-    else if (I.op != I_CLRAC && I.op != I_MOVSAC) p = product(W(wm[I.mm][0]), W(wm[I.mm][1]), sm, frac);
-    switch (I.op) {
-    case I_MAC: case I_MACSQ: store_acc(I.acc, acc(I.acc) + p); break;
-    case I_MSC: store_acc(I.acc, acc(I.acc) - p); break;
-    case I_MPY: case I_MPYSQ: store_acc(I.acc, p); break;
-    case I_MPYN: store_acc(I.acc, -p); break;
-    case I_CLRAC: store_acc(I.acc, 0); break;
-    default: break;
-    }
-    mac_prefetch_awb(I, I.op != I_MACSQ && I.op != I_MPYSQ && I.op != I_MPY && I.op != I_MPYN);
-    break; }
+  // MAC class: one case per operation (same arithmetic and order as one shared case: product, accumulator, then
+  // the prefetches and the accumulator write-back; MPY/MPYN/MACSQ/MPYSQ have no write-back)
+  case I_MAC: { int64_t p = product(W(kWm[I.mm][0]), W(kWm[I.mm][1]), dsp_sm, dsp_frac);
+    store_acc(I.acc, acc(I.acc) + p); mac_prefetch_awb(I, true); break; }
+  case I_MSC: { int64_t p = product(W(kWm[I.mm][0]), W(kWm[I.mm][1]), dsp_sm, dsp_frac);
+    store_acc(I.acc, acc(I.acc) - p); mac_prefetch_awb(I, true); break; }
+  case I_MPY: { int64_t p = product(W(kWm[I.mm][0]), W(kWm[I.mm][1]), dsp_sm, dsp_frac);
+    store_acc(I.acc, p); mac_prefetch_awb(I, false); break; }
+  case I_MPYN: { int64_t p = product(W(kWm[I.mm][0]), W(kWm[I.mm][1]), dsp_sm, dsp_frac);
+    store_acc(I.acc, -p); mac_prefetch_awb(I, false); break; }
+  case I_CLRAC: store_acc(I.acc, 0); mac_prefetch_awb(I, true); break;
+  case I_MOVSAC: mac_prefetch_awb(I, true); break;
+  case I_MACSQ: { uint16_t v = W(4 + I.mm); int64_t p = product(v, v, dsp_sm, dsp_frac);
+    store_acc(I.acc, acc(I.acc) + p); mac_prefetch_awb(I, false); break; }
+  case I_MPYSQ: { uint16_t v = W(4 + I.mm); int64_t p = product(v, v, dsp_sm, dsp_frac);
+    store_acc(I.acc, p); mac_prefetch_awb(I, false); break; }
   case I_SFTACK: case I_SFTACW: {
     int k = I.op == I_SFTACK ? I.shift : (int)(int16_t)W(I.wb);
     if (k > 16) k = 16; if (k < -16) k = -16;

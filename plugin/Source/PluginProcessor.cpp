@@ -6,7 +6,7 @@
 
 namespace {
 constexpr uint32_t kStateMagic = 0x50324E44;     // "ND2P" (little-endian)
-constexpr uint32_t kStateVersion = 1;
+constexpr uint32_t kStateVersion = 2;            // 2: bank names after the machine
 constexpr int kTimerMs = 100;
 }  // namespace
 
@@ -21,6 +21,7 @@ juce::AudioProcessor::BusesProperties ND2Processor::buses() {
 
 ND2Processor::ND2Processor() : AudioProcessor(buses()) {
     events_.reserve(4096);
+    port_.owner = this;
     nd2diag::log(juce::String("processor created: ND2 ") + JucePlugin_VersionString + " " + nd2diag::arch() + ", "
                  + juce::AudioProcessor::getWrapperTypeDescription(wrapperType) + ", host \"" + juce::PluginHostType().getHostDescription()
                  + "\", " + juce::File::getSpecialLocation(juce::File::hostApplicationPath).getFullPathName());
@@ -32,6 +33,14 @@ ND2Processor::ND2Processor() : AudioProcessor(buses()) {
 }
 
 ND2Processor::~ND2Processor() { stopTimer(); }
+
+// The skin's render thread: handled on the message thread by the editor, if this instance still exists.
+void ND2Processor::Port::action(const std::string& name) {
+    std::weak_ptr<int> a = alive;
+    ND2Processor* p = owner;
+    const juce::String n = juce::String::fromUTF8(name.c_str());
+    juce::MessageManager::callAsync([a, p, n] { if (a.lock() && p->onSkinAction) p->onSkinAction(n); });
+}
 
 // The OS and the factory memory are shared; when they appear (located, built), this instance starts with them.
 void ND2Processor::timerCallback() {
@@ -46,7 +55,10 @@ void ND2Processor::timerCallback() {
     if (bootedWithoutFactory_ && r.hasFactory()) {
         engine_.setBootFlash(r.factoryFlash());
         std::string err;
-        if (engine_.setOs(r.os(), err)) bootedWithoutFactory_ = false;
+        if (engine_.setOs(r.os(), err)) {
+            bootedWithoutFactory_ = false;
+            if (!projectBanks_) banks_.setRecords(r.factoryRecords());
+        }
     }
 }
 
@@ -57,6 +69,7 @@ void ND2Processor::startMachine() {
     if (!engine_.setOs(r.os(), err)) return;
     started_ = true;
     bootedWithoutFactory_ = !r.hasFactory();
+    if (pendingState_.empty() && !projectBanks_) banks_.setRecords(r.factoryRecords());   // a new instance
     if (!pendingState_.empty()) {                    // a project opened before the OS was there
         if (engine_.setState(pendingState_, err)) bootedWithoutFactory_ = false;
         pendingState_.clear();
@@ -166,7 +179,8 @@ juce::AudioProcessorEditor* ND2Processor::createEditor() {
     return new ND2Editor(*this);
 }
 
-// State: magic, version, MASTER LEVEL (0-1), window scale, then the machine (gzip; empty if it was not running).
+// State: magic, version, MASTER LEVEL (0-1), window scale, then the machine (gzip; empty if it was not running),
+// then (version 2) the bank names (bankfiles::writeRecords).
 void ND2Processor::getStateInformation(juce::MemoryBlock& dest) {
     std::vector<uint8_t> machine = engine_.getState();
     if (machine.empty()) machine = pendingState_;    // not started yet: keep the project's machine as it came
@@ -184,6 +198,7 @@ void ND2Processor::getStateInformation(juce::MemoryBlock& dest) {
     out.writeInt64(juce::int64(machine.size()));
     out.writeInt64(juce::int64(packed.getSize()));
     out.write(packed.getData(), packed.getSize());
+    bankfiles::writeRecords(out, banks_.records());
 }
 
 void ND2Processor::setStateInformation(const void* data, int size) {
@@ -202,6 +217,11 @@ void ND2Processor::setStateInformation(const void* data, int size) {
     juce::GZIPDecompressorInputStream gz(packedIn);
     std::vector<uint8_t> machine(static_cast<size_t>(rawSize));
     if (gz.read(machine.data(), int(rawSize)) != int(rawSize)) return;
+    bankfiles::BankRecords names{};
+    for (auto& b : names) b.crcs.fill(bankfiles::kEmpty);
+    if (version >= 2) bankfiles::readRecords(in, names);
+    banks_.setRecords(names);                        // projects from before 0.1.7: no names (the window finds them)
+    projectBanks_ = true;
     std::string err;
     if (started_) {
         if (engine_.setState(machine, err)) bootedWithoutFactory_ = false;

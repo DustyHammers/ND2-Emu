@@ -1,5 +1,5 @@
 // The custom skin elements: <pbutton button>, <led code> (with an optional <lamp> child), <knob control="master">,
-// <encoder>, <segdigit pos> (with <seg class="a".."g"|"dp"> children).
+// <encoder>, <segdigit pos> (with <seg class="a".."g"|"dp"> children), <action name> (a plugin action, e.g. "banks").
 #pragma once
 #include <RmlUi/Core/Element.h>
 #include <string>
@@ -104,6 +104,21 @@ private:
     SkinView* view_;
     int pos_ = 0;
     int byte_ = 0xFF;
+};
+
+// A plugin action (name="banks": the Banks window): a left click asks for it; class lit while its window is open.
+class ActionElement : public Rml::Element {
+public:
+    explicit ActionElement(const Rml::String& tag);
+    ~ActionElement() override;
+    const std::string& name() const { return name_; }
+    bool setLit(bool lit);             // true if it changed
+protected:
+    void OnAttributeChange(const Rml::ElementAttributes& changed) override;
+private:
+    SkinView* view_;
+    std::string name_;
+    int lit_ = -1;
 };
 
 int parseInt(const std::string& s, int fallback);   // decimal or 0x hex

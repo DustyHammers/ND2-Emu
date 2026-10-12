@@ -251,6 +251,7 @@ bool SkinView::poll() {
         callLua(onDisplayFns, {segs_[0], segs_[1], segs_[2], segs_[3]});
     }
     for (SegDigitElement* d : digits_) if (d->setByte(segs_[size_t(d->pos())])) changed = true;
+    for (ActionElement* a : actions_) if (a->setLit(port_.actionLit(a->name()))) changed = true;
     const int m = port_.master();
     if (m != master_ && !dragKnob_) {
         master_ = m;
@@ -342,6 +343,8 @@ void SkinView::mouseDown(int button, int mods) {
                 dragDetents_ = 0;
             } else if (PButtonElement* b = findUp<PButtonElement>(hover)) {
                 b->mouseDown((mods & ModAlt) != 0);
+            } else if (ActionElement* a = findUp<ActionElement>(hover)) {
+                if (!a->name().empty()) port_.action(a->name());
             }
         }
         context_->ProcessMouseButtonDown(button, mods);
@@ -444,5 +447,7 @@ void SkinView::unregisterElement(EncoderElement* e) { encoders_.erase(e); if (dr
 void SkinView::unregisterElement(PButtonElement* e) { buttons_.erase(e); if (mousePressed_ == e) mousePressed_ = nullptr; }
 void SkinView::unregisterElement(LedElement* e) { leds_.erase(e); }
 void SkinView::unregisterElement(SegDigitElement* e) { digits_.erase(e); }
+void SkinView::registerElement(ActionElement* e) { actions_.insert(e); }
+void SkinView::unregisterElement(ActionElement* e) { actions_.erase(e); }
 
 }  // namespace skin

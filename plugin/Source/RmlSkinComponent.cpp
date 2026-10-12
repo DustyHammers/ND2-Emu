@@ -113,7 +113,7 @@ void RmlSkinComponent::timerCallback() {
                      + ", window " + (peer != nullptr ? "yes" : "no") + ", " + juce::String(getWidth()) + " x " + juce::String(getHeight()) + ")");
     }
     if (!visible) return;
-    const uint32_t serial = proc_.engine().uiSerial();
+    const uint32_t serial = proc_.panelPort().serial();   // the display, the LEDs and the BANKS label's light
     const double now = juce::Time::getMillisecondCounterHiRes() / 1000.0;
     if (frameWanted_.exchange(false) || serial != lastSerial_ || now >= nextWake_.load()) {
         lastSerial_ = serial;

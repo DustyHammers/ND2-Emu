@@ -5,8 +5,11 @@
 //                               then located as the plugin does): boot, MIDI through the main and channel outputs
 //                               (they add up), a piezo hit on Trigger In, the state round trip; with ND2_BANKS=bank
 //                               files, the factory memory is built first.
+//                               With the factory memory: the Banks window's work (save bank 1 as a file, load it
+//                               into bank 6, check the banks, the names in the project state).
 //   plugin_test --editor DIR    also opens the editor (needs a display) and, with DIR, saves screenshots there
-//                               (ImageMagick `import`, X11 only): the panel, after clicking PROGRAM, the menu.
+//                               (ImageMagick `import`, X11 only): the panel, after clicking PROGRAM, the menu, the
+//                               Banks window (opened with the BANKS label).
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <atomic>
@@ -16,6 +19,7 @@
 #include <cstdio>
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
+#include "BankFiles.h"
 #include "Resources.h"
 
 static int fails = 0;
@@ -114,6 +118,41 @@ int main(int argc, char** argv) {
             CHECK(r.maxErr < 1e-5, "the channel outputs add up to the main output (%.2e)", r.maxErr);
             CHECK(energy(r.stems[0]) > 0.5 && energy(r.stems[1]) == 0 && energy(r.stems[5]) == 0, "pad 1 only on Ch 1");
             CHECK(energy(r.stems[0], size_t(0.95 * 48000)) > 0.1, "the piezo hit on Trigger In 1 plays pad 1");
+            if (res.hasFactory()) {          // the Banks window's work, without the window
+                BankService& bs = p.banks();
+                bs.save(0);
+                CHECK(pumpUntil([&] { return !bs.busy(); }, 60000), "save finishes");
+                bankfiles::BankFile f;
+                juce::String err;
+                CHECK(bankfiles::readBankFile(bs.lastSaved(), f, err) && f.count == 50, "bank 1 saved as %s (%s)",
+                      bs.lastSaved().getFileName().toRawUTF8(), bs.message().toRawUTF8());
+                std::printf("%s\n", bs.message().toRawUTF8());
+                bs.load(5, f);
+                CHECK(pumpUntil([&] { return !bs.busy(); }, 60000), "load finishes");
+                std::printf("%s\n", bs.message().toRawUTF8());
+                CHECK(!bs.messageIsError(), "load: %s", bs.message().toRawUTF8());
+                CHECK(pumpUntil([&] { return p.engine().state() == nd2::Engine::State::Running; }, 15000), "the machine runs after the load");
+                pump(300);
+                bs.check();
+                const auto t0 = juce::Time::getMillisecondCounter();
+                CHECK(pumpUntil([&] { bool all = true; for (int b = 0; b < 8; ++b) all = all && bs.status(b).known; return all && !bs.checking(); }, 120000),
+                      "check finishes");
+                std::printf("check of the 8 banks: %.1f s; programs per bank:", (juce::Time::getMillisecondCounter() - t0) / 1000.0);
+                for (int b = 0; b < 8; ++b) std::printf(" %d", bs.status(b).count);
+                std::printf("\n");
+                CHECK(bs.status(5).crcs == f.crcs && bs.status(5).crcs == bs.status(0).crcs, "bank 6 holds bank 1's programs");
+                CHECK(bs.changedSinceLoading(5) == 0 && bs.records()[5].name == f.name, "bank 6 named %s", bs.records()[5].name.toRawUTF8());
+                CHECK(bs.status(7).known && bs.status(7).count == 0, "bank 8 empty");
+                // these banks for new instances: the factory memory and its names are replaced
+                std::array<juce::String, 8> names;
+                for (int b = 0; b < 8; ++b) names[size_t(b)] = bs.records()[size_t(b)].name;
+                bs.useForNewInstances(names);
+                CHECK(pumpUntil([&] { return !bs.busy(); }, 30000) && !bs.messageIsError(), "use for new instances: %s", bs.message().toRawUTF8());
+                CHECK(res.factoryRecords()[5].set && res.factoryRecords()[5].name == f.name, "new instances get the names");
+                ND2Processor fresh;
+                CHECK(pumpUntil([&] { return fresh.engine().state() == nd2::Engine::State::Running; }, 15000), "a new instance runs");
+                CHECK(fresh.banks().records()[5].name == f.name, "a new instance names bank 6 %s", fresh.banks().records()[5].name.toRawUTF8());
+            }
             // state round trip: a second instance restores the machine and plays
             juce::MemoryBlock st;
             p.getStateInformation(st);
@@ -126,6 +165,8 @@ int main(int argc, char** argv) {
             play(q, 0.3, -1, -1);
             const Run r2 = play(q, 1.0, 0.2, -1);
             CHECK(energy(r2.main) > 1.0, "the restored machine plays");
+            if (res.hasFactory())
+                CHECK(q.banks().records()[5].name == p.banks().records()[5].name && q.banks().records()[5].set, "bank names in the project state");
         }
 
         if (editor) {
@@ -205,6 +246,44 @@ int main(int argc, char** argv) {
                 click(900, 520, true);                                  // the menu
                 pump(1200);
                 shot("4_menu");
+                juce::PopupMenu::dismissAllActiveMenus();
+                pump(400);
+                click(180, 32, false);                                  // the BANKS label opens the Banks window
+                CHECK(pumpUntil([&] { return p.banksOpen.load(); }, 3000), "BANKS opens the Banks window");
+                if (res.hasFactory()) {                                 // the banks are checked (and Library/Factory made)
+                    pumpUntil([&] {
+                        return !p.banks().checking() && !bankfiles::factoryFolder().findChildFiles(juce::File::findFiles, false, "*.nd2_bank").isEmpty();
+                    }, 120000);
+                    CHECK(!bankfiles::factoryFolder().findChildFiles(juce::File::findFiles, false, "*.nd2_bank").isEmpty(), "Library/Factory has files");
+                }
+                pump(2000);
+                shot("5_banks");
+                if (res.hasFactory()) {                                 // drag the first bank file onto bank 5
+                    const auto src = juce::MouseInputSource::InputSourceType::mouse;
+                    const auto L = juce::ModifierKeys::leftButtonModifier;
+                    auto t = juce::Time::currentTimeMillis();
+                    const juce::Point<float> from(300 * k, 212 * k), to(900 * k, 532 * k);
+                    peer->handleMouseEvent(src, from, {}, juce::MouseInputSource::defaultPressure, 0, t);
+                    peer->handleMouseEvent(src, from, L, juce::MouseInputSource::defaultPressure, 0, ++t);
+                    for (int i = 1; i <= 20; ++i) {
+                        pump(30);
+                        peer->handleMouseEvent(src, from + (to - from) * (float(i) / 20.0f), L, juce::MouseInputSource::defaultPressure, 0, t += 30);
+                    }
+                    pump(400);
+                    shot("5b_drag");
+                    peer->handleMouseEvent(src, to, {}, juce::MouseInputSource::defaultPressure, 0, t += 30);
+                    pump(300);
+                    CHECK(p.banks().busy() || p.banks().status(4).count == 50, "dropping a bank file onto bank 5 loads it");
+                    pumpUntil([&] { return !p.banks().busy(); }, 60000);
+                    pump(1500);
+                    std::printf("drop: %s\n", p.banks().message().toRawUTF8());
+                    CHECK(p.banks().status(4).count == 50 && p.banks().status(4).crcs == p.banks().status(0).crcs, "bank 5 holds the dropped file");
+                    shot("5c_loaded");
+                }
+                click(180, 32, false);                                  // and closes it
+                CHECK(pumpUntil([&] { return !p.banksOpen.load(); }, 3000), "BANKS closes the Banks window");
+                pump(600);
+                shot("6_banks_closed");
             }
             w.setVisible(false);
             w.clearContentComponent();

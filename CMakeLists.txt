@@ -7,7 +7,7 @@ if(APPLE AND NOT CMAKE_OSX_ARCHITECTURES)
   set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Target architectures")
 endif()
 
-project(ND2Emu VERSION 0.1.6 LANGUAGES C CXX)
+project(ND2Emu VERSION 0.1.7 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -29,6 +29,7 @@ add_library(nd2core STATIC
   source/core/nd2/device.cpp
   source/core/nd2/engine.cpp
   source/core/nd2/banks.cpp
+  source/core/nd2/bankio.cpp
   source/core/util/rate_converter.cpp
   source/core/util/midi_stream.cpp)
 target_include_directories(nd2core PUBLIC source/core source/core/dspic source/core/nd2)

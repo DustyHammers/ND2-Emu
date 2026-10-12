@@ -18,6 +18,9 @@ static int fails = 0;
 
 struct FakePort : PanelPort {
     std::vector<std::string> log;
+    bool banksOpen = false;
+    void action(const std::string& name) override { log.push_back("action " + name); }
+    bool actionLit(const std::string& name) override { return name == "banks" && banksOpen; }
     int masterRaw = 1023, detents = 0;
     std::array<int, kLeds> levels{};
     std::array<uint8_t, 4> segs{0xFF, 0xFF, 0xFF, 0xFF};
@@ -119,6 +122,15 @@ int main() {
     }
     CHECK(v.evalForTest("lastEvent()") == "display 190 255 255 247", "Lua display: %s", v.evalForTest("lastEvent()").c_str());
 
+    // ---- plugin action: a click asks for it; class lit while its window is open
+    v.mouseMove(440, 15, 0); v.mouseDown(0, 0); v.mouseUp(0, 0);
+    CHECK(last(port) == "action banks", "action click: %s", last(port).c_str());
+    CHECK(!byId(v, "aBanks")->IsClassSet("lit"), "action not lit yet");
+    port.banksOpen = true; v.update(t += 0.02);
+    CHECK(byId(v, "aBanks")->IsClassSet("lit"), "action lit");
+    port.banksOpen = false; v.update(t += 0.02);
+    CHECK(!byId(v, "aBanks")->IsClassSet("lit"), "action unlit");
+
     // ---- sandbox: no file access outside the skin folder, no io/os
     CHECK(v.evalForTest("io") == "nil" && v.evalForTest("os") == "nil" && v.evalForTest("dofile") == "nil", "sandbox");
     CHECK(v.evalForTest("while true do end").rfind("error:", 0) == 0, "endless loop is stopped");
@@ -156,6 +168,12 @@ int main() {
         // the Program button sits where the art has it: 359,271 .. 481,330 dp
         d.mouseMove(420, 300, 0); d.mouseDown(0, 0); d.mouseUp(0, 0);
         CHECK(p2.log.size() >= 2 && p2.log[p2.log.size() - 2] == "button 1 down", "Program button at its place");
+        // the BANKS label (134,15 .. 226,49 dp) opens the Banks window and is lit while it is open
+        d.mouseMove(180, 32, 0); d.mouseDown(0, 0); d.mouseUp(0, 0);
+        CHECK(!p2.log.empty() && p2.log.back() == "action banks", "BANKS label: %s", p2.log.empty() ? "" : p2.log.back().c_str());
+        p2.banksOpen = true; d.update(1.2);
+        Rml::Element* banks = doc->GetElementById("a_banks");
+        CHECK(banks && banks->IsClassSet("lit"), "BANKS lit");
     }
 
     std::printf(fails ? "%d failure(s)\n" : "all skin tests passed\n", fails);

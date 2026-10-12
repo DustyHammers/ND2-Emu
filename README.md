@@ -14,6 +14,18 @@ below. Earlier versions are on the [releases page](https://github.com/DustyHamme
 
 ## What's new
 
+### 0.1.7
+
+- Banks window: click **BANKS** at the top left of the panel (or right-click > Banks...). Load any bank file into
+  one of the 8 banks with Load... or by dragging it from the list (or from the Finder) onto a bank, and save a bank
+  as a file. Bank files are the original manager's `.nd2_bank` files, kept in `~/Documents/ND2/Library/`.
+- Loading goes through the OS's own program dump messages, one program at a time, as the original manager does
+  with the hardware. ND2 keeps running meanwhile.
+- The 8 banks are saved with each project. "Use these banks for new instances" makes them the banks new instances
+  start with.
+- The factory banks are in `Library/Factory/`: copies of the factory bank files you load, or, if you loaded them
+  with an earlier version, made from ND2's factory memory the first time the Banks window opens.
+
 ### 0.1.6
 
 - Logic Pro, GarageBand and MainStage: ND2 stayed silent and showed a plain "ND2" window. Apple's hosts offer an
@@ -86,18 +98,23 @@ On first start, choose the OS update file and then the factory bank files.
 - Buttons: click. **Option-click** holds a button down (for SHIFT or LOWER PARAM combinations); click it again or
   press Esc to release it.
 - Encoder and MASTER LEVEL: drag up or down, or use the scroll wheel; hold Shift for fine steps.
-- Right-click the panel for skins, zoom, the OS update file and the factory banks.
+- **BANKS** (top left) opens the Banks window; click it again, press Esc or click beside the window to close it.
+- Right-click the panel for the Banks window, skins, zoom, the OS update file and the factory banks.
 
 ## Files and folders
 
-ND2 creates `~/Documents/ND2/` the first time it runs, with three folders:
+ND2 creates `~/Documents/ND2/` the first time it runs, with four folders:
 
 ```
 ~/Documents/ND2/
   os/        your firmware/OS
   skins/     your own skins: a folder <name> containing <name>.rml and its files; listed under right-click > Skin
+  Library/   bank files (.nd2_bank) for the Banks window; saved banks go here ("Bank 5 (11 Oct).nd2_bank")
+    Factory/   the factory banks (copies of your own factory bank files)
   cache/     made by ND2, safe to delete:
-             factory-<id>.flash        the factory memory built from your bank files (shared by new instances)
+             factory-<id>.flash        the factory memory new instances start with (built from your bank files,
+                                       or the banks chosen with "Use these banks for new instances")
+             factory-<id>.banks        the names of those banks
   skin-log.txt   skin messages, only while right-click > Developer > Write skin log is on
   ND2-log.txt    a short log of ND2 starting and its panel opening (for problem reports; kept small)
 ```

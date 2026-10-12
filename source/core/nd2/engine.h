@@ -42,6 +42,10 @@ public:
   State state() const { return state_.load(); }
   std::string message() const { std::lock_guard<std::mutex> l(msgMtx_); return message_; }
   void waitForJob();                                                      // tests and offline tools
+  // State blobs outside the engine (bank transfers on an offline machine): the same format as getState/setState.
+  static std::vector<uint8_t> stateOf(const Board& b, uint64_t osHash);
+  static std::unique_ptr<Board> boardFromState(const std::vector<uint8_t>& osImage, uint64_t osHash,
+                                               const std::vector<uint8_t>& blob, std::string& err);
 
   // ---- panel, any thread (lock-free)
   void pressButton(int idx, bool down);
@@ -54,6 +58,8 @@ public:
   int ledLevel(int led) const { return led >= 0 && led < 32 ? ledLevel_[led].load(std::memory_order_relaxed) : 0; }
   float masterLevel() const { return master_.load(); }
   uint32_t uiSerial() const { return uiSerial_.load(); }
+  // The program the OS has loaded: bank * 50 + program (bank 0-7, program 0-49), -1 before the machine runs.
+  int currentProgram() const { return current_.load(std::memory_order_relaxed); }
   bool trigClip(int pad) const { return pad >= 0 && pad < kPads && clipHold_[pad].load() > 0; }
 
   // ---- audio thread
@@ -135,6 +141,7 @@ private:
   // panel read-out
   std::atomic<uint32_t> segWord_{0xFFFFFFFF}, leds_{0}, uiSerial_{0};
   std::atomic<uint8_t> ledLevel_[32] = {};
+  std::atomic<int> current_{-1};
   uint64_t panelSince_ = 0;
   void publishPanel(Board& b);
 

@@ -1,6 +1,6 @@
 /* Test skin: plain coloured boxes, no images. Positions are what skin_test clicks on (1 dp = 1 px at ratio 1). */
 body { width: 1725dp; height: 1035dp; background-color: #202020; }
-knob, encoder, pbutton, led, segdigit, div { display: block; position: absolute; }
+knob, encoder, pbutton, led, segdigit, action, div { display: block; position: absolute; }
 knob { left: 0dp; top: 0dp; width: 100dp; height: 100dp; background-color: #604080; frames: 128; spriteprefix: master_; }
 encoder { left: 200dp; top: 0dp; width: 100dp; height: 100dp; background-color: #406080; frames: 72; detents: 24; spriteprefix: enc_; }
 pbutton { width: 80dp; height: 40dp; top: 200dp; background-color: #803030; }
@@ -17,3 +17,6 @@ segdigit seg.lit { visibility: visible; }
 #d0 { left: 0dp; }
 #d3 { left: 40dp; }
 #shown { left: 0dp; top: 500dp; width: 10dp; height: 10dp; }
+action { left: 400dp; top: 0dp; width: 90dp; height: 30dp; background-color: #303030; }
+action lamp { display: block; width: 90dp; height: 30dp; background-color: #40ff60; visibility: hidden; }
+action.lit lamp { visibility: visible; }

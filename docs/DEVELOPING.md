@@ -109,10 +109,29 @@ build/plugin/plugin/plugin_test [--editor [screenshot dir]]
 `plugin_test` checks bus layouts, silence and state without the OS. With the OS in `~/Documents/ND2/os/` (or
 `ND2_OS_SOURCE=` any update file, located as the plugin does) and `ND2_BANKS=` the factory bank files, it also
 builds the factory memory, plays MIDI and a piezo hit, checks that the channel outputs add up to the main output,
-and round-trips the state. `--editor` opens the window and clicks a button and the encoder.
+and round-trips the state; with the factory memory also the Banks window's work (bank 1 saved as a file, loaded
+into bank 6, the banks checked, the names in the project state). `--editor` opens the window, clicks a button, the
+encoder and the BANKS label.
 
-Plugin data lives in `~/Documents/ND2/` (`os/`, `cache/`, `skins/`, `skin-log.txt`); global settings in
+Plugin data lives in `~/Documents/ND2/` (`os/`, `cache/`, `skins/`, `Library/`, `skin-log.txt`); global settings in
 `~/Library/Application Support/ND2/ND2.settings`.
+
+## Banks window
+
+Bank files are the original manager's `.nd2_bank` (a stored zip of 50 `Program NNN.nd2p`). Every bank job works on a
+copy of the running machine (`Engine::getState`) restored in an offline machine (`source/core/nd2/bankio.*`,
+`BankMachine`), driven only through the OS's program dump messages as the original manager drives the hardware:
+
+- read: QryPerf_File (ProgDump msg 7, header `0x40|bank, program`) → DtaPerf_File (msg 8, 212 bytes), or AckPerf_File
+  (msg 9) code 01 when the slot is empty;
+- write: DtaPerf_File (msg 8) → AckPerf_File code 00 (one at a time, each acknowledged);
+- a load hands the offline machine's state back to the running one (`Engine::setState`); if the program playing is in
+  the loaded bank, the offline machine selects it again first (bank select + program change) so the new sound plays.
+
+Programs missing from a file leave the bank's other slots as they were (the OS has no message that empties a slot).
+The plugin side is `plugin/Source/BankFiles.*` (files, library folder, bank names), `BankService.*` (jobs, one at a
+time per instance on a worker thread) and `BanksPanel.*` (the window). `tests/test_banks.cpp` covers the offline
+machine with the OS and the factory bank files (`ND2_OS`, `ND2_BANKS`).
 
 ## CI
 

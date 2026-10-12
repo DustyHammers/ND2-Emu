@@ -39,4 +39,7 @@ constexpr int kLedSoloEdit = 7;
 constexpr int kAdcMasterLevel = 25;   // MASTER LEVEL pot: digital volume read by the OS (-1 = off, 0 = 12 o'clock, +1 = full)
 constexpr int kAdcPad[6] = {12, 2, 4, 6, 8, 10};
 
+// ---- OS v3.00 RAM
+constexpr unsigned kRamCurrentProgram = 0x70BC;   // u16: the loaded program, bank * 50 + program
+
 }  // namespace nd2::panel

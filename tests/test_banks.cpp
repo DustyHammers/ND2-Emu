@@ -1,6 +1,7 @@
 // Factory banks: program file format and SysEx (no data needed); building a factory flash needs the OS and the
 // user's program files: ND2_OS=os file, ND2_BANKS=folder of .nd2p files (any sub-folders), ND2_FLASH=expected image.
 #include "banks.h"
+#include "bankio.h"
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -62,6 +63,38 @@ int main() {
     std::vector<uint8_t> w((std::istreambuf_iterator<char>(in)), {});
     size_t diff = 0; for (size_t i = 0; i < std::min(w.size(), r.flash.size()); i++) diff += w[i] != r.flash[i];
     printf("against %s: %zu bytes differ (%zu vs %zu bytes)\n", want, diff, r.flash.size(), w.size());
+  }
+  // ---- bank transfers on an offline machine (what the Banks window does)
+  if (r.error.empty() && progs.size() >= 50) {
+    std::vector<BankProgram> bank1(progs.begin(), progs.begin() + 50);     // sorted: bank 1, programs 1-50
+    BankMachine m;
+    CHECK(m.boot(os, r.flash, err), "boot: %s", err.c_str());
+    BankProgram got;
+    CHECK(m.readProgram(0, 0, got, err) == BankMachine::Read::Stored && got.body == bank1[0].body, "read bank 1 program 1: %s", err.c_str());
+    CHECK(m.readProgram(6, 0, got, err) == BankMachine::Read::Empty, "bank 7 should be empty: %s", err.c_str());
+    // the original manager's file, rebuilt from what the drum answers (only the id field may differ)
+    {
+      std::vector<uint8_t> f = programFile(got.body == bank1[0].body ? bank1[0] : got, 0);
+      BankProgram back;
+      CHECK(parseProgramFile(f.data(), f.size(), back, err) && back.body == bank1[0].body, "program file round trip: %s", err.c_str());
+    }
+    auto t1 = std::chrono::steady_clock::now();
+    bool wrote = true;
+    for (const BankProgram& p : bank1) if (!m.writeProgram(p, 5, err)) { wrote = false; CHECK(false, "write: %s", err.c_str()); break; }
+    const double writeS = std::chrono::duration<double>(std::chrono::steady_clock::now() - t1).count();
+    // through a saved state and back, as the plugin does (the running machine gets the result)
+    BankMachine m2;
+    CHECK(m2.restore(os.image, os.hash, m.state(), err), "restore: %s", err.c_str());
+    t1 = std::chrono::steady_clock::now();
+    int same = 0;
+    for (int i = 0; i < 50 && wrote; i++)
+      if (m2.readProgram(5, i, got, err) == BankMachine::Read::Stored && got.body == bank1[size_t(i)].body && got.program == i) same++;
+    const double readS = std::chrono::duration<double>(std::chrono::steady_clock::now() - t1).count();
+    CHECK(same == 50, "bank 6 after loading bank 1 into it: %d of 50 programs equal", same);
+    CHECK(m2.readProgram(0, 7, got, err) == BankMachine::Read::Stored && got.body == bank1[7].body, "bank 1 unchanged");
+    m2.selectProgram(5 * 50 + 3);
+    CHECK(m2.currentProgram() == 5 * 50 + 3, "current program %d (want %d)", m2.currentProgram(), 5 * 50 + 3);
+    printf("bank transfer: 50 programs written in %.2f s, read in %.2f s\n", writeS, readS);
   }
   printf(fails ? "%d failure(s)\n" : "all bank tests passed\n", fails);
   return fails ? 1 : 0;

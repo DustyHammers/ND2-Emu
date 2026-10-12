@@ -13,6 +13,7 @@
 	<led id="l6" code="6"><lamp/></led>
 	<segdigit id="d0" pos="0"><seg class="a"/><seg class="b"/><seg class="g"/><seg class="dp"/></segdigit>
 	<segdigit id="d3" pos="3"><seg class="a"/><seg class="d"/></segdigit>
+	<action id="aBanks" name="banks"><lamp/></action>
 	<div id="shown" onshow="shownCount = (shownCount or 0) + 1"/>
 </body>
 </rml>

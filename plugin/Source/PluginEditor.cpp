@@ -1,5 +1,6 @@
 #include "Diag.h"
 #include "PluginEditor.h"
+#include "BanksPanel.h"
 #include "Resources.h"
 #include "RmlSkinComponent.h"
 #include "SkinSettings.h"
@@ -42,6 +43,7 @@ ND2Editor::ND2Editor(ND2Processor& p) : AudioProcessorEditor(&p), proc(p) {
     applying_ = true;
     setSize(winscale::windowLength(int(skin::kBodyWidthDp), scale_, true), winscale::windowLength(int(skin::kBodyHeightDp), scale_, true));
     applying_ = false;
+    proc.onSkinAction = [this](const juce::String& name) { if (name == "banks") toggleBanks(); };
     showSkin(SkinSettings::skin());
     startTimer(250);
     nd2diag::log("editor constructed " + juce::String(getWidth()) + " x " + juce::String(getHeight()) + ", skin \"" + SkinSettings::skin() + "\"");
@@ -51,6 +53,9 @@ ND2Editor::~ND2Editor() {
     nd2diag::log("editor closed");
     stopTimer();
     if (scaleDirty_) SkinSettings::setScale(scale_);
+    proc.onSkinAction = nullptr;
+    proc.banksOpen = false;
+    banks_.reset();
     rml_.reset();                                    // closes its OpenGL context first
 }
 
@@ -189,6 +194,31 @@ void ND2Editor::chooseBanks() {
                           });
 }
 
+void ND2Editor::toggleBanks() {
+    if (banks_) { closeBanks(); return; }
+    banks_ = std::make_unique<BanksPanel>(proc);
+    banks_->onClose = [this] { juce::MessageManager::callAsync([sp = juce::Component::SafePointer<ND2Editor>(this)] { if (sp) sp->closeBanks(); }); };
+    proc.banksOpen = true;
+    placeBanks();
+    banks_->grabKeyboardFocus();
+    nd2diag::log("Banks window opened");
+}
+
+void ND2Editor::closeBanks() {
+    banks_.reset();
+    proc.banksOpen = false;
+}
+
+// Over whichever view is shown (the skin or the fallback), below the panel's top strip.
+void ND2Editor::placeBanks() {
+    if (!banks_) return;
+    juce::Component* parent = rml_ ? static_cast<juce::Component*>(rml_.get()) : fallback_.get();
+    if (parent == nullptr) return;
+    if (banks_->getParentComponent() != parent) parent->addAndMakeVisible(*banks_);
+    banks_->place(parent->getLocalBounds(), float(getWidth()) / skin::kBodyWidthDp);
+    banks_->toFront(false);
+}
+
 void ND2Editor::showMenu() {
     const juce::StringArray names = skinNames();
     juce::PopupMenu skins, zoom, dev, menu;
@@ -213,6 +243,8 @@ void ND2Editor::showMenu() {
         if (rml_) rml_->setDebugger(debugger_);
     });
     dev.addItem("Write skin log", true, SkinSettings::skinLog(), [] { SkinSettings::setSkinLog(!SkinSettings::skinLog()); });
+    menu.addItem("Banks...", Resources::get().hasOs(), banks_ != nullptr, [this] { toggleBanks(); });
+    menu.addSeparator();
     menu.addSubMenu("Skin", skins);
     menu.addItem("Reload skin    F5", rml_ != nullptr, false, [this] { if (rml_) rml_->reload(); });
     menu.addSubMenu("Zoom", zoom);
@@ -278,4 +310,5 @@ void ND2Editor::resized() {
         rml_->setBounds(getLocalBounds());
     }
     if (fallback_) fallback_->setBounds(getLocalBounds());
+    placeBanks();
 }

@@ -13,7 +13,7 @@ Resources& Resources::get() {
 
 Resources::Resources() {
     data_ = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("ND2");
-    for (const juce::File& f : {osFolder(), skinsFolder(), cacheFolder()}) f.createDirectory();
+    for (const juce::File& f : {osFolder(), skinsFolder(), cacheFolder(), bankfiles::libraryFolder()}) f.createDirectory();
     scanOs();
     loadFactoryCache();
 }
@@ -38,6 +38,7 @@ void Resources::scanOs() {
 }
 
 juce::File Resources::factoryCacheFile() const { return cacheFolder().getChildFile("factory-" + hex64(os_.hash) + ".flash"); }
+juce::File Resources::factoryRecordsFile() const { return cacheFolder().getChildFile("factory-" + hex64(os_.hash) + ".banks"); }
 
 // Cache file: magic, OS hash (8 bytes), flash size (4), the flash.
 void Resources::loadFactoryCache() {
@@ -53,6 +54,30 @@ void Resources::loadFactoryCache() {
     if (std::memcmp(magic, kFactoryMagic, 8) != 0 || hash != os_.hash || size <= 0 || size != int(in.getNumBytesRemaining())) return;
     factory_.resize(size_t(size));
     in.read(factory_.data(), size);
+    factoryRecords_ = {};
+    juce::FileInputStream rec(factoryRecordsFile());
+    if (rec.openedOk()) bankfiles::readRecords(rec, factoryRecords_);
+}
+
+void Resources::saveFactory() {
+    juce::MemoryOutputStream out;
+    out.write(kFactoryMagic, 8);
+    out.writeInt64(juce::int64(os_.hash));
+    out.writeInt(int(factory_.size()));
+    out.write(factory_.data(), factory_.size());
+    factoryCacheFile().replaceWithData(out.getData(), out.getDataSize());
+    juce::MemoryOutputStream rec;
+    bankfiles::writeRecords(rec, factoryRecords_);
+    factoryRecordsFile().replaceWithData(rec.getData(), rec.getDataSize());
+}
+
+bool Resources::replaceFactory(std::vector<uint8_t> flash, const bankfiles::BankRecords& records) {
+    if (!osOk_ || flash.empty()) return false;
+    factory_ = std::move(flash);
+    factoryRecords_ = records;
+    saveFactory();
+    ++serial_;
+    return true;
 }
 
 void Resources::locateOs(const juce::File& chosen, std::function<void(bool, juce::String)> done) {
@@ -85,19 +110,34 @@ void Resources::buildFactory(const juce::Array<juce::File>& chosen, std::functio
             juce::MessageManager::callAsync([this, note, done] { building_ = false; done(false, "No factory presets loaded: " + note + "."); });
             return;
         }
+        // The chosen bank files: their names for the banks they fill, and copies in Library/Factory.
+        std::vector<bankfiles::BankFile> files;
+        for (const juce::File& f : chosen) {
+            juce::Array<juce::File> found;
+            if (f.isDirectory()) found = f.findChildFiles(juce::File::findFiles, true, "*.nd2_bank");
+            else if (f.hasFileExtension(".nd2_bank")) found.add(f);
+            for (const juce::File& g : found) {
+                bankfiles::BankFile b;
+                juce::String err;
+                if (bankfiles::readBankFile(g, b, err)) files.push_back(std::move(b));
+            }
+        }
         total_ = int(programs.size());
         nd2::FactoryBuild r = nd2::buildFactoryFlash(os, programs, [this](int d, int) { done_ = d; }, &stop_);
-        juce::MessageManager::callAsync([this, r = std::move(r), note, done, hash = os.hash]() mutable {
+        juce::MessageManager::callAsync([this, r = std::move(r), files = std::move(files), note, done, hash = os.hash]() mutable {
             building_ = false;
             if (!r.error.empty()) { done(false, "Factory presets were not loaded: " + juce::String(r.error) + "."); return; }
             if (hash != os_.hash) { done(false, "The OS changed while the presets were loading; load them again."); return; }
             factory_ = std::move(r.flash);
-            juce::MemoryOutputStream out;
-            out.write(kFactoryMagic, 8);
-            out.writeInt64(juce::int64(hash));
-            out.writeInt(int(factory_.size()));
-            out.write(factory_.data(), factory_.size());
-            factoryCacheFile().replaceWithData(out.getData(), out.getDataSize());
+            factoryRecords_ = {};
+            const bool copy = bankfiles::factoryFolder().findChildFiles(juce::File::findFiles, false, "*.nd2_bank").isEmpty();
+            for (const bankfiles::BankFile& b : files) {
+                if (b.sourceBank >= 0 && !factoryRecords_[size_t(b.sourceBank)].set)
+                    factoryRecords_[size_t(b.sourceBank)] = {true, b.name, b.crcs};
+                juce::String err;
+                if (copy) bankfiles::addToLibrary(b.file, true, err);
+            }
+            saveFactory();
             ++serial_;
             juce::String msg = juce::String(r.stored) + " factory programs loaded";
             if (r.rejected > 0) msg << " (" << r.rejected << " not accepted by the OS)";

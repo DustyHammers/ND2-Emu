@@ -1,4 +1,5 @@
 #include "engine.h"
+#include "banks.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -144,6 +145,25 @@ bool Engine::setState(const std::vector<uint8_t>& blob, std::string& err) {
   return true;
 }
 
+std::vector<uint8_t> Engine::stateOf(const Board& b, uint64_t osHash) {
+  StateWriter w;
+  w.put(kStateMagic); w.put(kStateVersion); w.put(osHash);
+  b.saveState(w);
+  return std::move(w.bytes);
+}
+
+std::unique_ptr<Board> Engine::boardFromState(const std::vector<uint8_t>& osImage, uint64_t osHash,
+                                              const std::vector<uint8_t>& blob, std::string& err) {
+  StateReader r(blob.data(), blob.size());
+  if (r.get<uint32_t>() != kStateMagic || r.get<uint32_t>() != kStateVersion) { err = "not a saved state of this emulator"; return nullptr; }
+  if (r.get<uint64_t>() != osHash) { err = "the state was saved with a different OS"; return nullptr; }
+  auto b = std::make_unique<Board>();
+  b->load_app(osImage);
+  b->boot();
+  if (!b->loadState(r)) { err = "the state could not be restored"; return nullptr; }
+  return b;
+}
+
 void Engine::serveSnapshot(Board& b) {
   const uint32_t req = snapRequest_.load(std::memory_order_acquire);
   if (req == snapDone_.load(std::memory_order_relaxed)) return;
@@ -217,6 +237,8 @@ void Engine::publishPanel(Board& b) {
     if (lv != ledLevel_[i].load(std::memory_order_relaxed)) { ledLevel_[i].store(lv, std::memory_order_relaxed); levels = true; }
   }
   if (levels || s != segWord_.load() || l != leds_.load()) { segWord_.store(s); leds_.store(l); uiSerial_.fetch_add(1); }
+  const int cur = b.cpu.ld16(panel::kRamCurrentProgram);
+  current_.store(cur < kBanks * kBankPrograms ? cur : -1, std::memory_order_relaxed);
 }
 
 // ---------------------------------------------------------------- MIDI

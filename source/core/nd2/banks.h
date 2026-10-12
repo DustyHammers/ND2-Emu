@@ -15,6 +15,8 @@
 
 namespace nd2 {
 
+constexpr int kBanks = 8, kBankPrograms = 50;   // the drum's memory: 8 banks of 50 programs
+
 struct BankProgram {
   int bank = 0, program = 0, format = 0;
   std::array<uint8_t, 175> body{};

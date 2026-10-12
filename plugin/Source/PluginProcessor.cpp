@@ -1,4 +1,6 @@
 #include "PluginProcessor.h"
+#include "Diag.h"
+#include <atomic>
 #include "PluginEditor.h"
 #include "Resources.h"
 
@@ -19,7 +21,12 @@ juce::AudioProcessor::BusesProperties ND2Processor::buses() {
 
 ND2Processor::ND2Processor() : AudioProcessor(buses()) {
     events_.reserve(4096);
+    nd2diag::log(juce::String("processor created: ND2 ") + JucePlugin_VersionString + " " + nd2diag::arch() + ", "
+                 + juce::AudioProcessor::getWrapperTypeDescription(wrapperType) + ", host \"" + juce::PluginHostType().getHostDescription()
+                 + "\", " + juce::File::getSpecialLocation(juce::File::hostApplicationPath).getFullPathName());
     Resources::get();                                // finds the OS and the factory memory
+    nd2diag::log("data folder " + Resources::get().dataFolder().getFullPathName() + (Resources::get().dataFolder().isDirectory() ? "" : " (missing)")
+                 + ", OS " + (Resources::get().hasOs() ? "found" : "not found"));
     timerCallback();
     startTimer(kTimerMs);
 }
@@ -28,6 +35,17 @@ ND2Processor::~ND2Processor() { stopTimer(); }
 
 // The OS and the factory memory are shared; when they appear (located, built), this instance starts with them.
 void ND2Processor::timerCallback() {
+    if (!processedLogged_ && processed_.load(std::memory_order_relaxed)) { processedLogged_ = true; nd2diag::log("audio running"); }
+    if (!runningLogged_ && engine_.state() == nd2::Engine::State::Running) { runningLogged_ = true; nd2diag::log("machine running"); }
+    if (!bypassLogged_ && bypassed_.load(std::memory_order_relaxed)) { bypassLogged_ = true; nd2diag::log("the host bypasses ND2 (processBlockBypassed)"); }
+    // With the window open and the host not processing audio (Logic Pro: a track that is not live or playing), the
+    // machine runs on its own so the panel answers; never in offline renders.
+    engine_.setIdleRun(getActiveEditor() != nullptr && !isNonRealtime());
+    if (const int idle = engine_.idleRunning() ? 1 : 0; idle != idleLogged_ && (idle == 1 || idleLogged_ == 1)) {
+        nd2diag::log(idle ? "no audio from the host: the panel runs on its own while the window is open"
+                          : "audio from the host again");
+        idleLogged_ = idle;
+    } else if (idleLogged_ < 0) idleLogged_ = idle;
     Resources& r = Resources::get();
     if (r.serial() == resourcesSerial_) return;
     resourcesSerial_ = r.serial();
@@ -69,6 +87,8 @@ void ND2Processor::prepareToPlay(double sampleRate, int samplesPerBlock) {
     scratch_.assign(size_t(block), 0.0f);
     engine_.prepare(sampleRate, block, trigChannels_ > 0, stems_);
     setLatencySamples(engine_.latencySamples());
+    nd2diag::log("prepareToPlay " + juce::String(sampleRate, 0) + " Hz, block " + juce::String(samplesPerBlock) + ", Trigger In "
+                 + juce::String(trigChannels_) + " ch, channel outputs " + (stems_ ? "on" : "off"));
 }
 
 // Main: stereo. Ch 1-6: stereo or off. Trigger In: off, or all 6 channels (pads 1-6 in order). Fewer channels are
@@ -81,18 +101,38 @@ bool ND2Processor::isBusesLayoutSupported(const BusesLayout& layouts) const {
         if (!layouts.outputBuses[b].isDisabled() && layouts.outputBuses[b] != juce::AudioChannelSet::stereo()) return false;
     for (const auto& in : layouts.inputBuses) {
         if (in.isDisabled() || in.size() == nd2::Engine::kPads) continue;
-        if (!(acceptsFewerTriggerChannels() && in.size() < nd2::Engine::kPads)) return false;
+        if (!(acceptsFewerTriggerChannels() && in.size() < nd2::Engine::kPads)) {
+            static std::atomic<int> logged{0};             // diagnostics: which layouts a host asked for in vain
+            if (logged.fetch_add(1) < 12)
+                nd2diag::log("layout refused: Trigger In " + juce::String(in.size()) + " ch (" + in.getDescription() + "), "
+                             + juce::String(layouts.outputBuses.size()) + " output buses");
+            return false;
+        }
     }
     return true;
 }
 
+// Hosts that give an instrument a mono or stereo input and nothing else, where six-or-none would leave ND2 unable to
+// start: Ableton Live, and Apple's hosts (Logic Pro, GarageBand, MainStage), which run AUs in AUHostingService.
 bool ND2Processor::acceptsFewerTriggerChannels() {
-    static const bool live = juce::PluginHostType().isAbletonLive();
-    return live;
+    static const bool fewer = [] {
+        const juce::PluginHostType host;
+        return host.isAbletonLive() || host.isLogic() || host.isGarageBand() || host.isMainStage()
+            || juce::File::getSpecialLocation(juce::File::hostApplicationPath).getFullPathName().contains("AUHostingService");
+    }();
+    return fewer;
+}
+
+void ND2Processor::releaseResources() { nd2diag::log("releaseResources"); }
+
+void ND2Processor::processBlockBypassed(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) {
+    bypassed_.store(true, std::memory_order_relaxed);   // logged by the timer
+    AudioProcessor::processBlockBypassed(buffer, midi);
 }
 
 void ND2Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) {
     juce::ScopedNoDenormals noDenormals;
+    processed_.store(true, std::memory_order_relaxed);   // diagnostics (logged by the timer, never here)
     const int total = buffer.getNumSamples();
     const int block = int(scratch_.size());
     // The trigger inputs share the buffer with the outputs (in place): copied out first, one chunk at a time.
@@ -137,7 +177,10 @@ void ND2Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuff
         if (outOn[size_t(c)] && !stems_) outs[size_t(c)].clear();
 }
 
-juce::AudioProcessorEditor* ND2Processor::createEditor() { return new ND2Editor(*this); }
+juce::AudioProcessorEditor* ND2Processor::createEditor() {
+    nd2diag::log("createEditor");
+    return new ND2Editor(*this);
+}
 
 // State: magic, version, MASTER LEVEL (0-1), window scale, then the machine (gzip; empty if it was not running).
 void ND2Processor::getStateInformation(juce::MemoryBlock& dest) {

@@ -46,6 +46,8 @@ bool writeBankFile(const juce::File& f, const std::vector<nd2::BankProgram>& pro
 // The bank files in the library: Factory/ first, then the rest (sub-folders included), in natural name order.
 std::vector<BankFile> scanLibrary();
 // folder/<base><ext>, or folder/<base> 2<ext>, ... : a name that does not exist yet.
+// A file in the library (anywhere in it) with exactly these programs, or an empty File.
+juce::File findInLibrary(const std::array<int, nd2::kBankPrograms>& crcs);
 juce::File freeFile(const juce::File& folder, const juce::String& base, const juce::String& ext);
 // Copies a file into the library (or Library/Factory) without overwriting anything; returns the copy.
 juce::File addToLibrary(const juce::File& f, bool factory, juce::String& error);

@@ -6,36 +6,35 @@ What's here
 nd2-default/                The skin folder. It is also built into the plugin as the Default skin. A copy you
                             change goes in ~/Documents/ND2/skins/<new name>/ (rename the folder and its .rml and
                             .rcss files to the new name); it then appears in the right-click menu under Skin.
-nd2-default_layers.ora      The background art as one layered file. GIMP opens it with every layer
-                            (File > Open). Top layer "REFERENCE controls" shows where the buttons,
-                            LEDs, knobs and display sit; hide it before exporting.
-preview.png                 Everything together (2x).
+preview.jpg                 Everything together (2x).
 encoder_turning.gif         The value encoder turning one full loop.
-_source/                    The scripts that made all of this (layer source page, app icon page, encoder
-                            renderer, button/knob grain, packager), so any part can be regenerated.
+_source/                    The scripts that made all of this (source page for the control positions, display
+                            segments and BANKS sprites, app icon page, encoder renderer, button/knob grain,
+                            packager), so any part can be regenerated.
 
 Canvas
 ------
-1725 x 1035 dp = the body. All background art is drawn at 2x: 3450 x 2070 px, transparent outside what
-each layer paints.
+1725 x 1035 dp = the body. All art is drawn at 2x: 3450 x 2070 px.
 
-Background layers (bottom to top), one PNG each, all the same size so they stack exactly
------------------------------------------------------------------------------------------
-ND2Layer01Body.png       red body; bevelled top and sides (7 dp), rounded bottom edge (16 dp), light from above
-ND2Layer02Panels.png     black panel print (main panel, lower-param area, encoder circle, TRIG box)
-ND2Layer03Display.png    display window (the digits are separate sprites on top)
-ND2Layer04Cutouts.png    the holes the buttons come up through (3 dp gap) and the buttons' shadows in them
-ND2Layer05RedPrint.png   red print: MASTER LEVEL scale disc and ticks, ring around the encoder
-ND2Layer06TagBoxes.png   tag boxes only (red boxes, white STORE box), no lettering
-ND2Layer07Lines.png      lines and brackets (gaps already left for their titles)
-ND2Layer08Text.png       all lettering, including the lettering of the tags (Liberation Sans Bold)
-ND2Layer09Wordmark.png   wordmark, "nd2 Emu"
+Background (since 0.1.8)
+------------------------
+ND2Background.jpg        everything but the controls, baked into one picture: body, panels, display window,
+                         button cutouts, MASTER LEVEL scale, encoder ring, tags, lines, lettering, wordmark.
+                         3450 x 2070 px; JPEG (quality 95, no chroma subsampling) because the body's grain makes
+                         a lossless file about 11 MB. Outside the rounded corners it is the window colour
+                         (#2b2b2e), so it looks the same as a transparent picture. A PNG works too: change the
+                         file name in the .rcss (div#background).
+ND2BanksLabel.png        the BANKS lettering (top left), drawn by the BANKS element itself, so it is not in the
+                         background picture.
+The controls are sprites on top of it (below); their places are fixed (the .rcss, near the end, by id), so the
+holes, rings and LED sockets in the background have to stay where they are.
+Up to 0.1.7 the background was nine layers (ND2Layer01Body.png ... ND2Layer09Wordmark.png); they are in the
+repository's history.
 
-Editing a layer in GIMP and putting it back
--------------------------------------------
-1. Open nd2-default_layers.ora. Edit the layer you want.
-2. To save a layer back: hide every other layer, then File > Export As..., and overwrite the matching
-   ND2LayerNN...png in your skin folder (keep the full canvas size; GIMP exports only what's visible).
+Editing the background and putting it back
+------------------------------------------
+1. Edit ND2Background.jpg (or your own full-size PNG of it) in GIMP; keep 3450 x 2070 px.
+2. Export over ND2Background.jpg in your skin folder.
 3. Moving or resizing a control? Change it in the .rcss too (positions are near the end, by id).
 4. In the plugin: right-click > Reload skin (or F5) shows your changes.
 

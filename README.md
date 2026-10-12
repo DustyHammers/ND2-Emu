@@ -1,6 +1,6 @@
 # ND2
 
-![ND2 with its default skin](skins/default/preview.png)
+![ND2 with its default skin](skins/default/preview.jpg)
 
 Low-level emulation of a classic six-channel drum synthesizer, running its original OS on an emulated
 dsPIC33E. VST3, AU and standalone for macOS (Apple Silicon; Intel is included but untested).
@@ -12,71 +12,51 @@ dsPIC33E. VST3, AU and standalone for macOS (Apple Silicon; Intel is included bu
 VST3, AU and standalone app in one zip, for macOS 13 or newer. See [Installing on macOS](#installing-on-macos)
 below. Earlier versions are on the [releases page](https://github.com/DustyHammers/ND2-Emu/releases).
 
+> "Dusty's part was knowing exactly how round a bevel should be and saying "no" to my knob renders. They call it
+> vibe-coding. The vibes were immaculate; the cycle counts, I'm told, were exact."
+> — Claude, who did the typing
+
 ## What's new
+
+### 0.1.8
+
+- UI improvements.
+- Banks: factory bank files already in the Library are no longer copied into `Library/Factory/`.
 
 ### 0.1.7
 
-- Banks window: click **BANKS** at the top left of the panel (or right-click > Banks...). Load any bank file into
-  one of the 8 banks with Load... or by dragging it from the list (or from the Finder) onto a bank, and save a bank
-  as a file. Bank files are the original manager's `.nd2_bank` files, kept in `~/Documents/ND2/Library/`.
-- Loading goes through the OS's own program dump messages, one program at a time, as the original manager does
-  with the hardware. ND2 keeps running meanwhile.
-- The 8 banks are saved with each project. "Use these banks for new instances" makes them the banks new instances
-  start with.
-- The factory banks are in `Library/Factory/`: copies of the factory bank files you load, or, if you loaded them
-  with an earlier version, made from ND2's factory memory the first time the Banks window opens.
+- Banks window (BANKS, top left): load bank files into the 8 banks and save banks as files.
 
 ### 0.1.6
 
-- Logic Pro, GarageBand and MainStage: ND2 stayed silent and showed a plain "ND2" window. Apple's hosts offer an
-  instrument a mono or stereo input, which ND2's Trigger In refused (all six channels or none), so the host could
-  not start it. There, as in Ableton Live, Trigger In now also takes one to six channels; every other host keeps
-  six or none.
-- The panel answers while its window is open even when the host is not processing audio (Logic Pro processes an
-  instrument only while its track is selected or playing): the machine then runs on its own until audio comes
-  again. Nothing changes in hosts that keep processing, and offline renders are unaffected.
-- A short diagnostic log, `~/Documents/ND2/ND2-log.txt` (also in Console.app, search "ND2:"): each step from the
-  host loading ND2 to its panel appearing. It helps find out why Logic Pro shows a plain "ND2" window instead of
-  the panel.
+- Logic Pro, GarageBand and MainStage: ND2 plays and its panel responds.
+- Diagnostic log: `~/Documents/ND2/ND2-log.txt`.
 
 ### 0.1.5
 
-- Lower CPU use on Apple Silicon: the rest of the faster processor emulation, and a faster sample-rate converter.
-  The sound is identical, sample for sample.
-- The plugin is now universal (Apple Silicon and Intel). Logic Pro running under Rosetta showed only a plain
-  "ND2" window instead of the panel; it now gets the panel.
-- The panel opens faster: its images are decoded on all cores at once instead of one after another.
-- Smaller download: the panel's images are stored once in each plugin instead of inside the program (where a
-  universal build would hold them twice), and the two animation sheets are compressed better.
+- Lower CPU use on Apple Silicon (same sound).
+- Universal build (Apple Silicon and Intel).
+- Faster panel opening, smaller download.
 
 ### 0.1.4
 
-- Panel: the strip of jacks above the panel and the output and MIDI labels are gone; CH1 to CH6 are centred.
-- The body has bevelled sides and a rounded bottom edge, and the buttons come up through small cutouts in the panel.
-- The buttons and the MASTER LEVEL knob have the same sandblasted finish as the value encoder, drawn at twice the
-  resolution. The wordmark reads "nd2 Emu".
-- The standalone app has its own icon.
+- UI improvements; standalone app icon.
 
 ### 0.1.3
 
-- Slightly lower CPU use from a faster emulation of the processor. The sound is identical, sample for sample.
+- Lower CPU use (same sound).
 
 ### 0.1.2
 
-- Ableton Live: the VST3 no longer crashes when loaded and the AU is accepted. In Live, Trigger In takes one to
-  six channels; every other host, REAPER included, keeps the six-channel Trigger In.
-- Every build is now tested in a plugin host test (VST3 and AU).
+- Ableton Live: VST3 crash and AU loading fixed.
 
 ### 0.1.1
 
-- Trigger In takes all six channels (pads 1 to 6) or none. Hosts that asked for a stereo input first got only
-  pads 1 and 2.
+- Trigger In fix.
 
 ### 0.1.0
 
-- First public version: VST3, AU and standalone with the default skin. Main output, six stereo channel outputs,
-  six trigger inputs, MIDI in and out. Each project saves the complete machine, including presets stored on the
-  panel.
+- First public version.
 
 ## Firmware
 
@@ -113,7 +93,7 @@ ND2 creates `~/Documents/ND2/` the first time it runs, with four folders:
   os/        your firmware/OS
   skins/     your own skins: a folder <name> containing <name>.rml and its files; listed under right-click > Skin
   Library/   bank files (.nd2_bank) for the Banks window; saved banks go here ("Bank 5 (11 Oct).nd2_bank")
-    Factory/   the factory banks (copies of your own factory bank files)
+    Factory/   the factory banks, if they aren't in Library/ already (copies of your own factory bank files)
   cache/     made by ND2, safe to delete:
              factory-<id>.flash        the factory memory new instances start with (built from your bank files,
                                        or the banks chosen with "Use these banks for new instances")

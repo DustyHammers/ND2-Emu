@@ -252,10 +252,14 @@ int main(int argc, char** argv) {
                 click(180, 32, false);                                  // the BANKS label opens the Banks window
                 CHECK(pumpUntil([&] { return p.banksOpen.load(); }, 3000), "BANKS opens the Banks window");
                 if (res.hasFactory()) {                                 // the banks are checked (and Library/Factory made)
+                    pump(500);
                     pumpUntil([&] {
-                        return !p.banks().checking() && !bankfiles::factoryFolder().findChildFiles(juce::File::findFiles, false, "*.nd2_bank").isEmpty();
+                        bool all = !p.banks().checking();
+                        for (int b = 0; b < 8; ++b) all = all && p.banks().status(b).known;
+                        return all;
                     }, 120000);
-                    CHECK(!bankfiles::factoryFolder().findChildFiles(juce::File::findFiles, false, "*.nd2_bank").isEmpty(), "Library/Factory has files");
+                    for (int b = 0; b < 4; ++b)                         // every factory bank is in the Library once
+                        CHECK(bankfiles::findInLibrary(p.banks().status(b).crcs) != juce::File(), "factory bank %d is in the Library", b + 1);
                 }
                 pump(2000);
                 shot("5_banks");

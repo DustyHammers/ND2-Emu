@@ -21,6 +21,7 @@ below. Earlier versions are on the [releases page](https://github.com/DustyHamme
 ### 0.1.8
 
 - UI improvements.
+- Banks: factory bank files already in the Library are no longer copied into `Library/Factory/`.
 
 ### 0.1.7
 
@@ -92,7 +93,7 @@ ND2 creates `~/Documents/ND2/` the first time it runs, with four folders:
   os/        your firmware/OS
   skins/     your own skins: a folder <name> containing <name>.rml and its files; listed under right-click > Skin
   Library/   bank files (.nd2_bank) for the Banks window; saved banks go here ("Bank 5 (11 Oct).nd2_bank")
-    Factory/   the factory banks (copies of your own factory bank files)
+    Factory/   the factory banks, if they aren't in Library/ already (copies of your own factory bank files)
   cache/     made by ND2, safe to delete:
              factory-<id>.flash        the factory memory new instances start with (built from your bank files,
                                        or the banks chosen with "Use these banks for new instances")

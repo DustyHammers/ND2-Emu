@@ -1,6 +1,8 @@
 #include "BankService.h"
 #include "Diag.h"
 #include "Resources.h"
+#include <functional>
+#include <string>
 
 namespace {
 std::atomic<bool> factoryFilesRunning{false};        // process-wide: one instance makes the factory files
@@ -281,14 +283,25 @@ void BankService::useForNewInstances(const std::array<juce::String, nd2::kBanks>
 // ------------------------------------------------------------------ factory files
 
 // Library/Factory from the factory memory, for those who loaded the factory banks before the Library existed:
-// one "Factory Bank N" file per bank that holds programs.
+// one "Factory Bank N" file per bank that holds programs, unless a file with the same programs is already anywhere in
+// the Library (the user's own copies of the factory files). Done once per factory memory (a marker in the cache), so
+// files the user deletes are not made again.
+static juce::File factoryFilesMarker() {
+    const Resources& res = Resources::get();
+    return res.cacheFolder().getChildFile("factory-" + juce::String::toHexString(juce::int64(res.os().hash)).paddedLeft('0', 16)
+                                          + "-" + juce::String::toHexString(juce::int64(std::hash<std::string>()(
+                                                std::string(res.factoryFlash().begin(), res.factoryFlash().end())))) + ".library");
+}
+
 void BankService::makeFactoryFiles() {
     Resources& res = Resources::get();
     if (!res.hasOs() || !res.hasFactory() || factoryFilesRunning.exchange(true)) return;
-    if (!bankfiles::factoryFolder().findChildFiles(juce::File::findFiles, false, "*.nd2_bank").isEmpty()) { factoryFilesRunning = false; return; }
+    if (factoryFilesMarker().existsAsFile()
+        || !bankfiles::factoryFolder().findChildFiles(juce::File::findFiles, false, "*.nd2_bank").isEmpty()) { factoryFilesRunning = false; return; }
+    const juce::File marker = factoryFilesMarker();
     const nd2::OsImage os = res.os();
     const std::vector<uint8_t> flash = res.factoryFlash();
-    post({Kind::Factory, [this, os, flash] {
+    post({Kind::Factory, [this, os, flash, marker] {
         checking_ = true;
         nd2::BankMachine m;
         std::string err;
@@ -313,15 +326,20 @@ void BankService::makeFactoryFiles() {
             return;
         }
         const juce::File folder = bankfiles::factoryFolder();
-        folder.createDirectory();
-        int made = 0;
+        int made = 0, present = 0;
         for (int b = 0; b < nd2::kBanks; ++b) {
             if (banks[size_t(b)].empty()) continue;
+            std::array<int, nd2::kBankPrograms> crcs;
+            crcs.fill(bankfiles::kEmpty);
+            for (const auto& p : banks[size_t(b)]) crcs[size_t(p.program)] = nd2::programCrc(p);
+            if (bankfiles::findInLibrary(crcs) != juce::File()) { ++present; continue; }   // the user has it already
+            folder.createDirectory();
             juce::String e;
             if (bankfiles::writeBankFile(bankfiles::freeFile(folder, "Factory Bank " + juce::String(b + 1), ".nd2_bank"), banks[size_t(b)], b, e)) ++made;
         }
+        marker.replaceWithText("done\n");
         factoryFilesRunning = false;
-        nd2diag::log("factory bank files made: " + juce::String(made));
+        nd2diag::log("factory bank files: " + juce::String(made) + " made, " + juce::String(present) + " already in the Library");
         done([this] { ++serial_; });
     }});
 }

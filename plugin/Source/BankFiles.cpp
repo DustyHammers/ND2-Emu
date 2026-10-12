@@ -110,6 +110,15 @@ std::vector<BankFile> scanLibrary() {
     return out;
 }
 
+juce::File findInLibrary(const std::array<int, nd2::kBankPrograms>& crcs) {
+    for (const auto& f : libraryFolder().findChildFiles(juce::File::findFiles, true, "*.nd2_bank")) {
+        BankFile b;
+        juce::String err;
+        if (readBankFile(f, b, err) && b.crcs == crcs) return f;
+    }
+    return {};
+}
+
 juce::File freeFile(const juce::File& folder, const juce::String& base, const juce::String& ext) {
     juce::File f = folder.getChildFile(base + ext);
     for (int n = 2; f.exists(); ++n) f = folder.getChildFile(base + " " + juce::String(n) + ext);

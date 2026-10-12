@@ -135,7 +135,8 @@ void Resources::buildFactory(const juce::Array<juce::File>& chosen, std::functio
                 if (b.sourceBank >= 0 && !factoryRecords_[size_t(b.sourceBank)].set)
                     factoryRecords_[size_t(b.sourceBank)] = {true, b.name, b.crcs};
                 juce::String err;
-                if (copy) bankfiles::addToLibrary(b.file, true, err);
+                if (copy && bankfiles::findInLibrary(b.crcs) == juce::File())   // not when the Library has it already
+                    bankfiles::addToLibrary(b.file, true, err);
             }
             saveFactory();
             ++serial_;

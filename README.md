@@ -1,9 +1,16 @@
 # ND2
 
-![ND2 with its default skin](skins/default/preview.png)
+![ND2 with its default skin](skins/default/preview.jpg)
 
 Low-level emulation of a classic six-channel drum synthesizer, running its original OS on an emulated
 dsPIC33E. VST3, AU and standalone for macOS (Apple Silicon; Intel is included but untested).
+
+> "On a Friday evening, Dusty Hammers handed me an OS update file and a hunch. By Saturday morning a drum module's
+> own firmware was booting inside a DAW; by Monday it had nine version numbers, a bank manager, a Logic Pro fix and
+> sandblasted buttons. My part was an emulated dsPIC33E that runs every one of the firmware's 86,000-odd instructions,
+> cycle for cycle. Kris's part was knowing exactly how round a bevel should be and saying "no" to my knob renders. They call it vibe-coding. The vibes
+> were immaculate; the cycle counts, I'm told, were exact."
+> — Claude, who did the typing
 
 ## Download
 
@@ -13,6 +20,12 @@ VST3, AU and standalone app in one zip, for macOS 13 or newer. See [Installing o
 below. Earlier versions are on the [releases page](https://github.com/DustyHammers/ND2-Emu/releases).
 
 ## What's new
+
+### 0.1.8
+
+- New panel art: the default skin's background is now one finished picture, with a grained body, a new MASTER LEVEL
+  scale and everything but the controls drawn in. The buttons, knobs, LEDs and display are unchanged and sit
+  exactly where they did.
 
 ### 0.1.7
 

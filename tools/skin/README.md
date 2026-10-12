@@ -1,11 +1,13 @@
 # Default skin sources
 
-The default skin (`skins/default/nd2-default/`) is made from these files:
+The default skin (`skins/default/nd2-default/`) is made from these files. Since 0.1.8 its background is one baked
+picture, `ND2Background.jpg` (the owner's art: everything but the controls), kept in the skin folder itself.
 
-- `skin_source.html`: one page that draws every background layer of the panel; `?layer=<name>` shows one layer on
-  a transparent canvas, `?seg=<segment>` one display segment.
-- `build.js`: renders all layers at 2x and the display segments with Playwright (Chromium), into `out/`.
-- `package.py`: assembles the skin folder (layers, sprites, RML, RCSS) and a layered `.ora` file for GIMP in
+- `skin_source.html`: the panel as it was drawn up to 0.1.7, in layers; still the source of the control positions
+  (`controls.json`), the display segments (`?seg=<segment>`), the BANKS lettering and its lit outline
+  (`?sprite=banks`). Its background layers are no longer used.
+- `build.js`: renders the page at 2x with Playwright (Chromium), into `out/`.
+- `package.py`: assembles the skin folder (background, sprites, RML, RCSS) and the README preview in
   `out/ND2_default_skin/`.
 - `app_icon.html`: the standalone app's icon (rendered by `build.js` to `out/app-icon.png`; goes to `skins/default/`).
 - `render_encoder2.py`: renders the endless value encoder sprite sheet (72 frames, 448 px).

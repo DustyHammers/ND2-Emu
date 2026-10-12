@@ -4,16 +4,7 @@
 	<link type="text/rcss" href="nd2-default.rcss"/>
 </head>
 <body>
-	<!-- background art, bottom to top (each a full-canvas PNG at 2x; edit them in GIMP) -->
-	<div class="layer" id="layer_01_body"/>	<!-- Red body -->
-	<div class="layer" id="layer_02_panels"/>	<!-- Black panel print -->
-	<div class="layer" id="layer_03_display"/>	<!-- Display window -->
-	<div class="layer" id="layer_04_cutouts"/>	<!-- Holes around the buttons, with their shadows -->
-	<div class="layer" id="layer_05_redprint"/>	<!-- Red print: master scale, encoder ring -->
-	<div class="layer" id="layer_06_tagboxes"/>	<!-- Tag boxes (red and STORE) -->
-	<div class="layer" id="layer_07_lines"/>	<!-- Lines and brackets -->
-	<div class="layer" id="layer_08_text"/>	<!-- Lettering -->
-	<div class="layer" id="layer_09_wordmark"/>	<!-- Wordmark (placeholder) -->
+	<div id="background"/>	<!-- ND2Background.jpg: everything but the controls (2x art) -->
 	<!-- controls -->
 	<pbutton id="b_program" button="1" class="black"/>
 	<pbutton id="b_chan_left" button="2" class="black"/>

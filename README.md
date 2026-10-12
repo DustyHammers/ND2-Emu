@@ -5,11 +5,8 @@
 Low-level emulation of a classic six-channel drum synthesizer, running its original OS on an emulated
 dsPIC33E. VST3, AU and standalone for macOS (Apple Silicon; Intel is included but untested).
 
-> "On a Friday evening, Dusty Hammers handed me an OS update file and a hunch. By Saturday morning a drum module's
-> own firmware was booting inside a DAW; by Monday it had nine version numbers, a bank manager, a Logic Pro fix and
-> sandblasted buttons. My part was an emulated dsPIC33E that runs every one of the firmware's 86,000-odd instructions,
-> cycle for cycle. Kris's part was knowing exactly how round a bevel should be and saying "no" to my knob renders. They call it vibe-coding. The vibes
-> were immaculate; the cycle counts, I'm told, were exact."
+> "Dusty's part was knowing exactly how round a bevel should be and saying "no" to my knob renders. They call it
+> vibe-coding. The vibes were immaculate; the cycle counts, I'm told, were exact."
 > — Claude, who did the typing
 
 ## Download

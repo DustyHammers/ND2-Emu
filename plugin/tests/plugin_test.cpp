@@ -248,6 +248,7 @@ int main(int argc, char** argv) {
                 shot("4_menu");
                 juce::PopupMenu::dismissAllActiveMenus();
                 pump(400);
+                if (res.hasOs()) {                                      // (without the OS a banner covers the label)
                 click(180, 32, false);                                  // the BANKS label opens the Banks window
                 CHECK(pumpUntil([&] { return p.banksOpen.load(); }, 3000), "BANKS opens the Banks window");
                 if (res.hasFactory()) {                                 // the banks are checked (and Library/Factory made)
@@ -284,6 +285,7 @@ int main(int argc, char** argv) {
                 CHECK(pumpUntil([&] { return !p.banksOpen.load(); }, 3000), "BANKS closes the Banks window");
                 pump(600);
                 shot("6_banks_closed");
+                }
             }
             w.setVisible(false);
             w.clearContentComponent();

@@ -196,6 +196,7 @@ void ND2Editor::chooseBanks() {
 
 void ND2Editor::toggleBanks() {
     if (banks_) { closeBanks(); return; }
+    if (!Resources::get().hasOs()) { message("The Banks window needs the OS update file (right-click > OS update file...)."); return; }
     banks_ = std::make_unique<BanksPanel>(proc);
     banks_->onClose = [this] { juce::MessageManager::callAsync([sp = juce::Component::SafePointer<ND2Editor>(this)] { if (sp) sp->closeBanks(); }); };
     proc.banksOpen = true;

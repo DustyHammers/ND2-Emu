@@ -20,6 +20,9 @@ below. Earlier versions are on the [releases page](https://github.com/DustyHamme
   instrument a mono or stereo input, which ND2's Trigger In refused (all six channels or none), so the host could
   not start it. There, as in Ableton Live, Trigger In now also takes one to six channels; every other host keeps
   six or none.
+- The panel answers while its window is open even when the host is not processing audio (Logic Pro processes an
+  instrument only while its track is selected or playing): the machine then runs on its own until audio comes
+  again. Nothing changes in hosts that keep processing, and offline renders are unaffected.
 - A short diagnostic log, `~/Documents/ND2/ND2-log.txt` (also in Console.app, search "ND2:"): each step from the
   host loading ND2 to its panel appearing. It helps find out why Logic Pro shows a plain "ND2" window instead of
   the panel.

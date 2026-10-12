@@ -168,6 +168,22 @@ int main() {
     const auto p2 = a->panel();
     CHECK(p2.leds & (1u << panel::kLedUpperRow[0]), "a click on parameter 1 did not light its LED (leds %08x)", p2.leds);
   }
+  // ---- the host stops processing: with the idle runner on, the panel still answers; audio resumes afterwards
+  {
+    auto a = makeEngine(rate, block, false);
+    run(*a, 4800, block, -1, -1, rate);
+    a->setIdleRun(true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(400));          // no host blocks
+    CHECK(a->idleRunning(), "the idle runner did not start");
+    a->pressButton(panel::BtnParam1, true); a->pressButton(panel::BtnParam1, false);
+    const auto t0 = std::chrono::steady_clock::now();
+    while (!(a->panel().leds & (1u << panel::kLedUpperRow[0])) && std::chrono::steady_clock::now() - t0 < std::chrono::seconds(5))
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    CHECK(a->panel().leds & (1u << panel::kLedUpperRow[0]), "without host audio, a click on parameter 1 did not light its LED");
+    const std::vector<float> back = run(*a, 24000, block, 2400, -1, rate);   // host audio again: a note plays
+    CHECK(onset(back, 2400) >= 0, "no sound after the idle runner");
+    CHECK(!a->idleRunning(), "the idle runner kept running with host audio");
+  }
   printf(fails ? "%d failure(s)\n" : "all engine tests passed\n", fails);
   return fails ? 1 : 0;
 }

@@ -49,9 +49,12 @@ Engine::Engine() {
   snap_.reserve(size_t(4) << 20);
   fifo_ = std::make_unique<TrigFifo>();
   fifo_->under = &trigUnder_;
+  idle_ = std::thread([this] { idleLoop(); });
 }
 
 Engine::~Engine() {
+  idleStop_.store(true);
+  if (idle_.joinable()) idle_.join();
   cancel_.store(true);
   if (worker_.joinable()) worker_.join();
 }
@@ -176,7 +179,7 @@ void Engine::pressButton(int idx, bool down) {
 }
 
 void Engine::applyPanel(Board& b) {
-  static thread_local uint64_t downAt[32] = {};
+  uint64_t* downAt = downAt_;
   for (;;) {
     ButtonCell& c = buttons_[btnDequeue_ & (kButtonRing - 1)];
     if (int32_t(c.seq.load(std::memory_order_acquire) - (btnDequeue_ + 1)) < 0) break;
@@ -239,6 +242,45 @@ void Engine::midiOut(Board& b, int n) {
     if (toPort) vout_.push(outParser_.data(), sz);
   }
   b.midi_out.clear(); b.midi_out_cycles.clear();
+}
+
+// ---------------------------------------------------------------- idle runner
+// Every 10 ms: when enabled and no host block came for 250 ms, run the machine for the real time that passed (at
+// most 50 ms per step) with the panel and the virtual port, then discard its audio.
+void Engine::idleLoop() {
+  constexpr int64_t kQuietMs = 250, kStepMs = 10, kMaxStepMs = 50;
+  int64_t last = 0;
+  while (!idleStop_.load()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(kStepMs));
+    const int64_t now = nowMs();
+    if (!idleOn_.load() || now - lastAudioMs_.load() < kQuietMs || state_.load() != State::Running) {
+      idling_.store(false);
+      last = 0;
+      continue;
+    }
+    std::unique_lock<std::mutex> lk(mtx_, std::try_to_lock);
+    if (!lk.owns_lock() || !live_) continue;
+    Board& b = *live_;
+    if (!idling_.exchange(true)) {               // starting: no host audio state to keep
+      b.adc_live = nullptr;
+      b.stems_on = false;
+      outParser_.reset();
+    }
+    const int64_t ms = last == 0 ? kStepMs : std::min(kMaxStepMs, std::max<int64_t>(0, now - last));
+    last = now;
+    applyPanel(b);
+    while (vin_.peekSize() && b.midi_line_free() < b.cpu.cycles + kVirtualBacklog)
+      vin_.pop([&](const uint8_t* p, size_t sz) { b.midi_in_at(p, sz, b.cpu.cycles); });
+    if (!b.cpu.halted) b.cpu.run_cycles(uint64_t(double(ms) * 1e-3 * FCY));
+    b.audio.clear(); audioRead_ = 0;
+    b.stems.clear(); stemRead_ = 0;
+    const bool toPort = virtualOn_.load();
+    for (uint8_t byte : b.midi_out)
+      if (outParser_.feed(byte) && toPort) vout_.push(outParser_.data(), outParser_.size());
+    b.midi_out.clear(); b.midi_out_cycles.clear();
+    publishPanel(b);
+    retime_ = true;                              // the next host block starts afresh
+  }
 }
 
 // ---------------------------------------------------------------- audio

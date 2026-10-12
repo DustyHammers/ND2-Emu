@@ -19,10 +19,11 @@ public:
     ~ND2Processor() override;
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
-    void releaseResources() override {}
+    void releaseResources() override;
     bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
     using AudioProcessor::processBlock;
     void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    void processBlockBypassed(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;   // diagnostics, then silence
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
@@ -80,7 +81,9 @@ private:
     std::vector<float> scratch_;
     int trigChannels_ = 0;
     std::atomic<bool> processed_{false};             // diagnostics: processBlock has run
-    bool processedLogged_ = false, runningLogged_ = false;
+    std::atomic<bool> bypassed_{false};              // diagnostics: the host called processBlockBypassed
+    bool processedLogged_ = false, runningLogged_ = false, bypassLogged_ = false;
+    int idleLogged_ = -1;
     bool stems_ = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ND2Processor)

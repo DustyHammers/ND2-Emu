@@ -6,7 +6,8 @@
 <style>
 /* One source for every layer of the default skin. ?layer=<name> shows one layer on a transparent canvas;
    ?layer=all shows everything (preview); &bg=1 leaves the controls out, &notext=1 the lettering. ?seg=<segment> draws
-   one display segment cell. Canvas = 1725 x 1035 dp = the body. */
+   one display segment cell, ?sprite=banks the BANKS label's lit outline (&lit=1 shows it in the preview).
+   Canvas = 1725 x 1035 dp = the body. */
 :root{--red:#c9212a;--accent:#e3262d;--panel:#1b1b1b}
 html,body{margin:0;background:transparent}
 #canvas{position:relative;width:1725px;height:1035px;overflow:hidden;font-family:'Liberation Sans',Arial,sans-serif}
@@ -37,6 +38,7 @@ body.L-text .tag{background:transparent!important}
 const P = new URLSearchParams(location.search);
 const LAYER = P.get('layer') || 'all';
 const SEGMODE = P.get('seg');            // digit sprite mode: unlit | a..g | dp
+const SPRITE = P.get('sprite');          // banks: the lit outline of the BANKS label
 document.body.classList.add('L-' + LAYER);
 
 // ---- panel model (unit coordinates, same as the approved mockup)
@@ -85,6 +87,8 @@ el('redprint', `left:785px;top:705px;width:232px;height:232px;border-radius:50%;
 
 // 08 text: trigger inputs
 TRX.forEach((x,i) => text('CH' + (i + 1), x, 22, 'font-size:19px'));
+// the Banks window (an action of the plugin, not of the hardware): plain lettering, outlined in green while open
+text('BANKS', 180, 22, 'font-size:19px');
 // knocked-out lines: [x0, x1, y, labelCentre, labelText, labelTop, fontSize, pad]
 const knock = [];
 knock.push([TRX[0] - 36, TRX[5] + 36, 58, 862.5, 'TRIG INPUTS', 48, 19, 10]);
@@ -185,7 +189,19 @@ PREVIEW.seg.forEach((b,i) => {
   el('controls', `left:${x}px;top:${y}px;width:56px;height:82px;transform:skewX(-7deg)`, digitHTML(b));
 });
 
-if (SEGMODE) {
+// BANKS: a 92 x 34 dp clickable box; its lit outline is a sprite with room for the glow
+const BANKS = { x: 134, y: 15, w: 92, h: 34, glow: 12 };
+const banksOutline = (x, y) => `<div style="position:absolute;left:${x}px;top:${y}px;width:${BANKS.w}px;height:${BANKS.h}px;border:2px solid #6dff7c;` +
+  `border-radius:6px;box-sizing:border-box;box-shadow:0 0 9px rgba(60,255,90,.85),inset 0 0 6px rgba(60,255,90,.4)"></div>`;
+C({ type: 'action', id: 'a_banks', name: 'banks', x: BANKS.x, y: BANKS.y, w: BANKS.w, h: BANKS.h, glow: BANKS.glow });
+if (P.get('lit') === '1') el('controls', 'left:0;top:0', banksOutline(BANKS.x, BANKS.y));
+
+if (SPRITE === 'banks') {
+  const g = BANKS.glow;
+  document.getElementById('canvas').style.cssText = `position:relative;width:${BANKS.w + 2*g}px;height:${BANKS.h + 2*g}px;overflow:hidden`;
+  U.style.cssText = 'position:absolute;left:0;top:0';
+  U.innerHTML = banksOutline(g, g);
+} else if (SEGMODE) {
   // one digit cell for the segment sprite sheet
   const bitOf = { unlit: -1, a: 0, b: 1, c: 2, d: 3, e: 4, f: 5, g: 6, dp: 7 };
   document.getElementById('canvas').style.cssText = `position:relative;width:${DIG.w + 2*DIG.padX}px;height:${DIG.h + 2*DIG.padY}px;overflow:hidden`;

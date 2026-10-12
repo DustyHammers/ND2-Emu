@@ -68,3 +68,6 @@ RML elements
 <encoder>               the value encoder: RCSS frames (72, one turn), detents (24 per turn) and
                         spriteprefix (enc_). Drag up/down or use the mouse wheel to turn it.
 <segdigit pos="0..3"><seg class="a"/>...  one display digit; each seg child gets class lit when lit.
+<action name="banks"><lamp/></action>  a plugin action, not a panel control: a click opens (or closes) the Banks
+                        window; class lit while it is open (the default skin shows its lamp, ND2BanksLit.png,
+                        a green outline around the BANKS lettering, only then).

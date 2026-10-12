@@ -4,7 +4,8 @@
 //
 //   ~/Documents/ND2/os/       the user's OS update (the original os.cab, copied there when it was located)
 //   ~/Documents/ND2/skins/    the user's skins: <name>/<name>.rml
-//   ~/Documents/ND2/cache/    the factory memory made from the user's bank files; the unpacked Default skin
+//   ~/Documents/ND2/cache/    the factory memory made from the user's bank files (and its bank names)
+//   ~/Documents/ND2/Library/  bank files (BankFiles.h); Factory/ gets the factory bank files the user chose
 #pragma once
 #include <juce_events/juce_events.h>
 #include <atomic>
@@ -12,6 +13,7 @@
 #include <memory>
 #include <thread>
 #include <vector>
+#include "BankFiles.h"
 #include "banks.h"
 #include "rom.h"
 
@@ -39,6 +41,10 @@ public:
     // result is cached for this OS. done(ok, message) on the message thread.
     void buildFactory(const juce::Array<juce::File>& chosen, std::function<void(bool, juce::String)> done);
     bool building() const { return building_.load(); }
+    // What the factory memory's banks hold (names for the Banks window); saved next to it.
+    const bankfiles::BankRecords& factoryRecords() const { return factoryRecords_; }
+    // "Use these banks for new instances": the factory memory is replaced (and cached) for this OS.
+    bool replaceFactory(std::vector<uint8_t> flash, const bankfiles::BankRecords& records);
     void buildProgress(int& done, int& total) const { done = done_.load(); total = total_.load(); }
     bool factoryDeclined = false;                    // "Not now" (this session)
 
@@ -54,12 +60,15 @@ private:
     void scanOs();
     void loadFactoryCache();
     juce::File factoryCacheFile() const;
+    juce::File factoryRecordsFile() const;
+    void saveFactory();
     template <class F> void runWorker(F&& f);
 
     juce::File data_;
     nd2::OsImage os_;
     bool osOk_ = false;
     std::vector<uint8_t> factory_;
+    bankfiles::BankRecords factoryRecords_{};
     std::atomic<uint32_t> serial_{1};
     std::atomic<bool> locating_{false}, building_{false}, stop_{false};
     std::atomic<int> done_{0}, total_{0};

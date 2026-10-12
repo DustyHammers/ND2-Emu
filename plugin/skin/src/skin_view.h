@@ -1,5 +1,5 @@
 // One loaded skin in one plugin window: an RmlUi context with the skin's document, its Lua environment, and the
-// bindings between the custom elements (pbutton, led, knob, encoder, segdigit) and the instrument (PanelPort).
+// bindings between the custom elements (pbutton, led, knob, encoder, segdigit, action) and the instrument (PanelPort).
 //
 // Threading: RmlUi and Lua are not thread-safe and their state is shared by every plugin instance in the process.
 // Every SkinView method takes the global skin lock, so views on different threads (one render thread per window)
@@ -23,6 +23,7 @@ class EncoderElement;
 class PButtonElement;
 class LedElement;
 class SegDigitElement;
+class ActionElement;
 
 constexpr double kFrameEventHz = 60;          // body onframe at most this often
 constexpr double kLuaTimeoutSeconds = 3;      // longest a single entry into Lua may run
@@ -91,11 +92,13 @@ public:
     void registerElement(PButtonElement* e);
     void registerElement(LedElement* e);
     void registerElement(SegDigitElement* e);
+    void registerElement(ActionElement* e);
     void unregisterElement(KnobElement* e);
     void unregisterElement(EncoderElement* e);
     void unregisterElement(PButtonElement* e);
     void unregisterElement(LedElement* e);
     void unregisterElement(SegDigitElement* e);
+    void unregisterElement(ActionElement* e);
 
     void masterMoved(int raw);                 // the knob moved by the user: send it and tell Lua
     void setMaster(int raw);                   // panel.setMaster: knobs show it, send it, tell Lua
@@ -141,6 +144,7 @@ private:
     std::set<PButtonElement*> buttons_;
     std::set<LedElement*> leds_;
     std::set<SegDigitElement*> digits_;
+    std::set<ActionElement*> actions_;
     KnobElement* dragKnob_ = nullptr;
     EncoderElement* dragEncoder_ = nullptr;
     int dragStartY_ = 0, dragStartRaw_ = 0, dragDetents_ = 0;

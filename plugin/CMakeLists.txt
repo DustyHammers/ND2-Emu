@@ -56,7 +56,10 @@ set(ND2_PLUGIN_SOURCES
   Source/PluginEditor.cpp
   Source/RmlSkinComponent.cpp
   Source/OsFiles.cpp
-  Source/Resources.cpp)
+  Source/Resources.cpp
+  Source/BankFiles.cpp
+  Source/BankService.cpp
+  Source/BanksPanel.cpp)
 target_sources(ND2 PRIVATE ${ND2_PLUGIN_SOURCES})
 target_include_directories(ND2 PRIVATE Source)
 target_compile_definitions(ND2 PUBLIC

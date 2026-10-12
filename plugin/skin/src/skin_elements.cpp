@@ -38,6 +38,7 @@ void registerElements() {
     add<PButtonElement>("pbutton");
     add<LedElement>("led");
     add<SegDigitElement>("segdigit");
+    add<ActionElement>("action");
 }
 
 // ------------------------------------------------------------------ sprites
@@ -213,6 +214,25 @@ void SegDigitElement::apply() {
         for (int bit = 0; bit < 8; ++bit)
             if (c->IsClassSet(kSegClasses[bit])) c->SetClass("lit", ((byte_ >> bit) & 1) == 0);
     }
+}
+
+// ------------------------------------------------------------------ plugin action
+
+ActionElement::ActionElement(const Rml::String& tag) : Rml::Element(tag), view_(SkinView::current()) {
+    if (view_) view_->registerElement(this);
+}
+ActionElement::~ActionElement() { if (view_) view_->unregisterElement(this); }
+
+void ActionElement::OnAttributeChange(const Rml::ElementAttributes& changed) {
+    Rml::Element::OnAttributeChange(changed);
+    if (changed.count("name")) { name_ = attr(*this, "name"); lit_ = -1; }
+}
+
+bool ActionElement::setLit(bool lit) {
+    if (int(lit) == lit_) return false;
+    lit_ = int(lit);
+    SetClass("lit", lit);
+    return true;
 }
 
 }  // namespace skin

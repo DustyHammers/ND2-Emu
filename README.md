@@ -1,4 +1,4 @@
-# ND2
+# nd2 Emu
 
 ![ND2 with its default skin](skins/default/preview.jpg)
 

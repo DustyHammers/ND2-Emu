@@ -46,6 +46,15 @@ void ND2Processor::Port::action(const std::string& name) {
 void ND2Processor::timerCallback() {
     if (!processedLogged_ && processed_.load(std::memory_order_relaxed)) { processedLogged_ = true; nd2diag::log("audio running"); }
     if (!runningLogged_ && engine_.state() == nd2::Engine::State::Running) { runningLogged_ = true; nd2diag::log("machine running"); }
+    if (!bypassLogged_ && bypassed_.load(std::memory_order_relaxed)) { bypassLogged_ = true; nd2diag::log("the host bypasses ND2 (processBlockBypassed)"); }
+    // With the window open and the host not processing audio (Logic Pro: a track that is not live or playing), the
+    // machine runs on its own so the panel answers; never in offline renders.
+    engine_.setIdleRun(getActiveEditor() != nullptr && !isNonRealtime());
+    if (const int idle = engine_.idleRunning() ? 1 : 0; idle != idleLogged_ && (idle == 1 || idleLogged_ == 1)) {
+        nd2diag::log(idle ? "no audio from the host: the panel runs on its own while the window is open"
+                          : "audio from the host again");
+        idleLogged_ = idle;
+    } else if (idleLogged_ < 0) idleLogged_ = idle;
     Resources& r = Resources::get();
     if (r.serial() == resourcesSerial_) return;
     resourcesSerial_ = r.serial();
@@ -125,6 +134,13 @@ bool ND2Processor::acceptsFewerTriggerChannels() {
             || juce::File::getSpecialLocation(juce::File::hostApplicationPath).getFullPathName().contains("AUHostingService");
     }();
     return fewer;
+}
+
+void ND2Processor::releaseResources() { nd2diag::log("releaseResources"); }
+
+void ND2Processor::processBlockBypassed(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) {
+    bypassed_.store(true, std::memory_order_relaxed);   // logged by the timer
+    AudioProcessor::processBlockBypassed(buffer, midi);
 }
 
 void ND2Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) {

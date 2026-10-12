@@ -72,6 +72,15 @@ public:
   static constexpr int kStemChannels = Board::kStems;
   int latencySamples() const { return latency_; }
 
+  // ---- when the host does not process audio (Logic Pro processes an instrument only while its track is live or
+  // playing; REAPER can stop processing with the transport): with setIdleRun(true), a background thread keeps the
+  // machine running in real time after 250 ms without a host block, so the panel answers. Audio made meanwhile is
+  // discarded and host MIDI out is not sent; the virtual port works. The next host block starts afresh. Off by
+  // default (offline renders and tests stay deterministic); the plugin turns it on while its window is open and
+  // the host renders in real time.
+  void setIdleRun(bool on) { idleOn_.store(on); }
+  bool idleRunning() const { return idling_.load(); }
+
   // ---- MIDI out (to the host: offsets in the block just processed) and the virtual port
   void setMidiToHost(bool on) { hostOutOn_.store(on); }
   const std::vector<MidiOutEvent>& hostMidiEvents() const { return hostEvents_; }
@@ -137,6 +146,7 @@ private:
   std::atomic<float> trigGain_[kPads];
   std::atomic<int> clipHold_[kPads];
   void applyPanel(Board& b);
+  uint64_t downAt_[32] = {};               // when each button went down (machine cycles; under mtx_)
 
   // panel read-out
   std::atomic<uint32_t> segWord_{0xFFFFFFFF}, leds_{0}, uiSerial_{0};
@@ -162,6 +172,11 @@ private:
   std::atomic<int64_t> lastAudioMs_{0};
   std::mutex getStateMtx_;
   void serveSnapshot(Board& b);
+
+  // idle runner
+  std::thread idle_;
+  std::atomic<bool> idleOn_{false}, idleStop_{false}, idling_{false};
+  void idleLoop();
 };
 
 }  // namespace nd2

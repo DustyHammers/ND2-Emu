@@ -57,6 +57,12 @@ public:
     // Skin actions (<action name="banks">): a click on the panel, handled by the open editor (message thread).
     std::function<void(const juce::String&)> onSkinAction;
     std::atomic<bool> banksOpen{false};              // the Banks window is open (the BANKS label is lit)
+    // Typed program entry: what the display shows instead of the OS's display while it runs (any thread reads it).
+    void setEntryDisplay(bool on, std::array<uint8_t, 4> seg) {
+        entrySegs_.store(uint32_t(seg[0]) | uint32_t(seg[1]) << 8 | uint32_t(seg[2]) << 16 | uint32_t(seg[3]) << 24);
+        entryOn_.store(on);
+        entrySerial_.fetch_add(1);
+    }
 
 private:
     class Port : public skin::PanelPort {
@@ -67,8 +73,16 @@ private:
         void setMaster(int raw) override { engine.setMasterLevel(float(raw) / float(skin::kMasterMax)); }
         int master() override { return juce::roundToInt(engine.masterLevel() * float(skin::kMasterMax)); }
         int ledLevel(int led) override { return engine.ledLevel(led); }
-        std::array<uint8_t, 4> segments() override { return engine.panel().seg; }
-        uint32_t serial() override { return engine.uiSerial() + (owner->banksOpen.load() ? 0x80000000u : 0u); }
+        std::array<uint8_t, 4> segments() override {
+            if (owner->entryOn_.load()) {                // typed program entry (ProgramEntry) instead of the OS's display
+                const uint32_t w = owner->entrySegs_.load();
+                return {uint8_t(w), uint8_t(w >> 8), uint8_t(w >> 16), uint8_t(w >> 24)};
+            }
+            return engine.panel().seg;
+        }
+        uint32_t serial() override {
+            return engine.uiSerial() + owner->entrySerial_.load() * 7919u + (owner->banksOpen.load() ? 0x80000000u : 0u);
+        }
         void action(const std::string& name) override;
         bool actionLit(const std::string& name) override { return name == "banks" && owner->banksOpen.load(); }
         nd2::Engine& engine;
@@ -88,6 +102,8 @@ private:
     uint32_t resourcesSerial_ = 0;
     bool started_ = false, bootedWithoutFactory_ = false;
     bool projectBanks_ = false;                      // the bank names came from a project
+    std::atomic<bool> entryOn_{false};
+    std::atomic<uint32_t> entrySegs_{0xFFFFFFFF}, entrySerial_{0};
     std::vector<uint8_t> pendingState_;              // a project's machine, waiting for the OS
     // audio thread
     std::vector<nd2::Engine::MidiEvent> events_;

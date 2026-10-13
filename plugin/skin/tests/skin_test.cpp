@@ -131,6 +131,11 @@ int main() {
     port.banksOpen = false; v.update(t += 0.02);
     CHECK(!byId(v, "aBanks")->IsClassSet("lit"), "action unlit");
 
+    // ---- a click on the display asks for typed program entry
+    v.mouseMove(10, 420, 0); v.mouseDown(0, 0); v.mouseUp(0, 0);
+    CHECK(last(port) == "action program_entry", "display click: %s", last(port).c_str());
+    CHECK(v.hoverClickable(), "the display counts as clickable");
+
     // ---- sandbox: no file access outside the skin folder, no io/os
     CHECK(v.evalForTest("io") == "nil" && v.evalForTest("os") == "nil" && v.evalForTest("dofile") == "nil", "sandbox");
     CHECK(v.evalForTest("while true do end").rfind("error:", 0) == 0, "endless loop is stopped");
@@ -168,6 +173,9 @@ int main() {
         // the Program button sits where the art has it: 359,271 .. 481,330 dp
         d.mouseMove(420, 300, 0); d.mouseDown(0, 0); d.mouseUp(0, 0);
         CHECK(p2.log.size() >= 2 && p2.log[p2.log.size() - 2] == "button 1 down", "Program button at its place");
+        // the display (496,248 .. 758,354 dp) starts typed program entry
+        d.mouseMove(620, 300, 0); d.mouseDown(0, 0); d.mouseUp(0, 0);
+        CHECK(!p2.log.empty() && p2.log.back() == "action program_entry", "display: %s", p2.log.empty() ? "" : p2.log.back().c_str());
         // the BANKS label (134,15 .. 226,49 dp) opens the Banks window and is lit while it is open
         d.mouseMove(180, 32, 0); d.mouseDown(0, 0); d.mouseUp(0, 0);
         CHECK(!p2.log.empty() && p2.log.back() == "action banks", "BANKS label: %s", p2.log.empty() ? "" : p2.log.back().c_str());

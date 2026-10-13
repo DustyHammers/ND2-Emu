@@ -51,6 +51,9 @@ public:
   void pressButton(int idx, bool down);
   void turnEncoder(int detents) { encoder_.fetch_add(detents); }
   void setMasterLevel(float pos) { master_.store(pos); masterDirty_.store(true); }
+  // Selects bank * 50 + program as a MIDI controller would: bank select (CC0 0, CC32 bank) and program change on the
+  // OS's global MIDI channel, at the next block. The OS decides what happens (as with any program change).
+  void selectProgram(int index) { if (index >= 0 && index < 400) pendingProgram_.store(index); }
   void setTrigGain(int pad, float gain) { if (pad >= 0 && pad < kPads) trigGain_[pad].store(gain); }
   struct PanelView { std::array<uint8_t, 4> seg; uint32_t leds; };      // seg active-low, led bit = LED index
   PanelView panel() const;
@@ -141,6 +144,7 @@ private:
   std::atomic<uint32_t> btnEnqueue_{0};
   uint32_t btnDequeue_ = 0;
   std::atomic<int> encoder_{0};
+  std::atomic<int> pendingProgram_{-1};
   std::atomic<float> master_{1.0f};
   std::atomic<bool> masterDirty_{true};
   std::atomic<float> trigGain_[kPads];

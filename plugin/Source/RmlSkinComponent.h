@@ -34,6 +34,10 @@ public:
 
     std::function<void(bool ok, const juce::String& error)> onLoaded;
     std::function<void(const juce::MouseEvent&)> onRightClick;
+    // A left click anywhere on the skin, before the skin gets it (message thread): ends a typed program entry.
+    std::function<void()> onLeftClick;
+    // Keys first offered to the editor (typed program entry); true if it used the key.
+    std::function<bool(const juce::KeyPress&)> onKey;
     // Drags in the bottom-right corner resize the window (the OpenGL view would hide the editor's own resizer):
     // phase 0 = start, 1 = drag (offset from the start, screen pixels), 2 = end.
     std::function<void(int phase, juce::Point<int> offset)> onCornerResize;
@@ -78,6 +82,7 @@ private:
     float viewDp_ = 0;
     bool debugger_ = false;
     bool cornerDrag_ = false, inputCaptured_ = false;
+    std::atomic<bool> hoverClickable_{false};          // set on the GL thread after a mouse move (the display, BANKS)
     juce::Point<int> cornerStart_;
     std::vector<Banner> banners_;
     juce::String message_;

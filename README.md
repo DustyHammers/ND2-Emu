@@ -18,6 +18,10 @@ below. Earlier versions are on the [releases page](https://github.com/DustyHamme
 
 ## What's new
 
+### 0.1.9
+
+- Type a program: click the display, type the bank and program (e.g. `p312` for P3.12), press Return.
+
 ### 0.1.8
 
 - UI improvements.
@@ -81,6 +85,8 @@ On first start, choose the OS update file and then the factory bank files.
 - Buttons: click. **Option-click** holds a button down (for SHIFT or LOWER PARAM combinations); click it again or
   press Esc to release it.
 - Encoder and MASTER LEVEL: drag up or down, or use the scroll wheel; hold Shift for fine steps.
+- Display: click it and type a program, bank first (`p312`, `P3.12` or `3 12` for bank 3, program 12), then Return.
+  Esc or a click elsewhere cancels.
 - **BANKS** (top left) opens the Banks window; click it again, press Esc or click beside the window to close it.
 - Right-click the panel for the Banks window, skins, zoom, the OS update file and the factory banks.
 

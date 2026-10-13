@@ -16,6 +16,12 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
 endif()
 
+# Windows: built with clang-cl (the Visual Studio ClangCL toolset), which has the same CPU dispatch as macOS
+# (computed goto); MSVC itself would use the slower switch.
+if(WIN32)
+  add_compile_definitions(_USE_MATH_DEFINES _CRT_SECURE_NO_WARNINGS)
+endif()
+
 option(ND2_BUILD_CLI     "Build the nd2emu command-line renderer" ON)
 option(ND2_BUILD_TESTS   "Build unit tests" ON)
 option(ND2_BUILD_PLUGIN  "Build VST3/AU/Standalone (needs JUCE)" OFF)
@@ -37,6 +43,9 @@ find_package(Threads REQUIRED)
 target_link_libraries(nd2core PUBLIC Threads::Threads)
 if(MSVC)
   target_compile_options(nd2core PRIVATE /W3)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")   # clang-cl: the same optimisation as on macOS
+    target_compile_options(nd2core PRIVATE $<$<CONFIG:Release>:/clang:-O3>)
+  endif()
 else()
   target_compile_options(nd2core PRIVATE -Wall -Wextra -Wno-unused-parameter -Wno-sign-compare
                          $<$<CONFIG:Release>:-O3>)

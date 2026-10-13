@@ -55,7 +55,11 @@ public:
             Rml::Log::Message(Rml::Log::LT_WARNING, "File not opened (only plain file names inside the skin folder are allowed): %s", path.c_str());
             return 0;
         }
+#ifdef _WIN32
+        return Rml::FileHandle(_wfopen(p.c_str(), L"rb"));      // wide path: folder names in any language
+#else
         return Rml::FileHandle(std::fopen(p.string().c_str(), "rb"));
+#endif
     }
     void Close(Rml::FileHandle file) override { std::fclose(reinterpret_cast<FILE*>(file)); }
     size_t Read(void* buffer, size_t size, Rml::FileHandle file) override { return std::fread(buffer, 1, size, reinterpret_cast<FILE*>(file)); }

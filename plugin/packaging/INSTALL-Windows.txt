@@ -1,0 +1,52 @@
+ND2 for Windows (64-bit, Windows 10 or later): installing
+=========================================================
+
+This is a test build. Please report what works and what does not, together with the file
+Documents\ND2\ND2-log.txt.
+
+1. Quit your DAW.
+
+2. Copy the plugin (replace an older copy if asked):
+     ND2.vst3         ->  C:\Program Files\Common Files\VST3\
+   ND2.vst3 is a folder: copy the whole folder, not only the file inside it.
+   The standalone app (optional): copy the folder "ND2 Standalone" anywhere and start ND2.exe in it.
+   Keep the nd2-default folder next to ND2.exe: it is the panel's skin.
+
+3. Windows may warn that the files come from the internet: the plugin is not signed with a paid
+   certificate. If ND2.exe shows "Windows protected your PC", click "More info", then "Run anyway".
+   If the plugin does not appear in your DAW: right-click the downloaded zip before unpacking it,
+   choose Properties, tick "Unblock", click OK, and unpack it again.
+
+4. Start your DAW and let it scan for new plugins (REAPER: Options > Preferences > Plug-ins > VST,
+   "Re-scan"). ND2 is an instrument (VST3i).
+
+5. First start: no firmware is included, and none will be provided. ND2 needs the OS update file v3.00 of the
+   original drum module, which you download yourself from the original manufacturer.
+     - Click "Locate OS update file..." in the red banner and choose the update file as downloaded: the Windows
+       .zip or .exe (or os.cab). ND2 keeps a copy of the OS part only.
+     - Then click "Load factory banks..." and choose the factory bank download (.zip, a folder, or the bank files).
+       ND2 stores them into its memory once (a few seconds) and keeps the result for all later instances.
+       "Not now" starts with empty memory; the right-click menu has Factory banks... for later.
+
+6. Inputs and outputs:
+     Main            stereo, as the original hardware's output
+     Ch 1 ... Ch 6   stereo, each channel's share of the main output (copies; the main output is unchanged).
+                     Used only when the host enables them (REAPER: route them with the plugin's pin connector).
+     Trigger In      6 channels = pads 1-6: piezo or other audio from the host, as the PAD INPUT jacks.
+     MIDI            in and out, as the original hardware's MIDI ports.
+
+7. Typing a program on the display (click the display, type e.g. p312, press Return): in REAPER, if the keys
+   go to REAPER instead, open the FX window's "+" menu and tick "Send all keyboard input to plug-in".
+
+8. Files ND2 uses (in your Documents folder):
+     Documents\ND2\os\               the OS (os.cab, copied from the update file you chose)
+     Documents\ND2\Library\          bank files (the Banks window); Library\Factory: the factory banks
+     Documents\ND2\cache\            the factory memory built from your bank files
+     Documents\ND2\skins\<name>\     your own skins: a folder <name> containing <name>.rml (plus its files)
+     Documents\ND2\ND2-log.txt       what ND2 did at start-up (for bug reports)
+   Right-click the plugin window for Skin, Reload skin (F5), Zoom, Banks, OS update file, Factory banks and
+   Developer.
+
+Third-party software in ND2: JUCE, RmlUi, Lua and FreeType (see THIRD_PARTY_NOTICES.md in the repository).
+Portions of this software are copyright (c) 2026 The FreeType Project (www.freetype.org). All rights reserved.
+ND2 is free software under the GNU Affero General Public License v3 (LICENSE in the repository).

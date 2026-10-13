@@ -1,4 +1,4 @@
-# ND2 plugin (VST3 + AU + Standalone). Included from the top-level CMakeLists.txt with -DND2_BUILD_PLUGIN=ON.
+# ND2 plugin (VST3 + AU + Standalone on macOS; VST3 + Standalone on Windows). Included from the top-level CMakeLists.txt with -DND2_BUILD_PLUGIN=ON.
 # JUCE, RmlUi, Lua and FreeType are fetched at pinned commits by scripts/fetch_deps.sh into <repo>/work/deps.
 set(ND2_DEPS_DIR "${CMAKE_SOURCE_DIR}/work/deps" CACHE PATH "Fetched dependencies")
 if(NOT EXISTS "${ND2_DEPS_DIR}/JUCE/CMakeLists.txt")
@@ -26,7 +26,7 @@ set(ND2_DEFAULT_SKIN_DIR "${CMAKE_SOURCE_DIR}/skins/default/nd2-default")
 if(APPLE)
   set(ND2_FORMATS VST3 AU Standalone)
 else()
-  set(ND2_FORMATS VST3 Standalone)     # other systems: compile checks and looking at skins
+  set(ND2_FORMATS VST3 Standalone)     # Windows; other systems: compile checks and looking at skins
 endif()
 
 # Plugin identity. NEVER change any of these after the first build the owner tested: hosts use them (and the
@@ -80,12 +80,21 @@ target_link_libraries(ND2
     juce::juce_opengl
   PUBLIC
     juce::juce_recommended_config_flags
-    juce::juce_recommended_lto_flags
     juce::juce_recommended_warning_flags)
+if(NOT WIN32)       # clang-cl with the Microsoft linker cannot link LTO objects
+  target_link_libraries(ND2 PUBLIC juce::juce_recommended_lto_flags)
+endif()
 if(APPLE)
   foreach(fmt IN LISTS ND2_FORMATS)
     juce_add_bundle_resources_directory(ND2_${fmt} "${ND2_DEFAULT_SKIN_DIR}")
   endforeach()
+elseif(WIN32)       # the VST3 bundle: Contents/Resources/nd2-default, as on macOS; the standalone: next to ND2.exe
+  add_custom_command(TARGET ND2_VST3 POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${ND2_DEFAULT_SKIN_DIR}" "$<TARGET_FILE_DIR:ND2_VST3>/../Resources/nd2-default"
+    VERBATIM)
+  add_custom_command(TARGET ND2_Standalone POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${ND2_DEFAULT_SKIN_DIR}" "$<TARGET_FILE_DIR:ND2_Standalone>/nd2-default"
+    VERBATIM)
 else()                                   # other systems (looking at skins only): the skin from the source tree
   target_compile_definitions(ND2 PRIVATE ND2_DEFAULT_SKIN_DIR="${ND2_DEFAULT_SKIN_DIR}")
 endif()

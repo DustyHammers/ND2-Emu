@@ -154,6 +154,9 @@ juce::File Resources::defaultSkinFolder() {
     // (stored once per bundle, so a universal binary does not carry it twice).
     const juce::File exe = juce::File::getSpecialLocation(juce::File::currentExecutableFile);
     juce::File folder = exe.getParentDirectory().getSiblingFile("Resources").getChildFile("nd2-default");
+    // Windows: the VST3 bundle has the same layout (Contents/x86_64-win/ND2.vst3); the standalone ND2.exe has it
+    // next to itself.
+    if (!folder.getChildFile("nd2-default.rml").existsAsFile()) folder = exe.getSiblingFile("nd2-default");
    #ifdef ND2_DEFAULT_SKIN_DIR
     if (!folder.getChildFile("nd2-default.rml").existsAsFile()) folder = juce::File(ND2_DEFAULT_SKIN_DIR);   // tests
    #endif

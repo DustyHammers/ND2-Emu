@@ -1,4 +1,5 @@
-# CI: data guard (firmware, data files, original names), core and skin tests on Linux, and the macOS build of the
+# CI: data guard (firmware, data files, original names), core and skin tests on Linux (also with address, leak and
+# undefined-behaviour sanitizers), and the macOS build of the
 # plugin (VST3 + AU + Standalone, ad-hoc signed) as a downloadable zip. No job uses firmware, and none may ever need it.
 # On main, a version without a release yet (vX.Y.Z from CMakeLists.txt) is released with that zip as ND2-macOS.zip,
 # so the README's link to releases/latest/download/ND2-macOS.zip always gets the newest version.
@@ -54,6 +55,22 @@ jobs:
           cmake --build build/skin
       - name: Skin runtime tests
         run: ctest --test-dir build/skin --output-on-failure
+      # The same tests again with AddressSanitizer, LeakSanitizer and UndefinedBehaviorSanitizer: any leak, invalid
+      # memory access or undefined behaviour fails the build.
+      - name: Build with sanitizers (address, leak, undefined behaviour)
+        env:
+          SAN: -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined
+        run: |
+          cmake -S . -B build/san-core -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_FLAGS="$SAN" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+          cmake --build build/san-core
+          cmake -S plugin/skin -B build/san-skin -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_FLAGS="$SAN" -DCMAKE_C_FLAGS="$SAN" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+          cmake --build build/san-skin
+      - name: Core and skin tests with sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+        run: |
+          ctest --test-dir build/san-core --output-on-failure
+          ctest --test-dir build/san-skin --output-on-failure
 
   macos-plugin:
     name: macOS plugin (VST3 + AU + Standalone, universal)

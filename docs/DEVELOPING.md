@@ -116,6 +116,14 @@ encoder and the BANKS label.
 Plugin data lives in `~/Documents/ND2/` (`os/`, `cache/`, `skins/`, `Library/`, `skin-log.txt`); global settings in
 `~/Library/Application Support/ND2/ND2.settings`.
 
+## Memory checks
+
+CI runs the core and skin tests with sanitizers (see CI below). Locally, with the OS, the same build also covers the
+engine, device and bank tests, and the plugin test (window, skin, Banks window) can be built the same way; as of 0.1.8
+both run clean (no leaks, no invalid accesses, no undefined behaviour; the only report is 640 bytes inside libX11).
+An engine soak (8 minutes of notes, pad hits, program changes, panel input, a state snapshot every 10 s and a
+restore every minute) levels off at about 31 MB after the first minutes and stays there.
+
 ## Banks window
 
 Bank files are the original manager's `.nd2_bank` (a stored zip of 50 `Program NNN.nd2p`). Every bank job works on a
@@ -137,5 +145,6 @@ machine with the OS and the factory bank files (`ND2_OS`, `ND2_BANKS`).
 
 `.github/workflows/ci.yml`: `scripts/check_no_data.py` over every commit (firmware and data file types, known
 firmware checksums, images outside `skins/default/`, the original names in files and commit messages), core and
-skin tests on Linux, and on macOS the core tests, the plugin build, `plugin_test`, ad-hoc signing,
+skin tests on Linux (twice: normally, and built with AddressSanitizer, LeakSanitizer and UndefinedBehaviorSanitizer,
+where any leak, invalid memory access or undefined behaviour fails the build), and on macOS the core tests, the plugin build, `plugin_test`, ad-hoc signing,
 `scripts/check_plugin_identity.py`, `auval` and the downloadable zip (with `plugin/packaging/INSTALL.txt`).

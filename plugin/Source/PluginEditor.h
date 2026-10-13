@@ -1,6 +1,7 @@
 // The plugin window: the chosen skin (the Default skin built into the plugin, or one from ~/Documents/ND2/skins/)
 // at the chosen size, the message banners (OS update file, factory presets) and the right-click menu
-// (Banks, Skin, Reload skin, Zoom, OS update file, Factory banks, Developer) and the Banks window. Approved mockups.
+// (Banks, Skin, Reload skin, Zoom, OS update file, Factory banks, Developer), the Banks window and typed program entry
+// on the display (ProgramEntry). Approved mockups.
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <memory>
@@ -9,6 +10,7 @@
 
 class RmlSkinComponent;
 class BanksPanel;
+class ProgramEntry;
 
 // Shown only when no skin can be drawn (e.g. OpenGL is not available): why, the banners and the menu.
 class FallbackView : public juce::Component {
@@ -52,6 +54,7 @@ private:
     std::unique_ptr<RmlSkinComponent> rml_;
     std::unique_ptr<FallbackView> fallback_;
     std::unique_ptr<BanksPanel> banks_;
+    std::unique_ptr<ProgramEntry> entry_;
     std::unique_ptr<juce::FileChooser> chooser_;
     juce::String current_;                           // the skin being shown
     float scale_ = 1.0f;

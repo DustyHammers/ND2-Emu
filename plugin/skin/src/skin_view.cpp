@@ -324,6 +324,8 @@ void SkinView::mouseMove(int x, int y, int mods) {
             if (total != dragDetents_) { dragEncoder_->turn(total - dragDetents_); dragDetents_ = total; }
         }
         if (context_) context_->ProcessMouseMove(x, y, mods);
+        Rml::Element* hover = context_ ? context_->GetHoverElement() : nullptr;
+        hoverClickable_ = findUp<SegDigitElement>(hover) != nullptr || findUp<ActionElement>(hover) != nullptr;
     });
 }
 
@@ -345,6 +347,8 @@ void SkinView::mouseDown(int button, int mods) {
                 b->mouseDown((mods & ModAlt) != 0);
             } else if (ActionElement* a = findUp<ActionElement>(hover)) {
                 if (!a->name().empty()) port_.action(a->name());
+            } else if (findUp<SegDigitElement>(hover)) {
+                port_.action("program_entry");             // the display: type a program (bank and number)
             }
         }
         context_->ProcessMouseButtonDown(button, mods);

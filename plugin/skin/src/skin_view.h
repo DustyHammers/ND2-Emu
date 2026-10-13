@@ -66,6 +66,9 @@ public:
     void mouseWheel(float deltaY, int mods);   // positive: towards the user (scroll down)
     void mouseLeave();
     void releaseHeldButtons();                 // Esc
+    // The pointer is over something that acts on a click besides the panel's own controls (the display: typed
+    // program entry; plugin actions such as BANKS). Valid after mouseMove.
+    bool hoverClickable() const { return hoverClickable_; }
     void keyDown(int rmlKey, int mods);
     void keyUp(int rmlKey, int mods);
 
@@ -150,6 +153,7 @@ private:
     int dragStartY_ = 0, dragStartRaw_ = 0, dragDetents_ = 0;
     bool dragFine_ = false;
     int mouseX_ = 0, mouseY_ = 0;
+    bool hoverClickable_ = false;
     PButtonElement* mousePressed_ = nullptr;
     std::set<int> held_;
     std::set<int> down_;                       // buttons currently down (press/release edges only)

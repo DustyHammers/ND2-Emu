@@ -25,7 +25,8 @@ public:
     virtual std::array<uint8_t, 4> segments() = 0;
     virtual uint32_t serial() { return 0; }                   // changes when the display, an LED or an action's light changed
     // Actions of the plugin itself (not the instrument's panel), clicked on the skin: <action name="banks"> opens the
-    // Banks window. actionLit: the action's window is open (the element gets class lit).
+    // Banks window; a click on the display (<segdigit>) is "program_entry" (type a program). actionLit: the action's
+    // window is open (the element gets class lit).
     virtual void action(const std::string& name) {}
     virtual bool actionLit(const std::string& name) { return false; }
 };

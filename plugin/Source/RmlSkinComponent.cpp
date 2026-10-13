@@ -249,9 +249,9 @@ void RmlSkinComponent::mouseMove(const juce::MouseEvent& e) {
     const bool corner = onCornerResize && e.x >= getWidth() - kCornerSize && e.y >= getHeight() - kCornerSize;
     const bool overButton = std::any_of(hits_.begin(), hits_.end(), [&](const banner::Hit& h) { return h.r.contains(e.getPosition()); });
     setMouseCursor(corner ? juce::MouseCursor::BottomRightCornerResizeCursor
-                          : overButton ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor);
+                          : overButton || hoverClickable_.load() ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor);
     const int x = toPx(e.position.x), y = toPx(e.position.y), m = mods(e.mods);
-    post([this, x, y, m] { if (view_) view_->mouseMove(x, y, m); });
+    post([this, x, y, m] { if (view_) { view_->mouseMove(x, y, m); hoverClickable_ = view_->hoverClickable(); } });
 }
 
 void RmlSkinComponent::mouseDrag(const juce::MouseEvent& e) {
@@ -272,6 +272,7 @@ void RmlSkinComponent::mouseDown(const juce::MouseEvent& e) {
         return;
     }
     grabKeyboardFocus();
+    if (onLeftClick) onLeftClick();
     const int x = toPx(e.position.x), y = toPx(e.position.y), m = mods(e.mods);
     const int button = e.mods.isMiddleButtonDown() ? 2 : 0;
     post([this, x, y, m, button] { if (view_) { view_->mouseMove(x, y, m); view_->mouseDown(button, m); } });
@@ -294,6 +295,7 @@ void RmlSkinComponent::mouseWheelMove(const juce::MouseEvent& e, const juce::Mou
 }
 
 bool RmlSkinComponent::keyPressed(const juce::KeyPress& k) {
+    if (onKey && onKey(k)) return true;
     if (k.getKeyCode() == juce::KeyPress::F5Key) { reload(); return true; }
     if (k == juce::KeyPress::escapeKey) {
         post([this] { if (view_) view_->releaseHeldButtons(); });

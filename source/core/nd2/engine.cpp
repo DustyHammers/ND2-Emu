@@ -215,6 +215,14 @@ void Engine::applyPanel(Board& b) {
   // A burst of detents (a fast turn of the UI encoder) is played as a fast spin, which the OS accelerates as it
   // does on the hardware; single detents keep the slow timing (no acceleration).
   if (int d = encoder_.exchange(0)) b.encoder_turn(d, std::abs(d) >= 3 ? 0.004 : 0.010);
+  if (const int p = pendingProgram_.exchange(-1); p >= 0) {
+    const uint8_t ch = b.cpu.ram[panel::kRamGlobalChannel];
+    if (ch < 16) {
+      const uint8_t cc = uint8_t(0xB0 | ch), pc = uint8_t(0xC0 | ch);
+      const uint8_t msg[8] = {cc, 0, 0, cc, 32, uint8_t(p / 50), pc, uint8_t(p % 50)};
+      b.midi_in_at(msg, sizeof msg, b.cpu.cycles);
+    }
+  }
   if (masterDirty_.exchange(false))
     b.set_adc(panel::kAdcMasterLevel, std::max(-1.0, std::min(0.999, double(master_.load()) * 2.0 - 1.0)));
 }

@@ -88,7 +88,7 @@ Insn decode(uint32_t w, uint32_t w2, uint32_t pc) {
   case 0x90: case 0x91: case 0x92: case 0x93: case 0x94: case 0x95: case 0x96: case 0x97:
   case 0x98: case 0x99: case 0x9A: case 0x9B: case 0x9C: case 0x9D: case 0x9E: case 0x9F: {
     I.byte = b14;
-    int32_t v = (sbits(w, 18, 15) << 6) | (bits(w, 13, 11) << 3) | bits(w, 6, 4);
+    int32_t v = sbits(w, 18, 15) * 64 | (bits(w, 13, 11) << 3) | bits(w, 6, 4);   // * 64: a negative value shifted left
     I.k = I.byte ? v : v * 2;
     if (top < 0x98) { I.op = I_MOVSLIT; I.ws = bits(w, 3, 0); I.wd = bits(w, 10, 7); }
     else { I.op = I_MOVDSLIT; I.wd = bits(w, 10, 7); I.ws = bits(w, 3, 0); }

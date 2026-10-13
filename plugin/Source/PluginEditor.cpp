@@ -1,6 +1,7 @@
 #include "Diag.h"
 #include "PluginEditor.h"
 #include "BanksPanel.h"
+#include "ProgramEntry.h"
 #include "Resources.h"
 #include "RmlSkinComponent.h"
 #include "SkinSettings.h"
@@ -43,7 +44,11 @@ ND2Editor::ND2Editor(ND2Processor& p) : AudioProcessorEditor(&p), proc(p) {
     applying_ = true;
     setSize(winscale::windowLength(int(skin::kBodyWidthDp), scale_, true), winscale::windowLength(int(skin::kBodyHeightDp), scale_, true));
     applying_ = false;
-    proc.onSkinAction = [this](const juce::String& name) { if (name == "banks") toggleBanks(); };
+    entry_ = std::make_unique<ProgramEntry>(proc);
+    proc.onSkinAction = [this](const juce::String& name) {
+        if (name == "banks") toggleBanks();
+        else if (name == "program_entry" && !banks_ && proc.engine().state() == nd2::Engine::State::Running) entry_->start();
+    };
     showSkin(SkinSettings::skin());
     startTimer(250);
     nd2diag::log("editor constructed " + juce::String(getWidth()) + " x " + juce::String(getHeight()) + ", skin \"" + SkinSettings::skin() + "\"");
@@ -55,6 +60,7 @@ ND2Editor::~ND2Editor() {
     if (scaleDirty_) SkinSettings::setScale(scale_);
     proc.onSkinAction = nullptr;
     proc.banksOpen = false;
+    entry_.reset();                                  // the display shows the OS again
     banks_.reset();
     rml_.reset();                                    // closes its OpenGL context first
 }
@@ -85,6 +91,8 @@ void ND2Editor::showSkin(const juce::String& name, const juce::String& notice) {
         rml_ = std::make_unique<RmlSkinComponent>(proc, logFile_);
         rml_->onRightClick = [this](const juce::MouseEvent&) { showMenu(); };
         rml_->onCornerResize = [this](int phase, juce::Point<int> d) { cornerResize(phase, d); };
+        rml_->onLeftClick = [this] { if (entry_) entry_->cancel(); };   // a click elsewhere ends it (on the display: again)
+        rml_->onKey = [this](const juce::KeyPress& k) { return entry_ && entry_->keyPressed(k); };
         addAndMakeVisible(*rml_);
     }
     current_ = name;
@@ -195,6 +203,7 @@ void ND2Editor::chooseBanks() {
 }
 
 void ND2Editor::toggleBanks() {
+    if (entry_) entry_->cancel();
     if (banks_) { closeBanks(); return; }
     if (!Resources::get().hasOs()) { message("The Banks window needs the OS update file (right-click > OS update file...)."); return; }
     banks_ = std::make_unique<BanksPanel>(proc);

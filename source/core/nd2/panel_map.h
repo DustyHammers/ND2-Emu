@@ -41,5 +41,6 @@ constexpr int kAdcPad[6] = {12, 2, 4, 6, 8, 10};
 
 // ---- OS v3.00 RAM
 constexpr unsigned kRamCurrentProgram = 0x70BC;   // u16: the loaded program, bank * 50 + program
+constexpr unsigned kRamGlobalChannel = 0x49D8;    // u8: the global MIDI channel, 0-15 (program changes are received on it)
 
 }  // namespace nd2::panel

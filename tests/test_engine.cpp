@@ -168,6 +168,14 @@ int main() {
     const auto p2 = a->panel();
     CHECK(p2.leds & (1u << panel::kLedUpperRow[0]), "a click on parameter 1 did not light its LED (leds %08x)", p2.leds);
   }
+  // ---- a program selected as a controller would (typed program entry): bank select + program change on the OS's channel
+  {
+    auto a = makeEngine(rate, block, false);
+    run(*a, 4800, block, -1, -1, rate);
+    a->selectProgram(2 * 50 + 11);                                        // P3.12
+    run(*a, 24000, block, -1, -1, rate);
+    CHECK(a->currentProgram() == 2 * 50 + 11, "selectProgram: current program %d", a->currentProgram());
+  }
   // ---- the host stops processing: with the idle runner on, the panel still answers; audio resumes afterwards
   {
     auto a = makeEngine(rate, block, false);

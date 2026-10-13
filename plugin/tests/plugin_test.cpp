@@ -248,6 +248,23 @@ int main(int argc, char** argv) {
                 shot("4_menu");
                 juce::PopupMenu::dismissAllActiveMenus();
                 pump(400);
+                if (res.hasOs()) {                                      // typed program entry on the display
+                    click(620, 300, false);
+                    pump(400);
+                    auto type = [&](const juce::KeyPress& k) { peer->handleKeyPress(k); pump(60); };
+                    for (const char* s : {"p", "3"}) type(juce::KeyPress(0, {}, juce::juce_wchar(*s)));
+                    type(juce::KeyPress(juce::KeyPress::returnKey));            // incomplete: nothing happens
+                    pump(600);
+                    const int before = p.engine().currentProgram();
+                    for (const char* s : {"1", "2"}) type(juce::KeyPress(0, {}, juce::juce_wchar(*s)));
+                    shot("4b_typing");
+                    CHECK(p.engine().currentProgram() == before, "no change before Return");
+                    type(juce::KeyPress(juce::KeyPress::returnKey));
+                    CHECK(pumpUntil([&] { return p.engine().currentProgram() == 2 * 50 + 11; }, 3000),
+                          "P3.12 typed on the display (current %d)", p.engine().currentProgram());
+                    pump(800);
+                    shot("4c_typed");
+                }
                 if (res.hasOs()) {                                      // (without the OS a banner covers the label)
                 click(180, 32, false);                                  // the BANKS label opens the Banks window
                 CHECK(pumpUntil([&] { return p.banksOpen.load(); }, 3000), "BANKS opens the Banks window");

@@ -149,9 +149,11 @@ skin tests on Linux (twice: normally, and built with AddressSanitizer, LeakSanit
 where any leak, invalid memory access or undefined behaviour fails the build), and on macOS the core tests, the plugin build, `plugin_test`, ad-hoc signing,
 `scripts/check_plugin_identity.py`, `auval` and the downloadable zip (with `plugin/packaging/INSTALL.txt`).
 
-Windows (`windows-plugin`): VST3 + Standalone for x64, built with clang-cl (Visual Studio's ClangCL toolset, so the
-CPU uses the same computed-goto dispatch as on macOS; MSVC would fall back to the switch), without LTO (the Microsoft
-linker cannot link clang's LTO objects). The job runs the core tests, `plugin_test` (no editor window: the runner has
-no OpenGL 3), the identity check and pluginval without GUI tests, and uploads `ND2-<version>-Windows-<commit>.zip`
-(with `plugin/packaging/INSTALL-Windows.txt`). The default skin is copied into the VST3 bundle's
-`Contents/Resources/nd2-default` and next to the standalone `ND2.exe`. Windows builds are not released yet.
+Windows (`.github/workflows/windows.yml`, started by hand: Actions > Windows > Run workflow; never on pushes or pull
+requests): VST3 + Standalone for x64, built with clang-cl (Visual Studio's ClangCL toolset, so the CPU uses the same
+computed-goto dispatch as on macOS; MSVC would fall back to the switch), without LTO (the Microsoft linker cannot link
+clang's LTO objects). The job runs the core tests, `plugin_test` (no editor window: the runner has no OpenGL 3), the
+identity check and pluginval without GUI tests, and uploads `ND2-<version>-Windows-<commit>.zip` (with
+`plugin/packaging/INSTALL-Windows.txt`). Run on main, it also adds the zip to the version's release as
+`ND2-Windows.zip` (the release must exist already: `ci.yml` makes it). The default skin is copied into the VST3
+bundle's `Contents/Resources/nd2-default` and next to the standalone `ND2.exe`.

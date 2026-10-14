@@ -1,8 +1,8 @@
 ND2 for Windows (64-bit, Windows 10 or later): installing
 =========================================================
 
-This is a test build. Please report what works and what does not, together with the file
-Documents\ND2\ND2-log.txt.
+The Windows version is new and less tested than the macOS one. Please report problems on GitHub (Issues),
+together with the file Documents\ND2\ND2-log.txt.
 
 1. Quit your DAW.
 

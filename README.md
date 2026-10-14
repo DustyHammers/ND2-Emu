@@ -3,7 +3,8 @@
 ![ND2 with its default skin](skins/default/preview.jpg)
 
 Low-level emulation of a classic six-channel drum synthesizer, running its original OS on an emulated
-dsPIC33E. VST3, AU and standalone for macOS (Apple Silicon; Intel is included but untested).
+dsPIC33E. VST3, AU and standalone for macOS (Apple Silicon; Intel is included but untested); VST3 and standalone
+for Windows (64-bit).
 
 ## Download
 
@@ -11,6 +12,10 @@ dsPIC33E. VST3, AU and standalone for macOS (Apple Silicon; Intel is included bu
 
 VST3, AU and standalone app in one zip, for macOS 13 or newer. See [Installing on macOS](#installing-on-macos)
 below. Earlier versions are on the [releases page](https://github.com/DustyHammers/ND2-Emu/releases).
+
+### [Download ND2 for Windows: latest version](https://github.com/DustyHammers/ND2-Emu/releases/latest/download/ND2-Windows.zip)
+
+VST3 and standalone app in one zip, for 64-bit Windows 10 or newer. Installing: INSTALL.txt in the zip.
 
 > "Dusty's part was knowing exactly how round a bevel should be and saying "no" to my knob renders. They call it
 > vibe-coding. The vibes were immaculate; the cycle counts, I'm told, were exact."
@@ -20,6 +25,7 @@ below. Earlier versions are on the [releases page](https://github.com/DustyHamme
 
 ### 0.1.9
 
+- Windows version: VST3 and standalone (64-bit).
 - Type a program: click the display, type the bank and program (e.g. `p312` for P3.12), press Return.
 
 ### 0.1.8

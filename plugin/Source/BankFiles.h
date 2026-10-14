@@ -37,6 +37,9 @@ void writeRecords(juce::OutputStream& out, const BankRecords& r);
 bool readRecords(juce::InputStream& in, BankRecords& r);
 
 juce::File libraryFolder();
+// A folder under Documents/ND2 as written in messages: "~/Documents/ND2/skins/" on macOS,
+// "Documents\ND2\skins\" on Windows (sub: "skins/", "os/", "Library", ...).
+juce::String shownFolder(const juce::String& sub);
 juce::File factoryFolder();
 
 // A .nd2_bank file: programs by their program number (their bank field is ignored, except for sourceBank).

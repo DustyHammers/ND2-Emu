@@ -7,13 +7,19 @@ if(APPLE AND NOT CMAKE_OSX_ARCHITECTURES)
   set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Target architectures")
 endif()
 
-project(ND2Emu VERSION 0.1.9 LANGUAGES C CXX)
+project(ND2Emu VERSION 0.2.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
+endif()
+
+# Windows: built with clang-cl (the Visual Studio ClangCL toolset), which has the same CPU dispatch as macOS
+# (computed goto); MSVC itself would use the slower switch.
+if(WIN32)
+  add_compile_definitions(_USE_MATH_DEFINES _CRT_SECURE_NO_WARNINGS)
 endif()
 
 option(ND2_BUILD_CLI     "Build the nd2emu command-line renderer" ON)
@@ -37,6 +43,9 @@ find_package(Threads REQUIRED)
 target_link_libraries(nd2core PUBLIC Threads::Threads)
 if(MSVC)
   target_compile_options(nd2core PRIVATE /W3)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")   # clang-cl: the same optimisation as on macOS
+    target_compile_options(nd2core PRIVATE $<$<CONFIG:Release>:/clang:-O3>)
+  endif()
 else()
   target_compile_options(nd2core PRIVATE -Wall -Wextra -Wno-unused-parameter -Wno-sign-compare
                          $<$<CONFIG:Release>:-O3>)

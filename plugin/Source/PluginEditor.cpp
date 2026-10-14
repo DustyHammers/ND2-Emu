@@ -9,7 +9,7 @@
 #include "skin_view.h"
 
 namespace {
-const juce::String kFolderNote = " (from ~/Documents/ND2/skins)";
+const juce::String kFolderNote = " (from " + bankfiles::shownFolder("skins") + ")";
 }
 
 // ================================================================== fallback view
@@ -81,7 +81,7 @@ void ND2Editor::showSkin(const juce::String& name, const juce::String& notice) {
         if (!folder.isDirectory()) { showFallback("The Default skin is missing from the plugin (Contents/Resources/nd2-default). Please reinstall ND2."); return; }
     } else {
         if (!skinNames().contains(name)) {
-            skinFailed(name, "it is not in ~/Documents/ND2/skins/ (a skin is a folder <name> containing <name>.rml)");
+            skinFailed(name, "it is not in " + bankfiles::shownFolder("skins/") + " (a skin is a folder <name> containing <name>.rml)");
             return;
         }
         folder = Resources::get().skinsFolder().getChildFile(name);

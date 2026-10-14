@@ -23,9 +23,12 @@ VST3 and standalone app in one zip, for 64-bit Windows 10 or newer. Installing: 
 
 ## What's new
 
-### 0.1.9
+### 0.2.0
 
 - Windows version: VST3 and standalone (64-bit).
+
+### 0.1.9
+
 - Type a program: click the display, type the bank and program (e.g. `p312` for P3.12), press Return.
 
 ### 0.1.8

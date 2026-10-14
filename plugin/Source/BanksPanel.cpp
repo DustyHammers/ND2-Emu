@@ -534,7 +534,7 @@ void BanksPanel::paint(juce::Graphics& g) {
     // headings
     g.setColour(kHeading);
     g.setFont(font(16.0f, true).withExtraKerningFactor(0.12f));
-    g.drawText(juce::String::fromUTF8("BANK FILES \xc2\xb7 ~/Documents/ND2/Library"), w.getX() + 21, w.getY() + kHeader + 19, kLibW - 42, 24,
+    g.drawText(juce::String::fromUTF8("BANK FILES \xc2\xb7 ") + bankfiles::shownFolder("Library"), w.getX() + 21, w.getY() + kHeader + 19, kLibW - 42, 24,
                juce::Justification::centredLeft, true);
     g.drawText(juce::String::fromUTF8("ND2 MEMORY \xc2\xb7 8 BANKS \xc3\x97 50 PROGRAMS"), w.getX() + kLibW + 24, w.getY() + kHeader + 19, 600, 24,
                juce::Justification::centredLeft, true);

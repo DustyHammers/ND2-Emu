@@ -36,6 +36,14 @@ juce::File libraryFolder() {
     return juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("ND2").getChildFile("Library");
 }
 
+juce::String shownFolder(const juce::String& sub) {
+   #if JUCE_WINDOWS
+    return ("Documents/ND2/" + sub).replaceCharacter('/', '\\');
+   #else
+    return "~/Documents/ND2/" + sub;
+   #endif
+}
+
 juce::File factoryFolder() { return libraryFolder().getChildFile("Factory"); }
 
 bool readBankFile(const juce::File& f, BankFile& out, juce::String& error) {

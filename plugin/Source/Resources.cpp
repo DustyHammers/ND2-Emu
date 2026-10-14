@@ -94,7 +94,7 @@ void Resources::locateOs(const juce::File& chosen, std::function<void(bool, juce
             scanOs();
             loadFactoryCache();
             ++serial_;
-            done(osOk_, osOk_ ? juce::String("OS v3.00 found and copied to ~/Documents/ND2/os/.") : juce::String("The OS could not be read back."));
+            done(osOk_, osOk_ ? "OS v3.00 found and copied to " + bankfiles::shownFolder("os/") + "." : juce::String("The OS could not be read back."));
         });
     });
 }

@@ -11,9 +11,7 @@ for Windows (64-bit).
 > respective owners. The original OS and the factory sounds are the copyright of their owners: none of them are
 > included here, and none will be provided.
 >
-> **Made for owners of the original hardware.** nd2 Emu runs the OS update file that you download yourself from the
-> manufacturer for your own unit, together with your own factory bank files. It is meant as a companion to the
-> hardware you own, not as a replacement for it.
+> Intended for the owners of the original hardware as an emulation, librarian, editor, etc.
 
 ## Download
 

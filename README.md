@@ -6,6 +6,15 @@ Low-level emulation of a classic six-channel drum synthesizer, running its origi
 dsPIC33E. VST3, AU and standalone for macOS (Apple Silicon; Intel is included but untested); VST3 and standalone
 for Windows (64-bit).
 
+> **Independent project.** nd2 Emu is a free, non-commercial project. It is not affiliated with, sponsored by or
+> endorsed by the manufacturer of the original hardware. All trademarks and product names belong to their
+> respective owners. The original OS and the factory sounds are the copyright of their owners: none of them are
+> included here, and none will be provided.
+>
+> **Made for owners of the original hardware.** nd2 Emu runs the OS update file that you download yourself from the
+> manufacturer for your own unit, together with your own factory bank files. It is meant as a companion to the
+> hardware you own, not as a replacement for it.
+
 ## Download
 
 ### [Download ND2 for macOS: latest version](https://github.com/DustyHammers/ND2-Emu/releases/latest/download/ND2-macOS.zip)
@@ -123,12 +132,6 @@ saved on the panel, so projects don't depend on these folders except for the OS.
 
 Deleting `os/` makes ND2 ask for your firmware/OS again; deleting `cache/` makes it ask for the factory bank files
 again (projects keep their own presets).
-
-## Disclaimer
-
-This project is not affiliated with, endorsed by or connected to the manufacturer of the original
-hardware. All trademarks belong to their respective owners. The original OS and presets are the
-copyright of their owners.
 
 ## License
 

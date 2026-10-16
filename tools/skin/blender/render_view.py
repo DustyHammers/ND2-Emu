@@ -82,7 +82,7 @@ def tilt_camera(sc, tilt_deg=20.0, margin=0.05):
     return dict(scale=scale, centre=(cx, cy), k=k)
 
 
-def persp_camera(sc, elev_deg=50.0, dist_mm=580.0, margin=0.045):
+def persp_camera(sc, elev_deg=65.0, dist_mm=640.0, margin=0.008):
     """Perspective camera in front of the panel, elev_deg above its plane, aimed at the panel centre; the focal
     length and lens shift fit the whole red top into the canvas with a margin."""
     from bpy_extras.object_utils import world_to_camera_view
@@ -102,10 +102,16 @@ def persp_camera(sc, elev_deg=50.0, dist_mm=580.0, margin=0.045):
     o.matrix_world = m
     sc.camera = o
     sc.render.resolution_x, sc.render.resolution_y = D.CANVAS_W, D.CANVAS_H
-    ob = bpy.data.objects['Plate']
-    ev = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
-    pts = [ob.matrix_world @ v.co for v in ev.data.vertices]
-    for _ in range(3):
+    pts = []                                         # everything of the unit that can show: top, lip, jacks, knobs
+    dg = bpy.context.evaluated_depsgraph_get()
+    for ob in sc.objects:
+        if ob.type != 'MESH' or ob.name in ('Backdrop', 'Interior', 'Softbox') or ob.name.startswith(('Foot', 'Base')):
+            continue
+        if {c.name for c in ob.users_collection} & {'Lights', 'Studio'}:
+            continue
+        ev = ob.evaluated_get(dg)
+        pts += [ob.matrix_world @ v.co for v in ev.data.vertices]
+    for _ in range(4):
         bpy.context.view_layer.update()
         nd = [world_to_camera_view(sc, o, p) for p in pts]
         xs, ys = [p.x for p in nd], [p.y for p in nd]
@@ -118,12 +124,35 @@ def persp_camera(sc, elev_deg=50.0, dist_mm=580.0, margin=0.045):
         cam.shift_y += ((max(ys) + min(ys)) / 2 - 0.5) * D.CANVAS_H / D.CANVAS_W
     bpy.context.view_layer.update()
     nd = [world_to_camera_view(sc, o, p) for p in pts]
-    back = [p for p, q in zip(nd, pts) if q.y > -5 and q.z > -1]
-    front = [p for p, q in zip(nd, pts) if q.y < -D.CANVAS_H + 120 and q.z > -1]
+    print(f'persp: frame used x {min(p.x for p in nd):.3f}-{max(p.x for p in nd):.3f}, '
+          f'y {min(p.y for p in nd):.3f}-{max(p.y for p in nd):.3f}')
+    back = [p for p, q in zip(nd, pts) if abs(q.y) < 5 and abs(q.z) < 1]
+    front = [p for p, q in zip(nd, pts) if abs(q.y + D.CANVAS_H - 120) < 120 and abs(q.z) < 1]
     if back and front:
         bw = max(p.x for p in back) - min(p.x for p in back)
         fw = max(p.x for p in front) - min(p.x for p in front)
         print(f'persp: elev {elev_deg}, dist {dist_mm} mm, lens {cam.lens:.1f} mm; back edge {bw / fw:.3f} of the front')
+
+
+def knob_camera(sc, el=32.0, az=20.0, dist_mm=150.0, w=900, h=700):
+    """Close-up on the MASTER LEVEL knob from the front left, to check its shape against the photos."""
+    k = bpy.data.objects['MasterKnob']
+    target = k.location + Vector((0, 0, D.MASTER['height'] * 0.45))
+    a, e = math.radians(az), math.radians(el)
+    pos = target + Vector((-math.sin(a) * math.cos(e), -math.cos(a) * math.cos(e), math.sin(e))) * dist_mm * D.MM
+    cam = bpy.data.cameras.new('KnobCam')
+    cam.lens, cam.sensor_width = 85.0, 36.0
+    cam.clip_start, cam.clip_end = 1, 100000
+    o = bpy.data.objects.new('KnobCam', cam)
+    sc.collection.objects.link(o)
+    f = (target - pos).normalized()
+    r = f.cross(Vector((0, 0, 1))).normalized()
+    u = r.cross(f)
+    m = Matrix((r, u, -f)).transposed().to_4x4()
+    m.translation = pos
+    o.matrix_world = m
+    sc.camera = o
+    sc.render.resolution_x, sc.render.resolution_y, sc.render.resolution_percentage = w, h, 100
 
 
 def shadow_floor(sc):
@@ -135,10 +164,11 @@ def shadow_floor(sc):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--view', default='hero', choices=('hero', 'top', 'tilt', 'persp'))
-    ap.add_argument('--elev', type=float, default=50.0)
+    ap.add_argument('--view', default='hero', choices=('hero', 'top', 'tilt', 'persp', 'knob'))
+    ap.add_argument('--elev', type=float, default=65.0)
     ap.add_argument('--dist', type=float, default=640.0)
     ap.add_argument('--tilt', type=float, default=20.0)
+    ap.add_argument('--knob-frame', type=int, default=64, help='MASTER LEVEL frame, 0-127')
     ap.add_argument('--res', type=int, default=50, help='percent of the 2x canvas (50 = 1x)')
     ap.add_argument('--light', default='C')
     ap.add_argument('--maps', required=True)
@@ -147,7 +177,7 @@ def main():
     ap.add_argument('--out', required=True)
     a = ap.parse_args()
     t0 = time.time()
-    scene.build(frame_knob=64, frame_enc=0)
+    scene.build(frame_knob=a.knob_frame, frame_enc=0)
     sc = bpy.context.scene
     c_case = bpy.data.collections['Body']
     c_back = scene.collection('Back panel')
@@ -167,7 +197,7 @@ def main():
     sc.view_settings.view_transform, sc.view_settings.look = 'Standard', 'None'
     sc.view_settings.exposure = V.get('exposure_ev', EXPOSURE_EV)
     st = sc.render.image_settings
-    st.file_format, st.color_mode, st.color_depth = 'PNG', 'RGB' if a.view == 'hero' else 'RGBA', '8'
+    st.file_format, st.color_mode, st.color_depth = 'PNG', 'RGB' if a.view in ('hero', 'knob') else 'RGBA', '8'
     if a.view == 'hero':
         hero_camera(sc)
         sc.render.film_transparent = False
@@ -175,6 +205,9 @@ def main():
         tilt_camera(sc, a.tilt)
         sc.render.film_transparent = True
         sc.render.resolution_percentage = a.res
+    elif a.view == 'knob':
+        knob_camera(sc)
+        sc.render.film_transparent = False
     elif a.view == 'persp':
         persp_camera(sc, a.elev, a.dist)
         sc.render.film_transparent = True

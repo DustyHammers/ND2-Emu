@@ -48,11 +48,14 @@ DISPLAY = dict(
 )
 
 MASTER = dict(
-    r=95.0,                  # photo: knob about 12.2 mm across
-    height=13.0 * MM,        # estimate
-    flutes=30, flute_depth=2.5,
-    top_round=8.0,
-    pointer_r0=22.0, pointer_r1=86.0, pointer_w=11.0,
+    # photos: a tall black knob, slightly narrower at the top, with about 14 shallow flutes, a rounded top edge
+    # onto a flat top, and a white pointer line that runs across the top and down the side to the panel
+    r_base=104.0,            # about 13.4 mm across at the panel
+    r_top=95.0,              # about 12.2 mm across at the top (the top-down photo)
+    height=15.0 * MM,        # about as tall as it is wide (estimate from the angled photos)
+    flutes=14, flute_depth=0.55 * MM,
+    top_round=1.3 * MM,
+    pointer_w=0.9 * MM, pointer_r0=0.22,   # stripe width; it starts at this share of the radius on the top
     sweep=240.0, frames=128, # frame 0 = 120 degrees left of up, frame 127 = 120 degrees right
 )
 

@@ -381,35 +381,38 @@ def display(col):
 
 
 def master_knob(cx, cy, col, frame=64):
+    """Built around its own origin (moved to the knob's centre) so a frame is just a turn of the object; the
+    pointer stripe is in the material, fixed to the knob (toward +y at rest)."""
     K = D.MASTER
-    n = 240
-    def outline(r):
-        return [(cx + (r - K['flute_depth'] * (0.5 + 0.5 * math.cos(K['flutes'] * 2 * math.pi * i / n))) * math.cos(2 * math.pi * i / n),
-                 cy + (r - K['flute_depth'] * (0.5 + 0.5 * math.cos(K['flutes'] * 2 * math.pi * i / n))) * math.sin(2 * math.pi * i / n))
-                for i in range(n)]
-    H, tr = K['height'], K['top_round']
-    rings = [(outline(K['r']), 0.0), (outline(K['r']), H - tr)]
-    for i in range(1, 7):
-        th = (math.pi / 2) * i / 6
-        rings.append((outline(K['r'] - tr * (1 - math.cos(th))), H - tr + tr * math.sin(th)))
-    for s in (0.85, 0.6, 0.3):                       # very slightly domed top
-        rings.append(([(cx + (x - cx) * s, cy + (y - cy) * s) for x, y in outline(K['r'] - tr)], H + 1.5 * (1 - s * s)))
+    n = 14 * 24
+    H, tr, dep = K['height'], K['top_round'], K['flute_depth']
+
+    def outline(r, d):
+        pts = []
+        for i in range(n):
+            a = 2 * math.pi * i / n
+            g = (0.5 - 0.5 * math.cos(K['flutes'] * a)) ** 1.6      # 0 on the ridges, 1 in the flute bottoms
+            rr = r - d * g
+            pts.append((rr * math.sin(a), -rr * math.cos(a)))       # art space: a = 0 points up (12 o'clock)
+        return pts
+
+    rings = []
+    for i in range(7):                               # tapered side
+        t = i / 6
+        z = (H - tr) * t
+        rings.append((outline(K['r_base'] + (K['r_top'] - K['r_base']) * t, dep), z))
+    for i in range(1, 9):                            # rounded top edge; the flutes run out on it
+        th = (math.pi / 2) * i / 8
+        rings.append((outline(K['r_top'] - tr * (1 - math.cos(th)), dep * (1 - i / 8)), H - tr + tr * math.sin(th)))
+    for s_ in (0.8, 0.55, 0.3, 0.1):                 # flat top, very slightly domed
+        rings.append(([(x * s_, y * s_) for x, y in outline(K['r_top'] - tr, 0.0)], H + 0.6 * (1 - s_ * s_)))
     bm = bmesh.new()
     loft(bm, rings)
     body = new_object('MasterKnob', bm, col)
-    # pointer: a thin raised line on the top, rotated by the frame
+    body.location = (cx, -cy, 0.0)
     ang = math.radians(-K['sweep'] / 2 + K['sweep'] * frame / (K['frames'] - 1))
-    ux, uy = math.sin(ang), -math.cos(ang)           # art space (y down); 0 = up
-    px, py = -uy, ux
-    r0, r1, hw = K['pointer_r0'], K['pointer_r1'], K['pointer_w'] / 2
-    quad = [(cx + ux * r0 + px * hw, cy + uy * r0 + py * hw), (cx + ux * r1 + px * hw, cy + uy * r1 + py * hw),
-            (cx + ux * r1 - px * hw, cy + uy * r1 - py * hw), (cx + ux * r0 - px * hw, cy + uy * r0 - py * hw)]
-    if (quad[1][0] - quad[0][0]) * (quad[2][1] - quad[1][1]) - (quad[1][1] - quad[0][1]) * (quad[2][0] - quad[1][0]) > 0:
-        quad.reverse()
-    bm = bmesh.new()
-    prism(bm, quad, H - 1, H + 2.2)
-    pointer = new_object('MasterPointer', bm, col, smooth=False)
-    return body, pointer
+    body.rotation_euler = (0.0, 0.0, -ang)           # clockwise seen from above
+    return body, None
 
 
 def encoder(cx, cy, col, frame=0):

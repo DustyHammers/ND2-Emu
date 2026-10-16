@@ -222,6 +222,32 @@ def emissive_board(name, emission_png, colour=(1.0, 0.012, 0.004), strength=12.0
     return m
 
 
+def knob_with_pointer(name):
+    """Black satin plastic with the white pointer stripe: in object space the knob points along +y; the stripe is
+    a band of constant width along that direction, across the top (outside pointer_r0) and down the side."""
+    K = D.MASTER
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    b = nt.nodes.get('Principled BSDF')
+    b.inputs['Roughness'].default_value = 0.45
+    b.inputs['Specular IOR Level'].default_value = 0.5
+    tc = nt.nodes.new('ShaderNodeTexCoord')
+    sep = nt.nodes.new('ShaderNodeSeparateXYZ')
+    _link(nt, tc.outputs['Object'], sep.inputs[0])
+    across = _m(nt, 'ABSOLUTE', sep.outputs['X'])                  # distance from the pointer's centre line
+    band = _m(nt, 'LESS_THAN', across, K['pointer_w'] / 2)
+    ahead = _m(nt, 'GREATER_THAN', sep.outputs['Y'], K['pointer_r0'] * K['r_top'])
+    stripe = _m(nt, 'MULTIPLY', band, ahead)
+    mix = nt.nodes.new('ShaderNodeMix')
+    mix.data_type = 'RGBA'
+    _link(nt, stripe.outputs[0], mix.inputs['Factor'])
+    mix.inputs['A'].default_value = (0.020, 0.020, 0.022, 1)
+    mix.inputs['B'].default_value = (0.82, 0.82, 0.80, 1)
+    _link(nt, mix.outputs['Result'], b.inputs['Base Color'])
+    return m
+
+
 def metal(name, rgb, rough):
     m = simple(name, rgb, rough, 0.5)
     m.node_tree.nodes.get('Principled BSDF').inputs['Metallic'].default_value = 1.0
@@ -240,6 +266,7 @@ def assign_all(scene, maps_dir, peel_strips=None, emission_png=None):
         'led_red': simple('LedRed', (0.30, 0.06, 0.05), 0.12, 0.5, transmission=0.3),
         'led_green': simple('LedGreen', (0.10, 0.20, 0.08), 0.12, 0.5, transmission=0.3),
         'pointer': simple('Pointer', (0.80, 0.80, 0.80), 0.4, 0.5),
+        'knob': knob_with_pointer('MasterKnob'),
         'base': simple('BasePlate', (0.02, 0.02, 0.022), 0.5, 0.4),
         'rubber': simple('Rubber', (0.012, 0.012, 0.012), 0.85, 0.3),
         'screw': metal('BlackOxide', (0.06, 0.06, 0.065), 0.35),
@@ -263,6 +290,8 @@ def assign_all(scene, maps_dir, peel_strips=None, emission_png=None):
             k = 'board'
         elif n == 'MasterPointer':
             k = 'pointer'
+        elif n == 'MasterKnob':
+            k = 'knob'
         elif n in ('Base', 'Chassis'):
             k = 'base'
         elif n.startswith('Foot'):

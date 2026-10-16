@@ -14,8 +14,11 @@ CANVAS_W, CANVAS_H = 3450, 2070
 PLATE = dict(
     thickness=1.2 * MM,      # sheet steel (estimate)
     corner_r=20.0,           # plan corner radius, measured on the art (window colour in the corners)
-    edge_fillet=1.0 * MM,    # fold at the outer edge (estimate)
-    hole_fillet=0.30 * MM,   # rolled paint edge into the holes; each hole gets 75-100 % of it (hash of its id)
+    edge_fillet=1.25 * MM,   # the bend where the top folds down into the sides; must stay under corner_r (20 px)
+    # formed sheet metal: every punched hole has a rounded, painted edge; each hole gets 85-100 % of its radius
+    # (hash of its id). Buttons and LEDs are kept just clear of the lettering around them.
+    hole_fillet=0.50 * MM,   # button, knob, encoder and display holes
+    led_fillet=0.45 * MM,    # LED holes
     floor_z=-5.0 * MM,       # dark interior seen through the holes
 )
 
@@ -23,8 +26,8 @@ BUTTON = dict(
     hole_w=248.0, hole_h=123.0, hole_r=16.0,   # the art's hole (all buttons but SHIFT, which is drawn 12 x 10 px smaller)
     cap_w=242.0, cap_h=118.0, cap_r=13.0,      # photo: cap fills the hole with about 3 px clearance
     pill_w=165.0, pill_h=70.0,                 # photo: the light top face is a stadium of about 10.6 x 4.5 mm
-    top_z=4.0 * MM,          # cap top above the panel (estimate)
-    shoulder=1.2 * MM,       # height of the rounded shoulder from the wall to the top face (estimate)
+    top_z=3.0 * MM,          # cap top above the panel (owner: lower than 5 mm)
+    shoulder=1.3 * MM,       # from the wall's top edge to the top of the raised pill (estimate)
     crown=0.15 * MM,         # the top face's slight dome (estimate)
     draft=2.0,               # wall draft, px per side over the wall height
     bottom_z=-3.0 * MM,
@@ -32,7 +35,7 @@ BUTTON = dict(
 )
 
 LED = dict(
-    hole_r=24.0,             # photo: about 3 mm lens, matches the 22 dp rcss box
+    hole_r=23.0,             # photo: about 3 mm lens (22 px radius) in a hole just larger
     lens_r=22.0,
     dome_z=0.25 * MM,        # dome apex just proud of the panel (estimate)
     body_bottom=-4.0 * MM,
@@ -57,8 +60,32 @@ ENCODER = dict(
     r_base=165.0,            # photo: about 21.2 mm across at the panel
     r_top=140.0,             # top of the faceted side (same ratio as render_encoder2.py: 0.845)
     chamfer=8.0,             # rounded chamfer from the side to the flat top
-    height=15.0 * MM,        # estimate
+    height=18.0 * MM,        # close-up photo: nearly as tall as it is wide
     facets=18, groove=0.16, groove_depth=4.0,
     hole_r=60.0,
     frames=72,
 )
+
+# The whole unit: a formed sheet-metal shell (top, bends, front, back and wedge-shaped sides) on a black base
+# plate with rubber feet. The skin is a straight-down view of the top, so everything is built in panel
+# coordinates (top surface at z = 0) and the case's walls run along the world vertical, which is tilted
+# relative to the panel because the top slopes down toward the front.
+# Published size 222 x 43 x 140 mm (width x height x depth); back and front wall heights are estimates.
+CASE = dict(
+    # the red top is one formed sheet: the top, a rolled bend over the front edge, the front face and a small
+    # hem under it. The sides and the back are a separate black chassis tucked under the top.
+    front_bend_r=3.5 * MM,   # outer radius of the roll over the front edge (photos)
+    hem_r=1.5 * MM, hem_len=5.0 * MM,
+    cut_edge_r=0.4 * MM,     # the top's cut side and back edges, painted
+    back_h=40.0 * MM,        # from the back edge of the top down to the base (estimate; 43 mm with feet)
+    front_h=20.0 * MM,       # from the front edge of the top down to the base (estimate)
+    base_t=1.0 * MM,         # black base plate
+    foot_r=6.0 * MM, foot_h=2.5 * MM, foot_inset=14.0 * MM,
+    screw_r=2.6 * MM,        # black pan-head screws: two on the front, one on each side
+    jack_h=17.0 * MM,        # back-panel connectors: centre height above the base
+)
+# back-panel connectors, x in art px (2x). CH1-6 sit under the art's CH labels; the others keep the original
+# hardware's order and spacing, scaled to fit beside them (from the owner's top-down photo).
+JACKS = [('jack', 120), ('jack', 220), ('jack', 409), ('din', 556), ('din', 797),
+         ('jack', 1086), ('jack', 1340), ('jack', 1596), ('jack', 1850), ('jack', 2106), ('jack', 2360),
+         ('jack', 2700), ('dc', 3050)]

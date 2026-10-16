@@ -8,6 +8,7 @@ import zlib
 
 import bmesh
 import bpy
+from mathutils import Matrix, Vector
 
 import dims as D
 from layout import read_rcss_plain
@@ -111,11 +112,136 @@ def collection(name, parent=None):
 
 # ---- parts --------------------------------------------------------------------------------------------------
 
+def up_vector():
+    """The world vertical in panel coordinates: the top slopes down toward the front (art y = canvas height)."""
+    C = D.CASE
+    s = (C['back_h'] - C['front_h']) / D.CANVAS_H
+    c = math.sqrt(1 - s * s)
+    return Vector((0.0, s, c))
+
+
+def wall_depth(y_blender):
+    """How far below the top edge (along the world vertical) the base is, at panel y (Blender, 0 .. -H)."""
+    C = D.CASE
+    return C['back_h'] + y_blender * up_vector().y
+
+
+def case_shell(bm, inner=False):
+    """The chassis envelope as a solid: the top outline swept down the world vertical to the base. inner=True
+    gives the cavity (inset by the sheet thickness, from just under the top to below the base)."""
+    P = D.PLATE
+    t = P['thickness']
+    U = up_vector()
+    if inner:
+        out = rounded_rect(D.CANVAS_W / 2, D.CANVAS_H / 2, D.CANVAS_W - 2 * t, D.CANVAS_H - 2 * t, 2.0, k=3, m=10)
+        z0, extra = -t, 50.0
+    else:
+        out = rounded_rect(D.CANVAS_W / 2, D.CANVAS_H / 2, D.CANVAS_W, D.CANVAS_H, 1.0, k=3, m=10)
+        z0, extra = 0.0, 0.0
+    top = [bm.verts.new((x, -y, z0)) for x, y in out]
+    bot = [bm.verts.new(v.co - U * (wall_depth(v.co.y) + extra)) for v in top]
+    n = len(top)
+    bm.faces.new(top)
+    bm.faces.new(list(reversed(bot)))
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((bot[i], bot[j], top[j], top[i]))
+
+
+def cover_section():
+    """The red top's cross-section in (y, z) (Blender y: 0 at the back edge, -H at the front): outer path from
+    the back edge over the top, the rolled front bend, down the front face and under into a short hem, with the
+    inward normal at each point (the inner surface is the outer one moved by the sheet thickness)."""
+    C, P = D.CASE, D.PLATE
+    t, H = P['thickness'], D.CANVAS_H
+    U = up_vector()
+    s, c = U.y, U.z
+    R, rb = C['front_bend_r'], C['hem_r']
+    t2 = Vector((-s, -c))                            # down the front face (the world vertical)
+    w = Vector((c, -s))                              # inward along the base, toward the back
+    alpha = math.acos(s)                             # how far the bend turns (90 degrees less the slope)
+    d = R * math.tan(alpha / 2)
+    pc = Vector((-H, 0.0))                           # the sharp corner the bend rounds off
+    path = [(Vector((0.0, 0.0)), Vector((0.0, -1.0))), (Vector((-H + d, 0.0)), Vector((0.0, -1.0)))]
+    cc = Vector((-H + d, -R))
+    n = 14
+    for i in range(1, n + 1):
+        b = alpha * i / n
+        v = Vector((-math.sin(b), math.cos(b)))
+        path.append((cc + v * R, -v))
+    t2p = cc + Vector((-math.sin(alpha), math.cos(alpha))) * R
+    face_len = C['front_h'] - d - rb                # down the front face to where the hem bends in
+    bstart = pc + t2 * (d + face_len)
+    path.append((bstart, w))
+    ch = bstart + w * rb
+    for i in range(1, 9):
+        b = (math.pi / 2) * i / 8
+        v = -w * math.cos(b) + t2 * math.sin(b)      # from facing out (front) to facing down
+        path.append((ch + v * rb, -v))
+    end = ch + t2 * rb + w * C['hem_len']
+    path.append((end, -t2))
+    return path, t
+
+
+def cover_mesh(bm):
+    path, t = cover_section()
+    W = D.CANVAS_W
+    ring = []
+    for p, nrm in path:
+        o, i = p, p + nrm * t
+        ring.append([bm.verts.new((0.0, o.x, o.y)), bm.verts.new((W, o.x, o.y)),
+                     bm.verts.new((0.0, i.x, i.y)), bm.verts.new((W, i.x, i.y))])
+    for a, b in zip(ring, ring[1:]):
+        bm.faces.new((a[0], b[0], b[1], a[1]))       # outer surface
+        bm.faces.new((a[3], b[3], b[2], a[2]))       # inner surface
+        bm.faces.new((a[0], a[2], b[2], b[0]))       # cut edge at x = 0
+        bm.faces.new((a[1], b[1], b[3], a[3]))       # cut edge at x = W
+    for r in (ring[0], ring[-1]):                    # the back edge and the hem's end
+        bm.faces.new((r[0], r[1], r[3], r[2]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+
+
+def build_chassis(col):
+    """The black sides and back: the swept case envelope, hollowed, minus everything outside the red top's inner
+    surface (so the chassis tucks up against the top and behind its front face)."""
+    U = up_vector()
+    bm = bmesh.new()
+    case_shell(bm)
+    ch = new_object('Chassis', bm, col, smooth=False)
+    cav = bmesh.new()
+    case_shell(cav, inner=True)
+    cavity = new_object('chassis_cavity', cav, col, smooth=False)
+    path, t = cover_section()
+    inner = [p + nrm * t for p, nrm in path]
+    k = next(i for i, (p, nrm) in enumerate(path) if abs(nrm.x - Vector((U.z, -U.y)).x) < 1e-6 and i > 2)
+    poly = inner[:k + 1]
+    last = poly[-1]
+    far = 6000.0
+    poly += [last + Vector((-U.y, -U.z)) * far, Vector((-D.CANVAS_H - far, last.y - far)),
+             Vector((-D.CANVAS_H - far, far)), Vector((far, far)), Vector((far, -t))]
+    env = bmesh.new()
+    lo = [env.verts.new((-200.0, p.x, p.y)) for p in poly]
+    hi = [env.verts.new((D.CANVAS_W + 200.0, p.x, p.y)) for p in poly]
+    env.faces.new(lo)
+    env.faces.new(list(reversed(hi)))
+    for i in range(len(poly)):
+        j = (i + 1) % len(poly)
+        env.faces.new((lo[i], lo[j], hi[j], hi[i]))
+    bmesh.ops.recalc_face_normals(env, faces=env.faces[:])
+    envelope = new_object('cover_envelope', env, col, smooth=False)
+    for other in (cavity, envelope):
+        m = ch.modifiers.new('cut', 'BOOLEAN')
+        m.operation, m.object, m.solver = 'DIFFERENCE', other, 'EXACT'
+        bpy.context.view_layer.objects.active = ch
+        bpy.ops.object.modifier_apply(modifier=m.name)
+        bpy.data.objects.remove(other)
+    return ch
+
+
 def build_plate(rects, kinds, col):
     P, B, L = D.PLATE, D.BUTTON, D.LED
     bm = bmesh.new()
-    prism(bm, rounded_rect(D.CANVAS_W / 2, D.CANVAS_H / 2, D.CANVAS_W, D.CANVAS_H, P['corner_r'], k=8, m=40),
-          -P['thickness'], 0)
+    cover_mesh(bm)
     plate = new_object('Plate', bm, col, smooth=False)
 
     cutters = bpy.data.collections.new('Cutters')
@@ -133,7 +259,7 @@ def build_plate(rects, kinds, col):
             out = circle(cx, cy, D.ENCODER['hole_r'], 48)
         else:
             continue
-        holes.append((cid, cx, cy))
+        holes.append((cid, cx, cy, P['led_fillet'] if kind == 'led' else P['hole_fillet']))
         b2 = bmesh.new()
         prism(b2, out, -P['thickness'] - 10, 10)
         new_object('cut_' + cid, b2, cutters, smooth=False)
@@ -142,7 +268,7 @@ def build_plate(rects, kinds, col):
     prism(b2, rounded_rect((d['x0'] + d['x1']) / 2, (d['y0'] + d['y1']) / 2, d['x1'] - d['x0'], d['y1'] - d['y0'], d['r']),
           -P['thickness'] - 10, 10)
     new_object('cut_display', b2, cutters, smooth=False)
-    holes.append(('display', (d['x0'] + d['x1']) / 2, (d['y0'] + d['y1']) / 2))
+    holes.append(('display', (d['x0'] + d['x1']) / 2, (d['y0'] + d['y1']) / 2, P['hole_fillet']))
 
     mod = plate.modifiers.new('holes', 'BOOLEAN')
     mod.operation = 'DIFFERENCE'
@@ -155,12 +281,14 @@ def build_plate(rects, kinds, col):
         bpy.data.objects.remove(ob)
     bpy.data.collections.remove(cutters)
 
-    # bevel weights on the top rim edges only (top face meets a wall): each hole 0.75..1.0 (hash of its id)
-    # x hole_fillet; the outer edge gets edge_fillet
+    # bevel weights on the top rim edges only (top face meets a wall): each hole 0.85..1.0 (hash of its id) of
+    # its fillet (LED holes led_fillet, the others hole_fillet); the cut side and back edges get cut_edge_r.
+    # The front bend is modelled in the cross-section, not bevelled
     me = plate.data
-    wmax = max(P['hole_fillet'], P['edge_fillet'])
+    wmax = max(P['hole_fillet'], D.CASE['cut_edge_r'])
     bm = bmesh.new()
     bm.from_mesh(me)
+    bm.normal_update()                               # face normals decide which top edges are rims
     bw = bm.edges.layers.float.get('bevel_weight_edge') or bm.edges.layers.float.new('bevel_weight_edge')
     for e in bm.edges:
         v0, v1 = e.verts[0].co, e.verts[1].co
@@ -169,19 +297,20 @@ def build_plate(rects, kinds, col):
         if all(abs(f.normal.z) > 0.99 for f in e.link_faces):
             continue                                 # a split inside the flat top, not a rim
         mx, my = (v0.x + v1.x) / 2, -(v0.y + v1.y) / 2
-        if min(mx, my, D.CANVAS_W - mx, D.CANVAS_H - my) < P['corner_r'] + 2:
-            e[bw] = P['edge_fillet'] / wmax
+        if mx < 2 or mx > D.CANVAS_W - 2 or my < 2:  # the top's cut side and back edges
+            e[bw] = D.CASE['cut_edge_r'] / wmax
             continue
-        cid = min(holes, key=lambda h: (h[1] - mx) ** 2 + (h[2] - my) ** 2)[0]
-        e[bw] = P['hole_fillet'] * (0.75 + 0.25 * hash01(cid)) / wmax
+        cid, _, _, fil = min(holes, key=lambda h: (h[1] - mx) ** 2 + (h[2] - my) ** 2)
+        e[bw] = fil * (0.85 + 0.15 * hash01(cid)) / wmax
     bm.to_mesh(me)
     bm.free()
     bev = plate.modifiers.new('fillets', 'BEVEL')
     bev.limit_method = 'WEIGHT'
     bev.width = wmax
-    bev.segments = 5
+    bev.segments = 8
     bev.profile = 0.5
-    bev.use_clamp_overlap = True
+    bev.use_clamp_overlap = False                    # the boolean leaves tiny triangles by each hole; clamping
+                                                     # against them flattens every fillet to nothing
     bev.harden_normals = True                        # keeps the flat top flat next to the round fillets
     for p in me.polygons:
         p.use_smooth = True
@@ -199,7 +328,7 @@ def build_plate(rects, kinds, col):
 
 def build_floor(col):
     bm = bmesh.new()
-    prism(bm, rounded_rect(D.CANVAS_W / 2, D.CANVAS_H / 2, D.CANVAS_W - 20, D.CANVAS_H - 20, 10, k=4, m=2),
+    prism(bm, rounded_rect(D.CANVAS_W / 2, D.CANVAS_H / 2, D.CANVAS_W - 120, D.CANVAS_H - 120, 10, k=4, m=2),
           D.PLATE['floor_z'] - 5, D.PLATE['floor_z'])
     return new_object('Interior', bm, col, smooth=False)
 
@@ -215,10 +344,10 @@ def button(name, cx, cy, col, pressed=False):
         inset = B['draft'] * t
         rings.append((rounded_rect(cx, cy, B['cap_w'] - 2 * inset, B['cap_h'] - 2 * inset, B['cap_r'], k, m), z + dz))
     w0, h0, r0 = B['cap_w'] - 2 * B['draft'], B['cap_h'] - 2 * B['draft'], B['cap_r']
-    # shoulder profile (horizontal progress u toward the pill, rise v): a rounded top edge on the wall, a gently
-    # convex slope, then a small round onto the flat top face, so the face reads as a distinct pill (photo)
-    profile = [(0.01, 0.18), (0.04, 0.32), (0.09, 0.42), (0.16, 0.49), (0.30, 0.60), (0.50, 0.74), (0.70, 0.86),
-               (0.86, 0.94), (0.93, 0.975), (0.97, 0.993), (1.0, 1.0)]
+    # top profile (u = progress from the wall outline to the pill outline, v = share of the shoulder height),
+    # after the close-up photo: a rounded top edge on the wall onto a flat ledge, then a raised pill
+    profile = [(0.01, 0.16), (0.03, 0.28), (0.07, 0.38), (0.12, 0.44), (0.20, 0.47), (0.50, 0.50), (0.80, 0.52),
+               (0.86, 0.56), (0.90, 0.68), (0.94, 0.84), (0.97, 0.95), (0.99, 0.99), (1.0, 1.0)]
     for u, v in profile:
         w = w0 + (B['pill_w'] - w0) * u
         h = h0 + (B['pill_h'] - h0) * u
@@ -359,6 +488,7 @@ def build(frame_knob=64, frame_enc=0, pressed=()):
     c_knob, c_enc = collection('Master knob', c_ctrl), collection('Encoder', c_ctrl)
     c_disp = collection('Display')
     build_plate(rects, kinds, c_body)
+    build_chassis(c_body)
     build_floor(c_body)
     display(c_disp)
     for cid, (cx, cy, w, h) in rects.items():

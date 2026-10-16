@@ -84,6 +84,62 @@ tag_frac = (red_here[..., 0] == TAG[0]).astype(np.float32)
 m_body, m_tag = m_red * (1 - tag_frac), m_red * tag_frac
 
 inks = np.stack([m_body, m_black, m_tag, m_white], -1)
+# outside the art's rounded corners (window colour) the sheet is still red paint: it bends down into the walls
+_r = D.PLATE['corner_r']
+_yy, _xx = np.mgrid[0:H, 0:W]
+_cx = np.clip(_xx, _r, W - 1 - _r)
+_cy = np.clip(_yy, _r, H - 1 - _r)
+_out = (np.hypot(_xx - _cx, _yy - _cy) > _r - 3)
+inks[_out] = (1.0, 0.0, 0.0, 0.0)
+del _yy, _xx, _cx, _cy
+
+# 2b) keep lettering and label windows clear of the LED holes and their rounded edges: a group (a line of
+#     lettering, or a label window with its letters) that reaches into a hole's keep-out circle is narrowed
+#     horizontally, anchored on its far side, until it ends just outside it. In the art, DYN FILTER runs into the
+#     ATK/RATE LED and the ENV MODE window into the DECAY LED.
+_rects, _kinds = read_rcss_plain()
+fixes = []
+printed = (inks[..., 2] > 0.3) | (inks[..., 3] > 0.3)
+groups, _ = nd.label(nd.binary_dilation(printed, structure=np.ones((5, 29), bool)))
+KEEP = D.LED['hole_r'] + D.PLATE['led_fillet'] + 1.5   # the hole, its rounded edge, a hair of clear print
+for cid, (cx, cy, w, h) in _rects.items():
+    if _kinds.get(cid, ('', ''))[0] != 'led':
+        continue
+    y0, y1, x0, x1 = int(cy - KEEP), int(cy + KEEP) + 1, int(cx - KEEP), int(cx + KEEP) + 1
+    yy_, xx_ = np.mgrid[y0:y1, x0:x1]
+    near = printed[y0:y1, x0:x1] & ((xx_ - cx) ** 2 + (yy_ - cy) ** 2 <= KEEP ** 2)
+    for g in np.unique(groups[y0:y1, x0:x1][near]):
+        gm = (groups == g) & printed
+        ys, xs = np.where(gm)
+        gy0, gy1, gx0, gx1 = ys.min() - 2, ys.max() + 3, xs.min() - 2, xs.max() + 3
+        if (gx0 + gx1) / 2 < cx:            # the group is left of the hole: pull its right end in
+            new_w = int(cx - KEEP) - gx0
+            dst = (gx0, gx0 + new_w)
+        else:                               # right of the hole: push its left end out
+            new_w = gx1 - int(cx + KEEP)
+            dst = (gx1 - new_w, gx1)
+        if new_w >= gx1 - gx0:
+            continue
+        region = inks[gy0:gy1, gx0:gx1].copy()
+        soft = nd.binary_dilation(gm[gy0:gy1, gx0:gx1], iterations=2).astype(np.float32)
+        bg = np.zeros_like(region)
+        bg[..., 1] = 1.0                    # black print around the lettering
+        def squeeze(a):
+            return np.stack([np.asarray(Image.fromarray(a[..., c]).resize((new_w, a.shape[0]), Image.LANCZOS))
+                             for c in range(a.shape[-1])], -1) if a.ndim == 3 else \
+                np.asarray(Image.fromarray(a).resize((new_w, a.shape[0]), Image.LANCZOS))
+        g_ink = squeeze((region * soft[..., None]).astype(np.float32))
+        g_m = np.clip(squeeze(soft), 0, 1)
+        out = region * (1 - soft[..., None]) + bg * soft[..., None]
+        a0 = dst[0] - gx0
+        out[:, a0:a0 + new_w] = out[:, a0:a0 + new_w] * (1 - g_m[..., None]) + g_ink
+        out = np.clip(out, 0, 1)
+        inks[gy0:gy1, gx0:gx1] = out / np.maximum(out.sum(-1, keepdims=True), 1e-6)
+        printed = (inks[..., 2] > 0.3) | (inks[..., 3] > 0.3)
+        fixes.append(dict(led=cid, box=[int(gx0), int(gy0), int(gx1), int(gy1)], width_from=int(gx1 - gx0), width_to=int(new_w),
+                          squeeze=round(new_w / (gx1 - gx0), 3)))
+        print(f'label near {cid}: {gx1 - gx0} -> {new_w} px wide ({100 * new_w / (gx1 - gx0):.1f} %)')
+m_body, m_black, m_tag, m_white = (inks[..., i] for i in range(4))
 Image.fromarray((inks * 255 + 0.5).astype(np.uint8), 'RGBA').save(os.path.join(OUT, 'inks.png'))
 
 # false-colour preview (red body = dark red, black = dark grey, tag = orange, white = white)
@@ -93,7 +149,8 @@ Image.fromarray(np.clip(pv, 0, 255).astype(np.uint8)).resize((W // 2, H // 2), I
     os.path.join(OUT, 'inks_preview.png'))
 
 # 3) printed relief: black print one layer, tag and white print a second layer on top; softened ~1 px
-ink_h = 0.5 * (1 - m_body) + 0.5 * (m_tag + m_white)
+# label windows are the red paint showing through the black print (no print there); white prints on top
+ink_h = 0.5 * m_black + 1.0 * m_white
 ink_h = nd.gaussian_filter(ink_h, 0.8)
 Image.fromarray((np.clip(ink_h, 0, 1) * 65535 + 0.5).astype(np.uint16)).save(os.path.join(OUT, 'ink_height.png'))
 
@@ -136,6 +193,7 @@ for cid, cx, cy, w, h, r in holes:
 Image.fromarray((np.clip(lip, 0, 1) * 65535 + 0.5).astype(np.uint16)).save(os.path.join(OUT, 'lip_height.png'))
 
 json.dump({'size': [W, H], 'inks_srgb_art': {'red': RED, 'black': BLACK, 'tag': TAG, 'white': WHITE},
+           'label_fixes': fixes,
            'coverage': {k: float(v.mean()) for k, v in zip(('red', 'black', 'tag', 'white'), (m_body, m_black, m_tag, m_white))}},
           open(os.path.join(OUT, 'masks.json'), 'w'), indent=1)
 print('masks written to', OUT)

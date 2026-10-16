@@ -6,11 +6,11 @@ import bpy
 import dims as D
 
 # linear albedo guesses (from the art's sRGB); calibration replaces them
-INK_ALBEDO = {
-    'red': (0.40, 0.010, 0.019),
-    'black': (0.018, 0.018, 0.019),
-    'tag': (0.58, 0.010, 0.021),
-    'white': (0.74, 0.72, 0.72),
+INK_ALBEDO = {                      # calibrated to the owner's photo (lighting C, Standard view, +0.72 EV)
+    'red': (0.319, 0.008, 0.015),
+    'black': (0.009, 0.009, 0.010),
+    'tag': (0.319, 0.008, 0.015),     # the body paint (label windows show it through the black print)
+    'white': (0.873, 0.841, 0.838),
 }
 PAINT = dict(
     rough_red=0.45, rough_ink=0.55,        # base layer (mostly diffuse)
@@ -114,7 +114,8 @@ def paint(maps_dir, peel_strips=None):
         acc = s if acc is None else _vm(nt, 'ADD', acc.outputs[0], s.outputs[0], (-650, -100 - 200 * i))
     _link(nt, acc.outputs[0], bsdf.inputs['Base Color'])
 
-    ink_frac = _m(nt, 'SUBTRACT', 1.0, masks['red'], (-850, 600))
+    # label windows are the body's red paint showing through the black print: same paint as the body
+    ink_frac = _m(nt, 'SUBTRACT', _m(nt, 'SUBTRACT', 1.0, masks['red'], (-1000, 600)), masks['tag'], (-850, 600))
     # handling smudges: low-frequency noise in the gloss
     smudge = _n(nt, 'ShaderNodeTexNoise', 'smudge', (-1400, -1000))
     _link(nt, geo.outputs['Position'], smudge.inputs['Vector'])
@@ -197,17 +198,55 @@ def simple(name, rgb, rough=0.5, spec=0.5, coat=0.0, coat_rough=0.1, transmissio
     return m
 
 
-def assign_all(scene, maps_dir, peel_strips=None):
+def emissive_board(name, emission_png, colour=(1.0, 0.012, 0.004), strength=12.0, unlit=0.004):
+    """Black display board; the segment map (R = lit, G = unlit segments) lights it from below the lens."""
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    b = nt.nodes.get('Principled BSDF')
+    b.inputs['Base Color'].default_value = (0.004, 0.003, 0.003, 1)
+    b.inputs['Roughness'].default_value = 0.6
+    geo = nt.nodes.new('ShaderNodeNewGeometry')
+    uv = _vm(nt, 'MULTIPLY_ADD', geo.outputs['Position'], (1 / D.CANVAS_W, 1 / D.CANVAS_H, 0))
+    uv.inputs[2].default_value = (0, 1, 0)
+    t = _image(nt, emission_png, (-400, 300), 'segments')
+    _link(nt, uv.outputs[0], t.inputs['Vector'])
+    sep = nt.nodes.new('ShaderNodeSeparateColor')
+    _link(nt, t.outputs['Color'], sep.inputs[0])
+    lvl = _m(nt, 'MULTIPLY_ADD', sep.outputs[1], unlit)
+    lvl.inputs[2].default_value = 0.0
+    tot = _m(nt, 'ADD', sep.outputs[0], lvl)
+    b.inputs['Emission Color'].default_value = (*colour, 1)
+    _link(nt, _m(nt, 'MULTIPLY', tot, strength).outputs[0], b.inputs['Emission Strength'])
+    return m
+
+
+def metal(name, rgb, rough):
+    m = simple(name, rgb, rough, 0.5)
+    m.node_tree.nodes.get('Principled BSDF').inputs['Metallic'].default_value = 1.0
+    return m
+
+
+def assign_all(scene, maps_dir, peel_strips=None, emission_png=None):
+    lens = simple('DisplayLens', (0.55, 0.05, 0.05), 0.04, 0.5, transmission=1.0)
     mats = {
         'paint': paint(maps_dir, peel_strips),
         'interior': simple('Interior', (0.012, 0.012, 0.013), 0.8, 0.3),
-        'lens': simple('DisplayLens', (0.05, 0.004, 0.004), 0.03, 0.5, transmission=0.0),
-        'board': simple('DisplayBoard', (0.006, 0.004, 0.004), 0.7, 0.2),
-        'grey': simple('ButtonGrey', (0.50, 0.50, 0.52), 0.45, 0.5),
-        'black_plastic': simple('BlackPlastic', (0.025, 0.025, 0.027), 0.45, 0.5),
-        'led': simple('LedLens', (0.35, 0.33, 0.30), 0.15, 0.5),
+        'lens': lens,
+        'board': emissive_board('DisplayBoard', emission_png) if emission_png else simple('DisplayBoard', (0.006, 0.004, 0.004), 0.7, 0.2),
+        'grey': simple('ButtonGrey', (0.42, 0.42, 0.44), 0.55, 0.5),
+        'black_plastic': simple('BlackPlastic', (0.022, 0.022, 0.024), 0.5, 0.5),
+        'led_red': simple('LedRed', (0.30, 0.06, 0.05), 0.12, 0.5, transmission=0.3),
+        'led_green': simple('LedGreen', (0.10, 0.20, 0.08), 0.12, 0.5, transmission=0.3),
         'pointer': simple('Pointer', (0.80, 0.80, 0.80), 0.4, 0.5),
+        'base': simple('BasePlate', (0.02, 0.02, 0.022), 0.5, 0.4),
+        'rubber': simple('Rubber', (0.012, 0.012, 0.012), 0.85, 0.3),
+        'screw': metal('BlackOxide', (0.06, 0.06, 0.065), 0.35),
+        'nickel': metal('Nickel', (0.62, 0.60, 0.58), 0.28),
+        'hole': simple('HoleBlack', (0.004, 0.004, 0.004), 0.9, 0.1),
+        'backdrop': simple('Backdrop', (0.16, 0.16, 0.17), 0.9, 0.2),
     }
+    green = {'l_6', 'l_14', 'l_15', 'l_23', 'l_22', 'l_30'}
     for ob in scene.objects:
         if ob.type != 'MESH':
             continue
@@ -223,10 +262,24 @@ def assign_all(scene, maps_dir, peel_strips=None):
             k = 'board'
         elif n == 'MasterPointer':
             k = 'pointer'
+        elif n in ('Base', 'Chassis'):
+            k = 'base'
+        elif n.startswith('Foot'):
+            k = 'rubber'
+        elif n.startswith('Screw'):
+            k = 'screw'
+        elif n.startswith(('JackNut', 'DinShell')):
+            k = 'nickel'
+        elif n.startswith(('JackHole', 'DinPins', 'DcHole')):
+            k = 'hole'
+        elif n.startswith(('DinFace', 'DcBody')):
+            k = 'black_plastic'
+        elif n == 'Backdrop':
+            k = 'backdrop'
         elif 'Buttons grey' in users:
             k = 'grey'
         elif 'LEDs' in users:
-            k = 'interior' if n.endswith('_die') else 'led'
+            k = 'interior' if n.endswith('_die') else ('led_green' if n in green else 'led_red')
         else:
             k = 'black_plastic'                  # black buttons, knob, encoder
         ob.data.materials.clear()

@@ -132,11 +132,12 @@ def case_shell(bm, inner=False):
     P = D.PLATE
     t = P['thickness']
     U = up_vector()
+    rb = D.CASE['corner_back_r']                     # back corners rounded like the red top's
     if inner:
-        out = rounded_rect(D.CANVAS_W / 2, D.CANVAS_H / 2, D.CANVAS_W - 2 * t, D.CANVAS_H - 2 * t, 2.0, k=3, m=10)
+        out = rounded_rect_fb(t, t, D.CANVAS_W - t, D.CANVAS_H - t, rb - t, 2.0, k=8, m=10)
         z0, extra = -t, 50.0
     else:
-        out = rounded_rect(D.CANVAS_W / 2, D.CANVAS_H / 2, D.CANVAS_W, D.CANVAS_H, 1.0, k=3, m=10)
+        out = rounded_rect_fb(0.0, 0.0, D.CANVAS_W, D.CANVAS_H, rb, 1.0, k=8, m=10)
         z0, extra = 0.0, 0.0
     top = [bm.verts.new((x, -y, z0)) for x, y in out]
     bot = [bm.verts.new(v.co - U * (wall_depth(v.co.y) + extra)) for v in top]
@@ -193,33 +194,37 @@ def cover_mesh(bm):
 
 
 def build_chassis(col):
-    """The black sides, back and lower front, inside the red tray: its walls sit just inside the flanges (and set
-    back behind the front lip's roll), from just under the roll down to the base, along the world vertical."""
-    C, P = D.CASE, D.PLATE
-    t = P['thickness']
+    """The black sides, back and lower front: the swept case envelope, hollowed, minus everything outside the
+    red top's inner surface down to the lip's bottom edge (the chassis tucks up behind the top and its lip)."""
     U = up_vector()
-    W, H = D.CANVAS_W, D.CANVAS_H
-
-    def sweep(bm, inset_side, inset_front, z0, extra=0.0):
-        out = rounded_rect_fb(inset_side, inset_side, W - inset_side, H - inset_front, max(C['corner_back_r'] - inset_side, 4.0),
-                              max(C['corner_front_r'] - inset_front, 4.0), k=8, m=30)
-        top = [bm.verts.new((x, -y, z0)) for x, y in out]
-        bot = [bm.verts.new(v.co - U * (wall_depth(v.co.y) + extra - abs(z0))) for v in top]
-        bm.faces.new(top)
-        bm.faces.new(list(reversed(bot)))
-        for i in range(len(top)):
-            j = (i + 1) % len(top)
-            bm.faces.new((bot[i], bot[j], top[j], top[i]))
-        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-
-    z_top = -(C['side_bend_r'] + 3)
-    s_in, f_in = t + 1.0, C['front_bend_r'] + 6.0
     bm = bmesh.new()
-    sweep(bm, s_in, f_in, z_top)
+    case_shell(bm)
     ch = new_object('Chassis', bm, col, smooth=False)
-    bm = bmesh.new()
-    sweep(bm, s_in + t, f_in + t, z_top + 40.0, 60.0)    # open at the top: walls only, no lid
-    _boolean(ch, new_object('chassis_cavity', bm, col, smooth=False))
+    cav = bmesh.new()
+    case_shell(cav, inner=True)
+    cavity = new_object('chassis_cavity', cav, col, smooth=False)
+    path, t = cover_section()
+    inner = [p + nrm * t for p, nrm in path]
+    out_last = path[-1][0]
+    n_out = Vector((-U.z, U.y))                      # out of the front, horizontal in the world
+    far = 6000.0
+    poly = inner + [out_last + n_out * far, Vector((-D.CANVAS_H - far, far)), Vector((far, far)), Vector((far, -t))]
+    env = bmesh.new()
+    lo = [env.verts.new((-200.0, p.x, p.y)) for p in poly]
+    hi = [env.verts.new((D.CANVAS_W + 200.0, p.x, p.y)) for p in poly]
+    env.faces.new(lo)
+    env.faces.new(list(reversed(hi)))
+    for i in range(len(poly)):
+        j = (i + 1) % len(poly)
+        env.faces.new((lo[i], lo[j], hi[j], hi[i]))
+    bmesh.ops.recalc_face_normals(env, faces=env.faces[:])
+    envelope = new_object('cover_envelope', env, col, smooth=False)
+    for other in (cavity, envelope):
+        m = ch.modifiers.new('cut', 'BOOLEAN')
+        m.operation, m.object, m.solver = 'DIFFERENCE', other, 'EXACT'
+        bpy.context.view_layer.objects.active = ch
+        bpy.ops.object.modifier_apply(modifier=m.name)
+        bpy.data.objects.remove(other)
     return ch
 
 
@@ -241,43 +246,6 @@ def rounded_rect_fb(x0, y0, x1, y1, r_back, r_front, k=16, m=40):
     return pts
 
 
-def _tray_solid(name, col, inset, z_top, z_bottom, r_front, r_side, cf, cb):
-    """A prism of the plan outline (inset), its top edge rolled over: radius r_front along the front, r_side
-    along the sides and back, blended round the front corners. Applied, then sheared so that what runs down
-    the sides runs along the world vertical."""
-    W, H = D.CANVAS_W, D.CANVAS_H
-    out = rounded_rect_fb(inset, inset, W - inset, H - inset, cb, cf)
-    bm = bmesh.new()
-    prism(bm, out, z_bottom, z_top)
-    ob = new_object(name, bm, col, smooth=False)
-    me = ob.data
-    bm = bmesh.new()
-    bm.from_mesh(me)
-    bm.normal_update()
-    bw = bm.edges.layers.float.get('bevel_weight_edge') or bm.edges.layers.float.new('bevel_weight_edge')
-    wmax = max(r_front, r_side)
-    for e in bm.edges:
-        if any(abs(v.co.z - z_top) > 0.01 for v in e.verts) or len(e.link_faces) != 2:
-            continue
-        if all(abs(f.normal.z) > 0.99 for f in e.link_faces):
-            continue
-        my = -(e.verts[0].co.y + e.verts[1].co.y) / 2           # art y of the edge
-        t = min(max((my - (H - inset - cf)) / cf, 0.0), 1.0)   # 0 above the front corners, 1 along the front
-        e[bw] = (r_side + (r_front - r_side) * t) / wmax
-    bm.to_mesh(me)
-    bm.free()
-    bev = ob.modifiers.new('roll', 'BEVEL')
-    bev.limit_method, bev.width, bev.segments, bev.profile = 'WEIGHT', wmax, 14, 0.5
-    bev.use_clamp_overlap = False
-    bpy.context.view_layer.objects.active = ob
-    bpy.ops.object.modifier_apply(modifier='roll')
-    U = up_vector()
-    k = U.y / U.z
-    for v in ob.data.vertices:                       # walls along the world vertical
-        v.co.y += k * v.co.z
-    return ob
-
-
 def _boolean(ob, other, op='DIFFERENCE'):
     m = ob.modifiers.new('b', 'BOOLEAN')
     m.operation, m.object, m.solver = op, other, 'EXACT'
@@ -286,35 +254,41 @@ def _boolean(ob, other, op='DIFFERENCE'):
     bpy.data.objects.remove(other)
 
 
-def build_cover(col):
-    """The red top as a formed tray: rolled over all round, a deep lip at the front, short flanges elsewhere."""
-    C, P = D.CASE, D.PLATE
-    t = P['thickness']
-    outer = _tray_solid('Plate', col, 0.0, 0.0, -(C['lip_h'] + 60), C['front_bend_r'], C['side_bend_r'],
-                        C['corner_front_r'], C['corner_back_r'])
-    inner = _tray_solid('tray_inner', col, t, -t, -(C['lip_h'] + 400), C['front_bend_r'] - t, C['side_bend_r'] - t,
-                        C['corner_front_r'] - t, C['corner_back_r'] - t)
-    _boolean(outer, inner)
-    # the bottom edge: the flanges end flange_h down, the front lip lip_h down, sloping between at the corners
-    W, H = D.CANVAS_W, D.CANVAS_H
-    fl, lip = C['flange_h'], C['lip_h']
-    sect = [(300.0, -fl), (-H + 260.0, -fl), (-H + 40.0, -lip), (-H - 600.0, -lip), (-H - 600.0, -6000.0), (300.0, -6000.0)]
-    bm = bmesh.new()
-    lo = [bm.verts.new((-300.0, y, z)) for y, z in sect]
-    hi = [bm.verts.new((W + 300.0, y, z)) for y, z in sect]
-    bm.faces.new(lo)
-    bm.faces.new(list(reversed(hi)))
-    for i in range(len(sect)):
-        j = (i + 1) % len(sect)
-        bm.faces.new((lo[i], lo[j], hi[j], hi[i]))
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    _boolean(outer, new_object('tray_cut', bm, col, smooth=False))
-    return outer
-
-
 def build_plate(rects, kinds, col):
     P, B, L = D.PLATE, D.BUTTON, D.LED
-    plate = build_cover(col)
+    bm = bmesh.new()
+    cover_mesh(bm)                                   # the top bending straight down into the front lip
+    plate = new_object('Plate', bm, col, smooth=False)
+    C = D.CASE
+    keep = bmesh.new()                               # round the back corners in plan; the lip is untouched
+    prism(keep, rounded_rect_fb(0.0, 0.0, D.CANVAS_W, D.CANVAS_H + 400.0, C['corner_back_r'], 1.0, k=16, m=40),
+          -2000.0, 50.0)
+    _boolean(plate, new_object('cover_keep', keep, col, smooth=False), 'INTERSECT')
+    # round over the sheet's side and back edges now, on the clean sheet (before the holes), where the bevel
+    # can clamp safely; the front bend is in the cross-section already
+    bm = bmesh.new()
+    bm.from_mesh(plate.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=0.05)          # the intersect leaves duplicate points
+    bmesh.ops.dissolve_degenerate(bm, edges=bm.edges[:], dist=0.05)
+    bm.normal_update()
+    bw0 = bm.edges.layers.float.get('bevel_weight_edge') or bm.edges.layers.float.new('bevel_weight_edge')
+    for e in bm.edges:
+        if any(abs(v.co.z) > 0.01 for v in e.verts) or len(e.link_faces) != 2:
+            continue
+        if all(abs(f.normal.z) > 0.99 for f in e.link_faces):
+            continue
+        if -max(v.co.y for v in e.verts) > D.CANVAS_H - 300:      # leave the front bend alone
+            continue
+        e[bw0] = 1.0
+    bm.to_mesh(plate.data)
+    bm.free()
+    roll = plate.modifiers.new('roll', 'BEVEL')
+    roll.limit_method, roll.width, roll.segments, roll.profile = 'WEIGHT', C['edge_roll_r'], 6, 0.5
+    roll.use_clamp_overlap = False                   # the clean sheet has nothing smaller than the roll to collide with
+    bpy.context.view_layer.objects.active = plate
+    bpy.ops.object.modifier_apply(modifier='roll')
+    for e in plate.data.attributes['bevel_weight_edge'].data:
+        e.value = 0.0
 
     cutters = bpy.data.collections.new('Cutters')
     bpy.context.scene.collection.children.link(cutters)
@@ -354,7 +328,7 @@ def build_plate(rects, kinds, col):
     bpy.data.collections.remove(cutters)
 
     # bevel weights on the top rim edges only (top face meets a wall): each hole 0.85..1.0 (hash of its id) of
-    # its fillet (LED holes led_fillet, the others hole_fillet); the cut side and back edges get cut_edge_r.
+    # its fillet (LED holes led_fillet, the others hole_fillet); the sheet's side and back edges get edge_roll_r.
     # The front bend is modelled in the cross-section, not bevelled
     me = plate.data
     wmax = P['hole_fillet']
@@ -369,8 +343,8 @@ def build_plate(rects, kinds, col):
         if all(abs(f.normal.z) > 0.99 for f in e.link_faces):
             continue                                 # a split inside the flat top, not a rim
         mx, my = (v0.x + v1.x) / 2, -(v0.y + v1.y) / 2
-        if min(mx, my, D.CANVAS_W - mx, D.CANVAS_H - my) < 110:   # the rolled outer edge is modelled already
-            continue
+        if min(mx, my, D.CANVAS_W - mx) < D.CASE['corner_back_r'] + D.CASE['edge_roll_r'] + 8:
+            continue                                 # the rolled side and back edges are done already
         cid, _, _, fil = min(holes, key=lambda h: (h[1] - mx) ** 2 + (h[2] - my) ** 2)
         e[bw] = fil * (0.85 + 0.15 * hash01(cid)) / wmax
     bm.to_mesh(me)
@@ -394,6 +368,10 @@ def build_plate(rects, kinds, col):
     else:
         me.use_auto_smooth = True
         me.auto_smooth_angle = math.radians(35)
+    # normals weighted by face area: the big flat top keeps exactly flat normals, so long triangles between a
+    # hole and a rounded edge don't pick up the edge's tilt (it showed as streaks across the paint)
+    wn = plate.modifiers.new('flat_top', 'WEIGHTED_NORMAL')
+    wn.mode, wn.weight, wn.keep_sharp = 'FACE_AREA', 100, True
     return plate
 
 

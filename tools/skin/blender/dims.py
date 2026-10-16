@@ -77,13 +77,12 @@ ENCODER = dict(
 CASE = dict(
     # the red top is one formed sheet: the top and a short, well-rounded lip over the front edge, with two
     # screws on the lip's face. The sides, the back and the front below the lip are a separate black chassis.
-    # it is a formed tray: the sheet rolls down all round, with a large radius over the front into the lip and a
-    # smaller one over the sides and back into short flanges; the corners are rounded in plan
-    front_bend_r=3.0 * MM,   # outer radius of the roll over the front edge (owner: less than 5 mm)
-    side_bend_r=2.5 * MM,    # outer radius of the roll over the sides and the back
-    flange_h=4.0 * MM,       # how far the sides and back reach down
+    # the top bends straight down along the front into the lip (the lip's ends are cut off at the sides); the
+    # side and back edges of the sheet are rounded over, and the back corners are rounded in plan
+    front_bend_r=3.0 * MM,   # outer radius of the bend into the front lip (owner: less than 5 mm)
     lip_h=10.0 * MM,         # from the top surface down to the lip's bottom edge
-    corner_front_r=3.1 * MM, corner_back_r=4.0 * MM,   # plan radius of the corners (front: owner, tighter)
+    edge_roll_r=1.0 * MM,    # the sheet's side and back edges, rounded over (under the 1.2 mm thickness)
+    corner_back_r=4.0 * MM,  # plan radius of the back corners
     lip_screw_x=(0.12, 0.88),
     back_h=40.0 * MM,        # from the back edge of the top down to the base (estimate; 43 mm with feet)
     front_h=12.0 * MM,       # from the front edge of the top down to the base: the red lip nearly covers it (photo)

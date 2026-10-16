@@ -14,8 +14,10 @@ INK_ALBEDO = {
 }
 PAINT = dict(
     rough_red=0.45, rough_ink=0.55,        # base layer (mostly diffuse)
-    spec_level=0.25,                        # base layer specular (the coat carries most of the sheen)
-    coat=1.0, coat_rough_red=0.30, coat_rough_ink=0.40, coat_ior=1.5,
+    spec_level=0.12,                        # base layer specular (the coat carries most of the sheen)
+    # coat weight on the red body and on the printed inks: run 1 (1.0 everywhere) left the black print 48-130
+    # against the photo's 38 at zero albedo, so the gloss is cut to what the calibration can reach
+    coat_red=0.55, coat_ink=0.35, coat_rough_red=0.30, coat_rough_ink=0.45, coat_ior=1.5,
     peel_wavelength=0.6 * D.MM,             # orange peel cell size
     peel_distance=0.15,                     # bump distance (px): about 1.4 degrees of slope
     ink_distance=0.12,                      # printed relief (px)
@@ -128,7 +130,7 @@ def paint(maps_dir, peel_strips=None):
     _link(nt, mix_rough(P['rough_red'], P['rough_ink'], sm, (-600, 600)).outputs[0], bsdf.inputs['Roughness'])
     _link(nt, mix_rough(P['coat_rough_red'], P['coat_rough_ink'], sm, (-600, 800)).outputs[0], bsdf.inputs['Coat Roughness'])
     bsdf.inputs['Specular IOR Level'].default_value = P['spec_level']
-    bsdf.inputs['Coat Weight'].default_value = P['coat']
+    _link(nt, mix_rough(P['coat_red'], P['coat_ink'], None, (-600, 1000)).outputs[0], bsdf.inputs['Coat Weight'])
     bsdf.inputs['Coat IOR'].default_value = P['coat_ior']
 
     # heights: printed relief, hole lips, orange peel (with optional test strips)

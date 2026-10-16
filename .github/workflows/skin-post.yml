@@ -1,0 +1,65 @@
+# Skin post step only: re-runs the calibration and the sheets on the newest successful "Skin renders" run of
+# this branch, when only the post scripts or the reference targets change. Download "phase2-results".
+name: Skin post
+
+on:
+  push:
+    branches: [skin-blender]
+    paths:
+      - tools/skin/blender/post_phase2.py
+      - tools/skin/blender/calib.py
+      - tools/skin/blender/phase2_targets.json
+      - .github/workflows/skin-post.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: skin-post-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BPY_VERSION: 5.2.2
+
+jobs:
+  post:
+    name: Calibrate and make the sheets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: .github/workflows/skin-post.yml
+      - name: Blender as a Python module
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libxrender1 libxi6 libxkbcommon0 libsm6 libgl1 libxxf86vm1 libxfixes3 libegl1 fonts-dejavu-core > /dev/null
+          pip install -q "bpy==$BPY_VERSION" numpy pillow scipy OpenEXR
+      - name: Renders from the newest successful render run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN=$(gh run list -R "$GITHUB_REPOSITORY" --workflow skin-render.yml --branch "$GITHUB_REF_NAME" \
+                --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          if [ -z "$RUN" ]; then
+            RUN=$(gh run list -R "$GITHUB_REPOSITORY" --workflow skin-render.yml --branch "$GITHUB_REF_NAME" \
+                  --status completed --limit 1 --json databaseId --jq '.[0].databaseId')
+          fi
+          echo "renders from run $RUN"
+          gh run download "$RUN" -R "$GITHUB_REPOSITORY" --pattern 'render-*' -D renders
+      - name: Maps, calibration, sheets
+        run: |
+          python3 tools/skin/blender/masks.py out/maps
+          python3 tools/skin/blender/post_phase2.py renders out/maps tools/skin/blender/phase2_targets.json out/results
+      - uses: actions/upload-artifact@v7
+        with:
+          name: phase2-results
+          path: |
+            out/results/*.png
+            out/results/*.json
+          retention-days: 7

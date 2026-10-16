@@ -1,12 +1,22 @@
-# Skin renders: the 3D-rendered default skin's test crops, rendered in parallel on GitHub's Linux runners.
-# Runs when the Blender scripts change on the skin-blender branch, or by hand. Nothing is committed: the maps,
-# the HDR world and the renders only live in the run and in its artifacts (kept 7 days).
+# Skin renders: the 3D-rendered default skin's test crops, rendered in parallel on GitHub's Linux runners, then
+# the post step (paint calibration against the reference targets, recombining, denoising, view transforms,
+# sheets) in one job. Runs when the scene or render scripts change on the skin-blender branch, or by hand.
+# Post-only changes run skin-post.yml instead. Nothing is committed: the maps, the HDR world and the renders
+# only live in the run and in its artifacts (kept 7 days). Download "phase2-results" for the sheets.
 name: Skin renders
 
 on:
   push:
     branches: [skin-blender]
-    paths: ['tools/skin/blender/**', '.github/workflows/skin-render.yml']
+    paths:
+      - tools/skin/blender/dims.py
+      - tools/skin/blender/layout.py
+      - tools/skin/blender/scene.py
+      - tools/skin/blender/masks.py
+      - tools/skin/blender/materials.py
+      - tools/skin/blender/lighting.py
+      - tools/skin/blender/render_test.py
+      - .github/workflows/skin-render.yml
   workflow_dispatch:
     inputs:
       samples:
@@ -65,4 +75,48 @@ jobs:
         with:
           name: render-${{ matrix.light }}-${{ matrix.crop }}
           path: out/render
+          retention-days: 7
+
+  post:
+    name: Calibrate and make the sheets
+    needs: test-crops
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: .github/workflows/skin-render.yml
+      - name: Blender as a Python module
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libxrender1 libxi6 libxkbcommon0 libsm6 libgl1 libxxf86vm1 libxfixes3 libegl1 fonts-dejavu-core > /dev/null
+          pip install -q "bpy==$BPY_VERSION" numpy pillow scipy OpenEXR
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: render-*
+          path: renders
+      - name: Maps, calibration, sheets
+        run: |
+          python3 tools/skin/blender/masks.py out/maps
+          python3 tools/skin/blender/post_phase2.py renders out/maps tools/skin/blender/phase2_targets.json out/results
+          python3 - <<'PY'
+          import json
+          r = json.load(open('out/results/phase2_calibration.json'))
+          for light, v in r['lights'].items():
+              for t in ('Standard', 'AgX', 'AgX HC'):
+                  e = v.get(t, {})
+                  inks = ', '.join(f"{k} {[round(x) for x in d['shown']]}{'' if d['reachable'] else ' (out of reach)'}"
+                                   for k, d in e.items() if isinstance(d, dict))
+                  print(f"::notice title=Light {light}, {t}::{e.get('exposure_ev')} EV; shown {inks}; targets {r['targets_srgb']}")
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: phase2-results
+          path: |
+            out/results/*.png
+            out/results/*.json
           retention-days: 7

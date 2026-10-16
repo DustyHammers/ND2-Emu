@@ -102,17 +102,11 @@ jobs:
       - name: Maps, calibration, sheets
         run: |
           python3 tools/skin/blender/masks.py out/maps
-          python3 tools/skin/blender/post_phase2.py renders out/maps tools/skin/blender/phase2_targets.json out/results
-          python3 - <<'PY'
-          import json
-          r = json.load(open('out/results/phase2_calibration.json'))
-          for light, v in r['lights'].items():
-              for t in ('Standard', 'AgX', 'AgX HC'):
-                  e = v.get(t, {})
-                  inks = ', '.join(f"{k} {[round(x) for x in d['shown']]}{'' if d['reachable'] else ' (out of reach)'}"
-                                   for k, d in e.items() if isinstance(d, dict))
-                  print(f"::notice title=Light {light}, {t}::{e.get('exposure_ev')} EV; shown {inks}; targets {r['targets_srgb']}")
-          PY
+          set -o pipefail
+          python3 tools/skin/blender/post_phase2.py renders out/maps tools/skin/blender/phase2_targets.json out/results 2>&1 \
+            | grep -v -e '^Fra:' -e 'EGL Error' | tee post.log \
+            || { echo "::error title=post_phase2 failed::$(grep -v -e Saved -e '^$' post.log | tail -n 25 | tr '\n' '|' | tail -c 3500)"; exit 1; }
+          python3 tools/skin/blender/post_summary.py out/results/phase2_calibration.json
       - uses: actions/upload-artifact@v7
         with:
           name: phase2-results

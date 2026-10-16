@@ -8,6 +8,7 @@ on:
     paths:
       - tools/skin/blender/post_phase2.py
       - tools/skin/blender/calib.py
+      - tools/skin/blender/post_summary.py
       - tools/skin/blender/phase2_targets.json
       - .github/workflows/skin-post.yml
   workflow_dispatch:
@@ -60,6 +61,7 @@ jobs:
           python3 tools/skin/blender/post_phase2.py renders out/maps tools/skin/blender/phase2_targets.json out/results 2>&1 \
             | grep -v -e '^Fra:' -e 'EGL Error' | tee post.log \
             || { echo "::error title=post_phase2 failed::$(grep -v -e Saved -e '^$' post.log | tail -n 25 | tr '\n' '|' | tail -c 3500)"; exit 1; }
+          python3 tools/skin/blender/post_summary.py out/results/phase2_calibration.json
       - uses: actions/upload-artifact@v7
         with:
           name: phase2-results

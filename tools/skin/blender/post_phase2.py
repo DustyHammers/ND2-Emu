@@ -194,6 +194,32 @@ def denoise(rgba, albedo, normal):
     return arr
 
 
+def align(ch, box):
+    """Blender's render border can round to one row or column more than the box: pick the offset whose
+    diffuse colour best matches the ink masks and trim every pass to the box."""
+    x0, y0, x1, y1 = box
+    bh, bw = y1 - y0, x1 - x0
+    h, w = ch['Combined'].shape[:2]
+    if (h, w) == (bh, bw):
+        return ch
+    def edges(a):                                # edges separate one-pixel offsets far better than values
+        return np.abs(np.diff(a, axis=0))[:, :-1] + np.abs(np.diff(a, axis=1))[:-1]
+    ref = edges(inks[y0:y1, x0:x1, 0])
+    dc = ch['Diffuse Color'][..., 0]
+    best, score = (0, 0), -1e9
+    for dy in range(max(h - bh, 0) + 1):
+        for dx in range(max(w - bw, 0) + 1):
+            a = dc[dy:dy + bh, dx:dx + bw]
+            if a.shape != (bh, bw):
+                continue
+            c = float(np.corrcoef(edges(a).ravel(), ref.ravel())[0, 1])
+            if c > score:
+                best, score = (dy, dx), c
+    dy, dx = best
+    print(f'align: render {w}x{h} for a {bw}x{bh} box, offset {dx},{dy} (match {score:.4f})')
+    return {k: v[dy:dy + bh, dx:dx + bw] for k, v in ch.items()}
+
+
 # ---- per light variant: calibrate and recombine -------------------------------------------------------------
 
 exrs = sorted(glob.glob(os.path.join(RENDERS, '**', '*.exr'), recursive=True))
@@ -210,7 +236,7 @@ for light in sorted(data):
     stats = {ink: {'D': [], 'G': []} for ink in INKS}
     loaded = {}
     for crop, (p, info) in data[light].items():
-        ch = read_exr(p)
+        ch = align(read_exr(p), info['box'])
         x0, y0, x1, y1 = info['box']
         loaded[crop] = (ch, info)
         paint_px = np.abs(ch['Material Index'] - 1) < 0.5

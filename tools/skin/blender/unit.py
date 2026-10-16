@@ -91,13 +91,12 @@ def screws(col):
     out = []
     # on the face of the red lip, halfway down its flat part (outward normal toward the viewer)
     nf = Vector((0, -U.z, U.y))
-    path, _ = scene.cover_section()
-    d = C['front_bend_r'] * math.tan(math.acos(U.y) / 2)
-    depth = (d + C['lip_h']) / 2
+    depth = (C['front_bend_r'] + C['lip_h']) / 2
     for i, f in enumerate(C['lip_screw_x']):
         o = Vector((f * D.CANVAS_W, -D.CANVAS_H, 0)) - U * depth
         out += screw(f'ScrewFront{i}', o, Vector((1, 0, 0)), nf, col)
-    for i, (x, sgn) in enumerate(((0.0, -1), (D.CANVAS_W, 1))):
+    side = D.PLATE['thickness'] + 1.0               # the chassis walls sit just inside the red flanges
+    for i, (x, sgn) in enumerate(((side, -1), (D.CANVAS_W - side, 1))):
         y = -0.55 * D.CANVAS_H
         o = Vector((x, y, 0)) - U * (scene.wall_depth(y) - 7.0 * MM)
         out += screw(f'ScrewSide{i}', o, Vector((0, 1, 0)), Vector((sgn, 0, 0)), col)
@@ -111,7 +110,7 @@ def connectors(col):
     nb = Vector((0, U.z, -U.y))                 # back wall, outward
     objs = []
     for k, (kind, x) in enumerate(D.JACKS):
-        o = Vector((x, 0, 0)) - U * (C['back_h'] - C['jack_h'])
+        o = Vector((x, -(D.PLATE['thickness'] + 1.0), 0)) - U * (C['back_h'] - C['jack_h'])
         m = _frame(o, Vector((-1, 0, 0)), nb)
         bm = bmesh.new()
         if kind == 'jack':

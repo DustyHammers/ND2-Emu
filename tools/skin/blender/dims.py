@@ -48,12 +48,12 @@ DISPLAY = dict(
 )
 
 MASTER = dict(
-    # photos: a tall black knob, slightly narrower at the top, with about 14 shallow flutes, a rounded top edge
+    # photos: a tall black knob, slightly narrower at the top, with about 12 rounded lobes, a rounded top edge
     # onto a flat top, and a white pointer line that runs across the top and down the side to the panel
     r_base=104.0,            # about 13.4 mm across at the panel
     r_top=95.0,              # about 12.2 mm across at the top (the top-down photo)
     height=15.0 * MM,        # about as tall as it is wide (estimate from the angled photos)
-    flutes=14, flute_depth=0.55 * MM,
+    flutes=12, flute_depth=0.6 * MM,       # rounded convex lobes with narrow notches between them (photos)
     top_round=1.3 * MM,
     pointer_w=0.9 * MM, pointer_r0=0.22,   # stripe width; it starts at this share of the radius on the top
     sweep=240.0, frames=128, # frame 0 = 120 degrees left of up, frame 127 = 120 degrees right
@@ -77,10 +77,14 @@ ENCODER = dict(
 CASE = dict(
     # the red top is one formed sheet: the top and a short, well-rounded lip over the front edge, with two
     # screws on the lip's face. The sides, the back and the front below the lip are a separate black chassis.
-    front_bend_r=5.0 * MM,   # outer radius of the roll over the front edge (owner's photo)
+    # it is a formed tray: the sheet rolls down all round, with a large radius over the front into the lip and a
+    # smaller one over the sides and back into short flanges; the corners are rounded in plan
+    front_bend_r=3.0 * MM,   # outer radius of the roll over the front edge (owner: less than 5 mm)
+    side_bend_r=2.5 * MM,    # outer radius of the roll over the sides and the back
+    flange_h=4.0 * MM,       # how far the sides and back reach down
     lip_h=10.0 * MM,         # from the top surface down to the lip's bottom edge
+    corner_front_r=5.5 * MM, corner_back_r=4.0 * MM,   # plan radius of the corners
     lip_screw_x=(0.12, 0.88),
-    cut_edge_r=0.4 * MM,     # the top's cut side and back edges, painted
     back_h=40.0 * MM,        # from the back edge of the top down to the base (estimate; 43 mm with feet)
     front_h=12.0 * MM,       # from the front edge of the top down to the base: the red lip nearly covers it (photo)
     base_t=1.0 * MM,         # black base plate

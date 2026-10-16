@@ -17,6 +17,11 @@ import dims as D
 CENTRE = Vector((D.CANVAS_W / 2, -D.CANVAS_H / 2, 0))
 
 VARIANTS = {
+    # P: matched to the owner's front three-quarter product photo: a large, high soft key from the front left,
+    # a broad fill from the right, short soft shadows, little sheen
+    'P': dict(exposure_ev=0.0, key_az=125, key_el=62, key_size_mm=1400, key_dist_mm=1500, key_E=2.0, twin=0.2,
+              rim_az=20, rim_el=45, rim_size_mm=1200, rim_E=0.55,
+              world=0.55, world_rot=60, box_E=0.35, box_mm=(1200, 900), box_h_mm=1300, box_grad=0.3),
     # A: the spec's set-up
     'A': dict(key_az=135, key_el=40, key_size_mm=600, key_dist_mm=1500, key_E=2.4, twin=0.35,
               rim_az=45, rim_el=30, rim_size_mm=300, rim_E=0.30,

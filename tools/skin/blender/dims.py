@@ -72,17 +72,18 @@ ENCODER = dict(
 # relative to the panel because the top slopes down toward the front.
 # Published size 222 x 43 x 140 mm (width x height x depth); back and front wall heights are estimates.
 CASE = dict(
-    # the red top is one formed sheet: the top, a rolled bend over the front edge, the front face and a small
-    # hem under it. The sides and the back are a separate black chassis tucked under the top.
-    front_bend_r=3.5 * MM,   # outer radius of the roll over the front edge (photos)
-    hem_r=1.5 * MM, hem_len=5.0 * MM,
+    # the red top is one formed sheet: the top and a short, well-rounded lip over the front edge, with two
+    # screws on the lip's face. The sides, the back and the front below the lip are a separate black chassis.
+    front_bend_r=5.0 * MM,   # outer radius of the roll over the front edge (owner's photo)
+    lip_h=10.0 * MM,         # from the top surface down to the lip's bottom edge
+    lip_screw_x=(0.12, 0.88),
     cut_edge_r=0.4 * MM,     # the top's cut side and back edges, painted
     back_h=40.0 * MM,        # from the back edge of the top down to the base (estimate; 43 mm with feet)
-    front_h=20.0 * MM,       # from the front edge of the top down to the base (estimate)
+    front_h=12.0 * MM,       # from the front edge of the top down to the base: the red lip nearly covers it (photo)
     base_t=1.0 * MM,         # black base plate
     foot_r=6.0 * MM, foot_h=2.5 * MM, foot_inset=14.0 * MM,
     screw_r=2.6 * MM,        # black pan-head screws: two on the front, one on each side
-    jack_h=17.0 * MM,        # back-panel connectors: centre height above the base
+    jack_h=30.0 * MM,        # back-panel connectors: centre height above the base (barrels just show over the back edge)
 )
 # back-panel connectors, x in art px (2x). CH1-6 sit under the art's CH labels; the others keep the original
 # hardware's order and spacing, scaled to fit beside them (from the owner's top-down photo).

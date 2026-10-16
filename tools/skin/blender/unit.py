@@ -89,10 +89,13 @@ def screws(col):
     U = scene.up_vector()
     C = D.CASE
     out = []
-    # front wall (outward normal toward the viewer, horizontal in the world)
+    # on the face of the red lip, halfway down its flat part (outward normal toward the viewer)
     nf = Vector((0, -U.z, U.y))
-    for i, x in enumerate((0.11 * D.CANVAS_W, 0.89 * D.CANVAS_W)):
-        o = Vector((x, -D.CANVAS_H, 0)) - U * (C['front_h'] - 7.0 * MM)
+    path, _ = scene.cover_section()
+    d = C['front_bend_r'] * math.tan(math.acos(U.y) / 2)
+    depth = (d + C['lip_h']) / 2
+    for i, f in enumerate(C['lip_screw_x']):
+        o = Vector((f * D.CANVAS_W, -D.CANVAS_H, 0)) - U * depth
         out += screw(f'ScrewFront{i}', o, Vector((1, 0, 0)), nf, col)
     for i, (x, sgn) in enumerate(((0.0, -1), (D.CANVAS_W, 1))):
         y = -0.55 * D.CANVAS_H
@@ -115,10 +118,10 @@ def connectors(col):
             hexr = 7.0 * MM / math.cos(math.pi / 6)
             hexo = [(hexr * math.cos(math.pi / 3 * i + math.pi / 6), -hexr * math.sin(math.pi / 3 * i + math.pi / 6)) for i in range(6)]
             scene.prism(bm, hexo, 0.0, 2.2 * MM)              # nut
-            _cyl(bm, 4.8 * MM, 2.2 * MM, 3.0 * MM)            # threaded bush
+            _cyl(bm, 4.8 * MM, 2.2 * MM, 9.0 * MM)            # threaded bush (shows over the back edge)
             objs.append(_obj(f'JackNut{k}', bm, col, m, smooth=False))
             b2 = bmesh.new()
-            _cyl(b2, 3.3 * MM, 2.0 * MM, 3.05 * MM)           # the dark hole
+            _cyl(b2, 3.3 * MM, 2.0 * MM, 9.05 * MM)           # the dark hole
             objs.append(_obj(f'JackHole{k}', b2, col, m))
         elif kind == 'din':
             _cyl(bm, 8.0 * MM, 0.0, 0.6 * MM)                 # metal shell ring

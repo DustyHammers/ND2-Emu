@@ -150,13 +150,13 @@ def case_shell(bm, inner=False):
 
 def cover_section():
     """The red top's cross-section in (y, z) (Blender y: 0 at the back edge, -H at the front): outer path from
-    the back edge over the top, the rolled front bend, down the front face and under into a short hem, with the
-    inward normal at each point (the inner surface is the outer one moved by the sheet thickness)."""
+    the back edge over the top, the rolled front bend and down the short lip, with the inward normal at each
+    point (the inner surface is the outer one moved by the sheet thickness)."""
     C, P = D.CASE, D.PLATE
     t, H = P['thickness'], D.CANVAS_H
     U = up_vector()
     s, c = U.y, U.z
-    R, rb = C['front_bend_r'], C['hem_r']
+    R = C['front_bend_r']
     t2 = Vector((-s, -c))                            # down the front face (the world vertical)
     w = Vector((c, -s))                              # inward along the base, toward the back
     alpha = math.acos(s)                             # how far the bend turns (90 degrees less the slope)
@@ -169,17 +169,8 @@ def cover_section():
         b = alpha * i / n
         v = Vector((-math.sin(b), math.cos(b)))
         path.append((cc + v * R, -v))
-    t2p = cc + Vector((-math.sin(alpha), math.cos(alpha))) * R
-    face_len = C['front_h'] - d - rb                # down the front face to where the hem bends in
-    bstart = pc + t2 * (d + face_len)
-    path.append((bstart, w))
-    ch = bstart + w * rb
-    for i in range(1, 9):
-        b = (math.pi / 2) * i / 8
-        v = -w * math.cos(b) + t2 * math.sin(b)      # from facing out (front) to facing down
-        path.append((ch + v * rb, -v))
-    end = ch + t2 * rb + w * C['hem_len']
-    path.append((end, -t2))
+    lip_end = pc + t2 * C['lip_h']                   # the lip's bottom edge (on the front-face plane)
+    path.append((lip_end, w))
     return path, t
 
 
@@ -196,14 +187,14 @@ def cover_mesh(bm):
         bm.faces.new((a[3], b[3], b[2], a[2]))       # inner surface
         bm.faces.new((a[0], a[2], b[2], b[0]))       # cut edge at x = 0
         bm.faces.new((a[1], b[1], b[3], a[3]))       # cut edge at x = W
-    for r in (ring[0], ring[-1]):                    # the back edge and the hem's end
+    for r in (ring[0], ring[-1]):                    # the back edge and the lip's bottom edge
         bm.faces.new((r[0], r[1], r[3], r[2]))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
 
 
 def build_chassis(col):
-    """The black sides and back: the swept case envelope, hollowed, minus everything outside the red top's inner
-    surface (so the chassis tucks up against the top and behind its front face)."""
+    """The black sides, back and lower front: the swept case envelope, hollowed, minus everything outside the
+    red top's inner surface down to the lip's bottom edge (the chassis tucks up behind the top and its lip)."""
     U = up_vector()
     bm = bmesh.new()
     case_shell(bm)
@@ -213,12 +204,10 @@ def build_chassis(col):
     cavity = new_object('chassis_cavity', cav, col, smooth=False)
     path, t = cover_section()
     inner = [p + nrm * t for p, nrm in path]
-    k = next(i for i, (p, nrm) in enumerate(path) if abs(nrm.x - Vector((U.z, -U.y)).x) < 1e-6 and i > 2)
-    poly = inner[:k + 1]
-    last = poly[-1]
+    out_last = path[-1][0]
+    n_out = Vector((-U.z, U.y))                      # out of the front, horizontal in the world
     far = 6000.0
-    poly += [last + Vector((-U.y, -U.z)) * far, Vector((-D.CANVAS_H - far, last.y - far)),
-             Vector((-D.CANVAS_H - far, far)), Vector((far, far)), Vector((far, -t))]
+    poly = inner + [out_last + n_out * far, Vector((-D.CANVAS_H - far, far)), Vector((far, far)), Vector((far, -t))]
     env = bmesh.new()
     lo = [env.verts.new((-200.0, p.x, p.y)) for p in poly]
     hi = [env.verts.new((D.CANVAS_W + 200.0, p.x, p.y)) for p in poly]

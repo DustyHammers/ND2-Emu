@@ -17,7 +17,8 @@ PAINT = dict(
     spec_level=0.12,                        # base layer specular (the coat carries most of the sheen)
     # coat weight on the red body and on the printed inks: run 1 (1.0 everywhere) left the black print 48-130
     # against the photo's 38 at zero albedo, so the gloss is cut to what the calibration can reach
-    coat_red=0.55, coat_ink=0.35, coat_rough_red=0.30, coat_rough_ink=0.45, coat_ior=1.5,
+    # the reference photos show a satin finish with only a faint sheen
+    coat_red=0.30, coat_ink=0.20, coat_rough_red=0.38, coat_rough_ink=0.50, coat_ior=1.5,
     peel_wavelength=0.6 * D.MM,             # orange peel cell size
     peel_distance=0.15,                     # bump distance (px): about 1.4 degrees of slope
     ink_distance=0.12,                      # printed relief (px)

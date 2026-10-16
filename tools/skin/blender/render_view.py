@@ -1,6 +1,8 @@
 # Renders the whole unit with every control in place, for judging realism:
 #   --view hero : a perspective three-quarter view from the front left, like the reference photos
 #   --view top  : the skin's straight-down orthographic view (whole canvas)
+#   --view persp: the skin canvas as a true perspective view from the front, like the owner's product photo
+#                 (--elev degrees above the panel, --dist mm from the panel centre), fitted to the window
 #   --view tilt : the skin canvas seen with the top tilted back (--tilt degrees from straight down), orthographic
 #                 so every copy of a control looks the same, framed so the whole red top fits the plugin window
 #   python3 render_view.py --view hero --maps MAPS_DIR --hdr FILE --samples 96 --out FILE.png [--light C]
@@ -80,6 +82,50 @@ def tilt_camera(sc, tilt_deg=20.0, margin=0.05):
     return dict(scale=scale, centre=(cx, cy), k=k)
 
 
+def persp_camera(sc, elev_deg=50.0, dist_mm=580.0, margin=0.045):
+    """Perspective camera in front of the panel, elev_deg above its plane, aimed at the panel centre; the focal
+    length and lens shift fit the whole red top into the canvas with a margin."""
+    from bpy_extras.object_utils import world_to_camera_view
+    e = math.radians(elev_deg)
+    centre = Vector((D.CANVAS_W / 2, -D.CANVAS_H / 2, -40.0))
+    pos = centre + Vector((0.0, -math.cos(e), math.sin(e))) * dist_mm * D.MM
+    cam = bpy.data.cameras.new('Persp')
+    cam.lens, cam.sensor_width, cam.sensor_fit = 50.0, 36.0, 'HORIZONTAL'
+    cam.clip_start, cam.clip_end = 10, 200000
+    o = bpy.data.objects.new('PerspCam', cam)
+    sc.collection.objects.link(o)
+    f = (centre - pos).normalized()
+    r = f.cross(Vector((0, 0, 1))).normalized()
+    u = r.cross(f)
+    m = Matrix((r, u, -f)).transposed().to_4x4()
+    m.translation = pos
+    o.matrix_world = m
+    sc.camera = o
+    sc.render.resolution_x, sc.render.resolution_y = D.CANVAS_W, D.CANVAS_H
+    ob = bpy.data.objects['Plate']
+    ev = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    pts = [ob.matrix_world @ v.co for v in ev.data.vertices]
+    for _ in range(3):
+        bpy.context.view_layer.update()
+        nd = [world_to_camera_view(sc, o, p) for p in pts]
+        xs, ys = [p.x for p in nd], [p.y for p in nd]
+        wf, hf = max(xs) - min(xs), max(ys) - min(ys)
+        cam.lens *= min((1 - 2 * margin) / wf, (1 - 2 * margin) / hf)
+        bpy.context.view_layer.update()
+        nd = [world_to_camera_view(sc, o, p) for p in pts]
+        xs, ys = [p.x for p in nd], [p.y for p in nd]
+        cam.shift_x += ((max(xs) + min(xs)) / 2 - 0.5)
+        cam.shift_y += ((max(ys) + min(ys)) / 2 - 0.5) * D.CANVAS_H / D.CANVAS_W
+    bpy.context.view_layer.update()
+    nd = [world_to_camera_view(sc, o, p) for p in pts]
+    back = [p for p, q in zip(nd, pts) if q.y > -5 and q.z > -1]
+    front = [p for p, q in zip(nd, pts) if q.y < -D.CANVAS_H + 120 and q.z > -1]
+    if back and front:
+        bw = max(p.x for p in back) - min(p.x for p in back)
+        fw = max(p.x for p in front) - min(p.x for p in front)
+        print(f'persp: elev {elev_deg}, dist {dist_mm} mm, lens {cam.lens:.1f} mm; back edge {bw / fw:.3f} of the front')
+
+
 def shadow_floor(sc):
     """A shadow catcher under the unit, so the plugin window colour shows around it with a soft contact shadow."""
     ob = unit.backdrop(scene.collection('Studio'))
@@ -89,7 +135,9 @@ def shadow_floor(sc):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--view', default='hero', choices=('hero', 'top', 'tilt'))
+    ap.add_argument('--view', default='hero', choices=('hero', 'top', 'tilt', 'persp'))
+    ap.add_argument('--elev', type=float, default=50.0)
+    ap.add_argument('--dist', type=float, default=640.0)
     ap.add_argument('--tilt', type=float, default=20.0)
     ap.add_argument('--res', type=int, default=50, help='percent of the 2x canvas (50 = 1x)')
     ap.add_argument('--light', default='C')
@@ -109,7 +157,7 @@ def main():
     elif a.view == 'tilt' and os.environ.get('FLOOR_SHADOW'):
         shadow_floor(sc)
     mats = materials.assign_all(sc, os.path.abspath(a.maps), None, emission)
-    lighting.setup(sc, a.light, a.hdr)
+    V = lighting.setup(sc, a.light, a.hdr)
     sc.render.engine = 'CYCLES'
     cy = sc.cycles
     cy.device, cy.samples, cy.use_denoising = 'CPU', a.samples, True
@@ -117,7 +165,7 @@ def main():
     cy.max_bounces, cy.diffuse_bounces, cy.glossy_bounces, cy.transmission_bounces = 8, 3, 4, 8
     cy.sample_clamp_indirect = 10
     sc.view_settings.view_transform, sc.view_settings.look = 'Standard', 'None'
-    sc.view_settings.exposure = EXPOSURE_EV
+    sc.view_settings.exposure = V.get('exposure_ev', EXPOSURE_EV)
     st = sc.render.image_settings
     st.file_format, st.color_mode, st.color_depth = 'PNG', 'RGB' if a.view == 'hero' else 'RGBA', '8'
     if a.view == 'hero':
@@ -125,6 +173,10 @@ def main():
         sc.render.film_transparent = False
     elif a.view == 'tilt':
         tilt_camera(sc, a.tilt)
+        sc.render.film_transparent = True
+        sc.render.resolution_percentage = a.res
+    elif a.view == 'persp':
+        persp_camera(sc, a.elev, a.dist)
         sc.render.film_transparent = True
         sc.render.resolution_percentage = a.res
     else:

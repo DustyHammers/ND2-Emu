@@ -1,0 +1,68 @@
+# Skin renders: the 3D-rendered default skin's test crops, rendered in parallel on GitHub's Linux runners.
+# Runs when the Blender scripts change on the skin-blender branch, or by hand. Nothing is committed: the maps,
+# the HDR world and the renders only live in the run and in its artifacts (kept 7 days).
+name: Skin renders
+
+on:
+  push:
+    branches: [skin-blender]
+    paths: ['tools/skin/blender/**', '.github/workflows/skin-render.yml']
+  workflow_dispatch:
+    inputs:
+      samples:
+        description: Samples per pixel
+        default: '512'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: skin-render-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BPY_VERSION: 5.2.2
+  HDR_URL: https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/studio_small_08_2k.hdr
+
+jobs:
+  test-crops:
+    name: Light ${{ matrix.light }}, ${{ matrix.crop }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        light: [A, B, C]
+        crop: [master, top, params, display, encoder, wordmark, flat]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: .github/workflows/skin-render.yml
+      - name: Blender as a Python module
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libxrender1 libxi6 libxkbcommon0 libsm6 libgl1 libxxf86vm1 libxfixes3 libegl1 > /dev/null
+          pip install -q "bpy==$BPY_VERSION" numpy pillow scipy
+      - name: HDR world (CC0, downloaded at run time)
+        id: hdr
+        uses: actions/cache@v6
+        with:
+          path: hdr
+          key: hdr-studio_small_08_2k
+      - if: steps.hdr.outputs.cache-hit != 'true'
+        run: mkdir -p hdr && curl -fsSL -o hdr/studio_small_08_2k.hdr "$HDR_URL"
+      - name: Paint and ink maps from the art
+        run: python3 tools/skin/blender/masks.py out/maps
+      - name: Render
+        run: |
+          python3 tools/skin/blender/render_test.py --light ${{ matrix.light }} --crop ${{ matrix.crop }} \
+            --maps out/maps --hdr hdr/studio_small_08_2k.hdr --samples ${{ inputs.samples || '512' }} --out out/render
+          cat out/render/*.json | head -20
+      - uses: actions/upload-artifact@v7
+        with:
+          name: render-${{ matrix.light }}-${{ matrix.crop }}
+          path: out/render
+          retention-days: 7

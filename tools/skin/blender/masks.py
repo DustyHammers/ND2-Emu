@@ -1,0 +1,141 @@
+# Paint and ink maps for the panel material, made from the skin's background art (2x, 3450 x 2070).
+#   python3 masks.py OUT_DIR
+# Writes (never committed; CI makes them on every run):
+#   inks.png       RGBA, 8 bit, Non-Color: R = red body paint, G = black print, B = red tag print, A = white print.
+#                  Edges are unmixed between the two inks that meet there; glyph cores are 100 % ink.
+#   ink_height.png 16-bit grey: printed layers (black = 0.5, inks on top = 1.0), softened over about 1 px.
+#   lip_height.png 16-bit grey: the paint build-up around each hole (per-hole amount and thicker side).
+#   inks_preview.png  the four inks in false colour, for checking.
+import json
+import math
+import os
+import sys
+import zlib
+
+import numpy as np
+from PIL import Image, ImageFilter
+from scipy import ndimage as nd
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import dims as D
+from layout import SKIN, read_rcss_plain
+
+OUT = sys.argv[1]
+os.makedirs(OUT, exist_ok=True)
+
+art = Image.open(os.path.join(SKIN, 'ND2Background.jpg')).convert('RGB')
+W, H = art.size
+# the art carries a fine grain; a 5 px median removes it and keeps the glyph edges
+p = np.asarray(art.filter(ImageFilter.MedianFilter(5))).astype(np.float32)
+
+RED, BLACK, TAG, WHITE = (168, 26, 38), (24, 24, 24), (200, 26, 40), (226, 222, 222)
+C = np.array([RED, BLACK, TAG, WHITE], np.float32)
+
+# 1) which red is where: the body is the one big red region; red regions inside the black print are tags
+redish = (p[..., 0] - np.maximum(p[..., 1], p[..., 2])) > 60
+lab, n = nd.label(redish)
+sizes = nd.sum(redish, lab, range(1, n + 1))
+body = int(np.argmax(sizes)) + 1
+is_body = lab == body
+# a red region away from the body is printed tag ink if black print surrounds it; a red region enclosed by
+# white lettering is a letter's counter and takes the red of the nearest body or tag region
+dark = p.max(-1) < 70
+tag_ids, counters = [], []
+for i, sl in enumerate(nd.find_objects(lab), start=1):
+    if i == body or sl is None:
+        continue
+    sl = tuple(slice(max(a.start - 4, 0), a.stop + 4) for a in sl)
+    comp = nd.binary_fill_holes(lab[sl] == i)          # the outline only: lettering inside a tag doesn't count
+    ring = nd.binary_dilation(comp, iterations=3) & ~comp & ~redish[sl]
+    (tag_ids if ring.any() and dark[sl][ring].mean() >= 0.5 else counters).append(i)
+is_tag = np.isin(lab, tag_ids)
+if counters:
+    is_counter = np.isin(lab, counters)
+    near_body = nd.distance_transform_edt(~is_body) <= nd.distance_transform_edt(~is_tag)
+    is_body |= is_counter & near_body
+    is_tag |= is_counter & ~near_body
+# each pixel takes the red of the nearest red region (body or tag), so anti-aliased edges unmix to the right red
+dist_body = nd.distance_transform_edt(~is_body)
+dist_tag = nd.distance_transform_edt(~is_tag)
+red_here = np.where((dist_body <= dist_tag)[..., None], np.array(RED, np.float32), np.array(TAG, np.float32))
+
+# 2) unmix each pixel as a blend of two inks: (red_here, black), (red_here, white) or (black, white)
+def blend(a, b):
+    ab = b - a
+    t = np.clip(((p - a) * ab).sum(-1) / np.maximum((ab * ab).sum(-1), 1e-6), 0, 1)
+    err = ((a + t[..., None] * ab - p) ** 2).sum(-1)
+    return t, err
+
+blk = np.broadcast_to(np.array(BLACK, np.float32), p.shape)
+wht = np.broadcast_to(np.array(WHITE, np.float32), p.shape)
+pairs = [(red_here, blk), (red_here, wht), (blk, wht)]
+res = [blend(a, b) for a, b in pairs]
+best = np.argmin(np.stack([e for _, e in res]), 0)
+t = np.choose(best, [r[0] for r in res])
+
+def core(x):                     # glyph cores to 100 %: the outer 8 % of each side of the blend goes to the ink
+    return np.clip((x - 0.08) / 0.84, 0, 1)
+
+t = core(t)
+m_red = np.where(best == 0, 1 - t, np.where(best == 1, 1 - t, 0))
+m_black = np.where(best == 0, t, np.where(best == 2, 1 - t, 0))
+m_white = np.where(best == 1, t, np.where(best == 2, t, 0))
+tag_frac = (red_here[..., 0] == TAG[0]).astype(np.float32)
+m_body, m_tag = m_red * (1 - tag_frac), m_red * tag_frac
+
+inks = np.stack([m_body, m_black, m_tag, m_white], -1)
+Image.fromarray((inks * 255 + 0.5).astype(np.uint8), 'RGBA').save(os.path.join(OUT, 'inks.png'))
+
+# false-colour preview (red body = dark red, black = dark grey, tag = orange, white = white)
+pv = (m_body[..., None] * [120, 20, 30] + m_black[..., None] * [40, 40, 44] + m_tag[..., None] * [255, 150, 0]
+      + m_white[..., None] * [255, 255, 255])
+Image.fromarray(np.clip(pv, 0, 255).astype(np.uint8)).resize((W // 2, H // 2), Image.LANCZOS).save(
+    os.path.join(OUT, 'inks_preview.png'))
+
+# 3) printed relief: black print one layer, tag and white print a second layer on top; softened ~1 px
+ink_h = 0.5 * (1 - m_body) + 0.5 * (m_tag + m_white)
+ink_h = nd.gaussian_filter(ink_h, 0.8)
+Image.fromarray((np.clip(ink_h, 0, 1) * 65535 + 0.5).astype(np.uint16)).save(os.path.join(OUT, 'ink_height.png'))
+
+# 4) paint build-up lip around each hole: a narrow raised ring just outside the edge, its amount and thicker side
+#    from a hash of the hole's id (repeatable)
+rects, kinds = read_rcss_plain()
+yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+lip = np.zeros((H, W), np.float32)
+LIPW = 0.30 * D.MM
+
+
+def rr_sdf(x, y, cx, cy, w, h, r):
+    qx, qy = np.abs(x - cx) - (w / 2 - r), np.abs(y - cy) - (h / 2 - r)
+    return np.hypot(np.maximum(qx, 0), np.maximum(qy, 0)) + np.minimum(np.maximum(qx, qy), 0) - r
+
+
+holes = []
+for cid, (cx, cy, w, h) in rects.items():
+    kind = kinds.get(cid, ('', ''))[0]
+    if kind == 'pbutton':
+        holes.append((cid, cx, cy, D.BUTTON['hole_w'], D.BUTTON['hole_h'], D.BUTTON['hole_r']))
+    elif kind == 'led':
+        r = D.LED['hole_r']
+        holes.append((cid, cx, cy, 2 * r, 2 * r, r))
+d = D.DISPLAY
+holes.append(('display', (d['x0'] + d['x1']) / 2, (d['y0'] + d['y1']) / 2, d['x1'] - d['x0'], d['y1'] - d['y0'], d['r']))
+for cid, cx, cy, w, h, r in holes:
+    hsh = zlib.crc32(cid.encode())
+    amount = 0.6 + 0.4 * ((hsh & 0xff) / 255)
+    side = 2 * math.pi * (((hsh >> 8) & 0xff) / 255)
+    m = 12 + LIPW * 4
+    x0, x1 = int(max(cx - w / 2 - m, 0)), int(min(cx + w / 2 + m, W))
+    y0, y1 = int(max(cy - h / 2 - m, 0)), int(min(cy + h / 2 + m, H))
+    sx, sy = xx[y0:y1, x0:x1], yy[y0:y1, x0:x1]
+    s = rr_sdf(sx, sy, cx, cy, w, h, r)
+    ang = np.arctan2(sy - cy, sx - cx)
+    thick = 0.65 + 0.35 * np.cos(ang - side)
+    ring = np.where(s > 0, np.exp(-((s - 0.35 * LIPW) / (LIPW * thick)) ** 2), 0) * amount * thick
+    lip[y0:y1, x0:x1] = np.maximum(lip[y0:y1, x0:x1], ring)
+Image.fromarray((np.clip(lip, 0, 1) * 65535 + 0.5).astype(np.uint16)).save(os.path.join(OUT, 'lip_height.png'))
+
+json.dump({'size': [W, H], 'inks_srgb_art': {'red': RED, 'black': BLACK, 'tag': TAG, 'white': WHITE},
+           'coverage': {k: float(v.mean()) for k, v in zip(('red', 'black', 'tag', 'white'), (m_body, m_black, m_tag, m_white))}},
+          open(os.path.join(OUT, 'masks.json'), 'w'), indent=1)
+print('masks written to', OUT)

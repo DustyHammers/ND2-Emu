@@ -1,6 +1,8 @@
 # Renders the whole unit with every control in place, for judging realism:
 #   --view hero : a perspective three-quarter view from the front left, like the reference photos
 #   --view top  : the skin's straight-down orthographic view (whole canvas)
+#   --view tilt : the skin canvas seen with the top tilted back (--tilt degrees from straight down), orthographic
+#                 so every copy of a control looks the same, framed so the whole red top fits the plugin window
 #   python3 render_view.py --view hero --maps MAPS_DIR --hdr FILE --samples 96 --out FILE.png [--light C]
 import argparse
 import math
@@ -46,9 +48,50 @@ def hero_camera(sc, az=32.0, el=34.0, focal=70.0, fill=0.66, w=1600, h=1000):
     sc.render.resolution_x, sc.render.resolution_y, sc.render.resolution_percentage = w, h, 100
 
 
+def tilt_camera(sc, tilt_deg=20.0, margin=0.05):
+    """Orthographic camera tilted toward the front by tilt_deg, fitted to the whole red top (front face, sides,
+    back edge) inside the canvas aspect, with a margin. Returns the projection used, for placing controls."""
+    a = math.radians(tilt_deg)
+    view = Vector((0.0, math.sin(a), -math.cos(a)))  # looking back and down
+    right = Vector((1.0, 0.0, 0.0))
+    up = (-view).cross(right).normalized()           # toward the back of the panel, so the front is at the bottom
+    ob = bpy.data.objects['Plate']
+    ev = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    pts = [ob.matrix_world @ v.co for v in ev.data.vertices]
+    xs = [p.dot(right) for p in pts]
+    ys = [p.dot(up) for p in pts]
+    w, h = max(xs) - min(xs), max(ys) - min(ys)
+    aspect = D.CANVAS_W / D.CANVAS_H
+    scale = max(w, h * aspect) * (1 + 2 * margin)
+    cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+    centre = right * cx + up * cy
+    cam = bpy.data.cameras.new('Tilt')
+    cam.type, cam.ortho_scale, cam.sensor_fit = 'ORTHO', scale, 'HORIZONTAL'
+    cam.clip_start, cam.clip_end = 1, 100000
+    o = bpy.data.objects.new('TiltCam', cam)
+    sc.collection.objects.link(o)
+    m = Matrix((right, up, -view)).transposed().to_4x4()
+    m.translation = centre - view * 20000
+    o.matrix_world = m
+    sc.camera = o
+    sc.render.resolution_x, sc.render.resolution_y = D.CANVAS_W, D.CANVAS_H
+    k = D.CANVAS_W / scale                           # canvas px per panel px
+    print(f'tilt {tilt_deg} deg: panel shown at {100 * k:.1f} % across, {100 * k * math.cos(a):.1f} % front to back')
+    return dict(scale=scale, centre=(cx, cy), k=k)
+
+
+def shadow_floor(sc):
+    """A shadow catcher under the unit, so the plugin window colour shows around it with a soft contact shadow."""
+    ob = unit.backdrop(scene.collection('Studio'))
+    ob.is_shadow_catcher = True
+    return ob
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--view', default='hero', choices=('hero', 'top'))
+    ap.add_argument('--view', default='hero', choices=('hero', 'top', 'tilt'))
+    ap.add_argument('--tilt', type=float, default=20.0)
+    ap.add_argument('--res', type=int, default=50, help='percent of the 2x canvas (50 = 1x)')
     ap.add_argument('--light', default='C')
     ap.add_argument('--maps', required=True)
     ap.add_argument('--hdr')
@@ -63,6 +106,8 @@ def main():
     emission = unit.add_all(c_case, c_back, os.path.abspath(a.maps))
     if a.view == 'hero':
         unit.backdrop(scene.collection('Studio'))
+    elif a.view == 'tilt' and os.environ.get('FLOOR_SHADOW'):
+        shadow_floor(sc)
     mats = materials.assign_all(sc, os.path.abspath(a.maps), None, emission)
     lighting.setup(sc, a.light, a.hdr)
     sc.render.engine = 'CYCLES'
@@ -74,10 +119,14 @@ def main():
     sc.view_settings.view_transform, sc.view_settings.look = 'Standard', 'None'
     sc.view_settings.exposure = EXPOSURE_EV
     st = sc.render.image_settings
-    st.file_format, st.color_mode, st.color_depth = 'PNG', 'RGBA' if a.view == 'top' else 'RGB', '8'
+    st.file_format, st.color_mode, st.color_depth = 'PNG', 'RGB' if a.view == 'hero' else 'RGBA', '8'
     if a.view == 'hero':
         hero_camera(sc)
         sc.render.film_transparent = False
+    elif a.view == 'tilt':
+        tilt_camera(sc, a.tilt)
+        sc.render.film_transparent = True
+        sc.render.resolution_percentage = a.res
     else:
         sc.render.film_transparent = True
         sc.render.resolution_percentage = 50          # 1x: 1725 x 1035

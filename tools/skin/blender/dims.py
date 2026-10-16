@@ -83,7 +83,7 @@ CASE = dict(
     side_bend_r=2.5 * MM,    # outer radius of the roll over the sides and the back
     flange_h=4.0 * MM,       # how far the sides and back reach down
     lip_h=10.0 * MM,         # from the top surface down to the lip's bottom edge
-    corner_front_r=5.5 * MM, corner_back_r=4.0 * MM,   # plan radius of the corners
+    corner_front_r=3.1 * MM, corner_back_r=4.0 * MM,   # plan radius of the corners (front: owner, tighter)
     lip_screw_x=(0.12, 0.88),
     back_h=40.0 * MM,        # from the back edge of the top down to the base (estimate; 43 mm with feet)
     front_h=12.0 * MM,       # from the front edge of the top down to the base: the red lip nearly covers it (photo)

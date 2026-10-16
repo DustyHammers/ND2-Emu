@@ -60,7 +60,9 @@ set(ND2_PLUGIN_SOURCES
   Source/BankFiles.cpp
   Source/BankService.cpp
   Source/BanksPanel.cpp
-  Source/ProgramEntry.cpp)
+  Source/ProgramEntry.cpp
+  Source/ui/Theme.cpp
+  Source/ui/Widgets.cpp)
 target_sources(ND2 PRIVATE ${ND2_PLUGIN_SOURCES})
 target_include_directories(ND2 PRIVATE Source)
 target_compile_definitions(ND2 PUBLIC

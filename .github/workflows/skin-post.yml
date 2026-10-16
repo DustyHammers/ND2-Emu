@@ -1,5 +1,5 @@
 # Skin post step only: re-runs the calibration and the sheets on the newest successful "Skin renders" run of
-# this branch, when only the post scripts or the reference targets change. Download "phase2-results".
+# this branch, when only the post scripts or the reference targets change. Download "ND2-skin-review".
 name: Skin post
 
 on:
@@ -52,7 +52,8 @@ jobs:
                   --status completed --limit 1 --json databaseId --jq '.[0].databaseId')
           fi
           echo "renders from run $RUN"
-          gh run download "$RUN" -R "$GITHUB_REPOSITORY" --pattern 'render-*' -D renders
+          gh run download "$RUN" -R "$GITHUB_REPOSITORY" -n internal-renders-ignore -D renders \
+            || gh run download "$RUN" -R "$GITHUB_REPOSITORY" --pattern 'render-*' -D renders
       - name: Maps, calibration, sheets
         run: |
           set -o pipefail
@@ -62,10 +63,9 @@ jobs:
             | grep -v -e '^Fra:' -e 'EGL Error' | tee post.log \
             || { echo "::error title=post_phase2 failed::$(grep -v -e Saved -e '^$' post.log | tail -n 25 | tr '\n' '|' | tail -c 3500)"; exit 1; }
           python3 tools/skin/blender/post_summary.py out/results/phase2_calibration.json
-      - uses: actions/upload-artifact@v7
+      - name: The review download
+        uses: actions/upload-artifact@v7
         with:
-          name: phase2-results
-          path: |
-            out/results/*.png
-            out/results/*.json
+          name: ND2-skin-review
+          path: out/results/review
           retention-days: 7

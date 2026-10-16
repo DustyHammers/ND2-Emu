@@ -2,7 +2,8 @@
 # the post step (paint calibration against the reference targets, recombining, denoising, view transforms,
 # sheets) in one job. Runs when the scene or render scripts change on the skin-blender branch, or by hand.
 # Post-only changes run skin-post.yml instead. Nothing is committed: the maps, the HDR world and the renders
-# only live in the run and in its artifacts (kept 7 days). Download "phase2-results" for the sheets.
+# only live in the run and in its artifacts (kept 7 days). Each run leaves two downloads: "ND2-skin-review"
+# (the pictures to look at) and "internal-renders-ignore" (the raw renders the post step reuses).
 name: Skin renders
 
 on:
@@ -83,6 +84,9 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: write                  # to fold the 21 per-job render downloads into one
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -107,10 +111,23 @@ jobs:
             | grep -v -e '^Fra:' -e 'EGL Error' | tee post.log \
             || { echo "::error title=post_phase2 failed::$(grep -v -e Saved -e '^$' post.log | tail -n 25 | tr '\n' '|' | tail -c 3500)"; exit 1; }
           python3 tools/skin/blender/post_summary.py out/results/phase2_calibration.json
-      - uses: actions/upload-artifact@v7
+      - name: The review download
+        uses: actions/upload-artifact@v7
         with:
-          name: phase2-results
-          path: |
-            out/results/*.png
-            out/results/*.json
+          name: ND2-skin-review
+          path: out/results/review
           retention-days: 7
+      - name: The raw renders as one download
+        uses: actions/upload-artifact@v7
+        with:
+          name: internal-renders-ignore
+          path: renders
+          retention-days: 7
+      - name: Remove the per-job render downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for id in $(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?per_page=100" \
+                      --jq '.artifacts[] | select(.name | startswith("render-")) | .id'); do
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"
+          done

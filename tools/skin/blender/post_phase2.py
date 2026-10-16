@@ -435,3 +435,79 @@ sh = header(grid(rows), f'Phase 2: orange peel strips and lettering at 1:1 ({tf0
             'Peel strength in strips on the flat red body (0.5x, 1x, 2x of 1.4 degrees slope); printed relief on the lettering.')
 sh.save(os.path.join(OUT, 'phase2_peel_lettering.png'))
 print('done:', len(results), 'crops')
+
+
+# ---- the review zip: three plain pictures in the recommended colour transform, and a read-me ----------------
+
+REV = os.path.join(OUT, 'review')
+os.makedirs(REV, exist_ok=True)
+TV = 'Standard'                            # the transform the calibration recommends
+NAMES = {'master': 'Master knob area', 'params': 'Buttons, lights and lettering', 'display': 'Display area',
+         'encoder': 'Value knob area', 'top': 'Top edge', 'wordmark': 'Logo corner'}
+REF = 'Your photo' if photo is not None else 'Colours from your photo'
+
+rows = []
+for crop, nice in NAMES.items():
+    if crop not in boxes:
+        continue
+    r = []
+    for light in lights:
+        if (light, crop, TV) in results:
+            im = Image.fromarray(results[(light, crop, TV)])
+            r.append(label(im.resize((im.width // 2, im.height // 2), Image.LANCZOS), f'{nice}: light {light}'))
+    pc = photo_crop(boxes[crop])
+    r.append(label(pc.resize((pc.width // 2, pc.height // 2), Image.LANCZOS), REF))
+    rows.append(r)
+header(grid(rows), 'Lighting: options A, B and C side by side',
+       'A = the spec set-up, B = higher and softer, C = lower and more contrast. Pick one.').save(
+    os.path.join(REV, '1 - Lighting A B C.png'))
+
+PLAIN = {'red': 'red paint', 'black': 'black print', 'tag': 'red labels', 'white': 'white lettering'}
+rows = []
+for light in lights:
+    rep = report['lights'][light].get(TV, {})
+    cell = Image.new('RGB', (1200, 150), (24, 24, 26))
+    d = ImageDraw.Draw(cell)
+    x = 0
+    for ink in INKS:
+        e = rep.get(ink)
+        if not e:
+            continue
+        d.rectangle([x, 30, x + 110, 120], fill=tuple(int(v) for v in e['target']))
+        d.rectangle([x + 115, 30, x + 225, 120], fill=tuple(int(np.clip(v, 0, 255)) for v in e['shown']))
+        d.text((x, 4), PLAIN[ink], fill=(235, 235, 235), font=font(18, True))
+        d.text((x, 126), 'photo     render   ' + ('match' if e['reachable'] else 'NO MATCH'),
+               fill=(235, 235, 235) if e['reachable'] else (255, 120, 120), font=font(15))
+        x += 250
+    rows.append([label(cell, f'Light {light}', 22)])
+header(grid(rows), 'Colour check: photo (left) and render (right)',
+       'Each pair should look the same.').save(os.path.join(REV, '2 - Colour check.png'))
+
+rows = []
+if (la, 'flat', TV) in results:
+    img = Image.fromarray(results[(la, 'flat', TV)])
+    x0 = boxes['flat'][0]
+    strips = [img.crop((260 - x0, 40, 660 - x0, 300)), img.crop((560 - x0, 40, 960 - x0, 300)),
+              img.crop((1040 - x0, 40, 1440 - x0, 300))]
+    rows.append([label(s, t, 20) for s, t in zip(strips, ('Paint texture: light', 'medium', 'strong'))] +
+                ([label(photo_crop((560, 1770, 960, 2030)), REF, 20)] if photo is not None else []))
+r = []
+for light in lights:
+    if (light, 'params', TV) in results:
+        x0, y0 = boxes['params'][:2]
+        r.append(label(Image.fromarray(results[(light, 'params', TV)]).crop((700 - x0, 790 - y0, 1300 - x0, 1080 - y0)),
+                       f'Lettering, light {light}', 20))
+if photo is not None:
+    r.append(label(photo_crop((700, 790, 1300, 1080)), REF, 20))
+rows.append(r)
+header(grid(rows), 'Paint texture and lettering at full size',
+       'Top: three strengths of the orange-peel texture on the red paint. Bottom: the printed lettering.').save(
+    os.path.join(REV, '3 - Paint texture and lettering.png'))
+
+open(os.path.join(REV, 'READ ME.txt'), 'w').write(
+    'ND2 skin review\n\n'
+    '1 - Lighting A B C.png: the same parts of the panel under three lightings. Pick A, B or C.\n'
+    '2 - Colour check.png: your photo\'s colours next to the render\'s. Each pair should match.\n'
+    '3 - Paint texture and lettering.png: the paint texture in three strengths (pick one) and the lettering.\n\n'
+    'The buttons, knobs and lights are not in these pictures: they are drawn separately in the next phase.\n')
+print('review written to', REV)

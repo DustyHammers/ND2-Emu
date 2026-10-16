@@ -169,6 +169,9 @@ def main():
     ap.add_argument('--dist', type=float, default=640.0)
     ap.add_argument('--tilt', type=float, default=20.0)
     ap.add_argument('--knob-frame', type=int, default=64, help='MASTER LEVEL frame, 0-127')
+    ap.add_argument('--denoise', default='detail', choices=('on', 'detail', 'off'))
+    ap.add_argument('--border', type=float, nargs=4, metavar=('X0', 'X1', 'Y0', 'Y1'),
+                    help='render only this part of the frame (0-1, y up), cropped')
     ap.add_argument('--res', type=int, default=50, help='percent of the 2x canvas (50 = 1x)')
     ap.add_argument('--light', default='C')
     ap.add_argument('--maps', required=True)
@@ -190,7 +193,10 @@ def main():
     V = lighting.setup(sc, a.light, a.hdr)
     sc.render.engine = 'CYCLES'
     cy = sc.cycles
-    cy.device, cy.samples, cy.use_denoising = 'CPU', a.samples, True
+    cy.device, cy.samples, cy.use_denoising = 'CPU', a.samples, a.denoise != 'off'
+    if a.denoise == 'detail':                        # keep fine paint texture: guide with un-prefiltered albedo
+        cy.denoiser, cy.denoising_input_passes, cy.denoising_prefilter = 'OPENIMAGEDENOISE', 'RGB_ALBEDO_NORMAL', 'NONE'
+        cy.denoising_quality = 'HIGH'
     cy.use_adaptive_sampling, cy.adaptive_threshold = True, 0.02
     cy.max_bounces, cy.diffuse_bounces, cy.glossy_bounces, cy.transmission_bounces = 8, 3, 4, 8
     cy.sample_clamp_indirect = 10
@@ -215,6 +221,10 @@ def main():
     else:
         sc.render.film_transparent = True
         sc.render.resolution_percentage = 50          # 1x: 1725 x 1035
+    if a.border:
+        r = sc.render
+        r.use_border, r.use_crop_to_border = True, True
+        r.border_min_x, r.border_max_x, r.border_min_y, r.border_max_y = a.border
     sc.render.filepath = a.out
     bpy.ops.render.render(write_still=True)
     print(f'{a.view}: {time.time() - t0:.0f} s')

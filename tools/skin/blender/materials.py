@@ -18,9 +18,18 @@ PAINT = dict(
     # coat weight on the red body and on the printed inks: run 1 (1.0 everywhere) left the black print 48-130
     # against the photo's 38 at zero albedo, so the gloss is cut to what the calibration can reach
     # the reference photos show a satin finish with only a faint sheen
-    coat_red=0.30, coat_ink=0.20, coat_rough_red=0.38, coat_rough_ink=0.50, coat_ior=1.5,
-    peel_wavelength=0.6 * D.MM,             # orange peel cell size
-    peel_distance=0.15,                     # bump distance (px): about 1.4 degrees of slope
+    # owner: a very fine orange peel with a slight shine that sparkles in places
+    coat_red=0.38, coat_ink=0.28, coat_rough_red=0.26, coat_rough_ink=0.34, coat_ior=1.5,
+    peel_wavelength=0.30 * D.MM,            # orange peel cell size (very fine)
+    peel_distance=0.20,                     # bump distance (px): a visible fine stipple, like the photos
+    mottle=0.035,                           # powder-coat mottle: +/- share of the paint colour
+    # sparkle: a small share of the coat's grains sit tilted and catch the light as tiny glints
+    sparkle_size=0.09 * D.MM,               # grain spacing
+    sparkle_density=0.08,                   # share of grains that are tilted
+    sparkle_dot=0.40,                       # glint size within its grain (share of the spacing)
+    sparkle_tilt=0.75,                      # how far a tilted grain leans (about 35 degrees at most)
+    sparkle_smooth=0.20,                    # tilted grains are this much glossier, so their glints are crisp
+    virtual_perspective=False,              # only for an orthographic skin camera
     ink_distance=0.12,                      # printed relief (px)
     lip_distance=0.35,                      # build-up lip (px)
     smudge_size=30 * D.MM, smudge_amount=0.06,
@@ -182,7 +191,45 @@ def paint(maps_dir, peel_strips=None):
     h = _vm(nt, 'NORMALIZE', _vm(nt, 'ADD', r, (0, 0, 1), (-1000, -2900)), None, (-800, -2900))
     tilt = _vm(nt, 'SUBTRACT', h, (0, 0, 1), (-600, -2900))
     nv = _vm(nt, 'NORMALIZE', _vm(nt, 'ADD', geo.outputs['Normal'], tilt, (-400, -2900)), None, (-200, -2900), 'virtual_normal')
-    _link(nt, bump_chain(nv.outputs[0], 300), bsdf.inputs['Coat Normal'])
+    coat_n = bump_chain(nv.outputs[0] if P['virtual_perspective'] else None, 300)
+    # sparkle: Voronoi grains; a random few, and only a dot in each, get a random tilt in the coat's normal
+    vor = nt.nodes.new('ShaderNodeTexVoronoi')
+    vor.name = vor.label = 'sparkle'
+    vor.voronoi_dimensions = '3D'
+    vor.location = (300, -2600)
+    _link(nt, geo.outputs['Position'], vor.inputs['Vector'])
+    vor.inputs['Scale'].default_value = 1.0 / P['sparkle_size']
+    vor.inputs['Randomness'].default_value = 1.0
+    rnd = _vm(nt, 'MULTIPLY_ADD', vor.outputs['Color'], (2.0, 2.0, 2.0), (520, -2600))
+    rnd.inputs[2].default_value = (-1.0, -1.0, -1.0)
+    sc_ = nt.nodes.new('ShaderNodeSeparateColor')
+    sc_.location = (520, -2800)
+    _link(nt, vor.outputs['Color'], sc_.inputs[0])
+    pick = _m(nt, 'GREATER_THAN', sc_.outputs[0], 1.0 - P['sparkle_density'], (720, -2800))
+    dot = _m(nt, 'LESS_THAN', vor.outputs['Distance'], P['sparkle_dot'], (720, -2950))
+    amt = _m(nt, 'MULTIPLY', _m(nt, 'MULTIPLY', pick, dot, (900, -2850)), P['sparkle_tilt'], (1080, -2850))
+    tilt = _vm(nt, 'SCALE', rnd.outputs[0], None, (1080, -2650))
+    _link(nt, amt.outputs[0], tilt.inputs['Scale'])
+    spark_n = _vm(nt, 'NORMALIZE', _vm(nt, 'ADD', coat_n, tilt.outputs[0], (1260, -2650)), None, (1420, -2650), 'sparkle_normal')
+    _link(nt, spark_n.outputs[0], bsdf.inputs['Coat Normal'])
+    # glossier grains: subtract from the coat roughness where a grain is tilted
+    cr = bsdf.inputs['Coat Roughness'].links[0].from_socket
+    grain = _m(nt, 'MULTIPLY', pick, dot, (900, -3050))
+    _link(nt, _m(nt, 'MAXIMUM', _m(nt, 'MULTIPLY_ADD', grain, -P['sparkle_smooth'], (1080, -3050)), 0.03, (1260, -3050)).outputs[0],
+          bsdf.inputs['Coat Roughness'])
+    nt.nodes[-2].inputs[2].default_value = 0.0
+    _link(nt, cr, nt.nodes[-2].inputs[2])
+    # powder-coat mottle on the paint colour
+    mot = nt.nodes.new('ShaderNodeTexNoise')
+    mot.location = (-1400, -3300)
+    _link(nt, geo.outputs['Position'], mot.inputs['Vector'])
+    mot.inputs['Scale'].default_value = 1.0 / (0.5 * D.MM)
+    mot.inputs['Detail'].default_value = 4
+    base_in = bsdf.inputs['Base Color'].links[0].from_socket
+    f = _m(nt, 'MULTIPLY_ADD', mot.outputs['Fac'], 2 * P['mottle'], (-1150, -3300))
+    f.inputs[2].default_value = 1.0 - P['mottle']
+    _link(nt, _vm(nt, 'SCALE', base_in, None, (-950, -3300)).outputs[0], bsdf.inputs['Base Color'])
+    _link(nt, f.outputs[0], nt.nodes[-1].inputs['Scale'])
     return m
 
 

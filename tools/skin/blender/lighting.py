@@ -17,6 +17,8 @@ import dims as D
 CENTRE = Vector((D.CANVAS_W / 2, -D.CANVAS_H / 2, 0))
 
 VARIANTS = {
+    # H: the studio HDR environment alone (make_hdr.py): softboxes, strips and walls light and reflect in it
+    'H': dict(hdr_only=True, exposure_ev=-1.3, world=1.0, world_rot=0),
     # P: matched to the owner's front three-quarter product photo: a large, high soft key from the front left,
     # a broad fill from the right, short soft shadows, little sheen
     'P': dict(exposure_ev=0.0, key_az=125, key_el=62, key_size_mm=1400, key_dist_mm=1500, key_E=2.0, twin=0.2,
@@ -70,6 +72,8 @@ def setup(sc, variant='A', hdr=None, twin=None):
     coll = bpy.data.collections.new('Lights')
     sc.collection.children.link(coll)
     mm = D.MM
+    if V.get('hdr_only'):
+        return _world(sc, V, hdr)
 
     key_dir = _dir(V['key_az'], V['key_el'])
     key = _area(sc, 'Key', key_dir, V['key_dist_mm'] * mm, V['key_size_mm'] * mm, V['key_E'], coll)
@@ -107,7 +111,10 @@ def setup(sc, variant='A', hdr=None, twin=None):
     box.data.materials.append(m)
     _vis(box, camera=False, diffuse=False, glossy=True, transmission=False, scatter=False, shadow=False)
 
-    # world
+    return _world(sc, V, hdr)
+
+
+def _world(sc, V, hdr):
     w = bpy.data.worlds.new('World')
     sc.world = w
     w.use_nodes = True

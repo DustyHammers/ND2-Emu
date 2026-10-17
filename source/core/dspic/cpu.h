@@ -52,7 +52,8 @@ public:
   CPU();
   std::vector<uint32_t> prog;   // 24-bit program words, index = pc/2
   Bus* bus = nullptr;
-  bool mul_acc_fractional = true;   // MUL.xx Wb,Ws,Acc obeys CORCON.IF (fractional <<1)
+  bool mul_acc_fractional = true;
+  bool bend_nosat = false, bend_int = false;          // BEND experiment   // MUL.xx Wb,Ws,Acc obeys CORCON.IF (fractional <<1)
 
   int64_t accv[2] = {0, 0};    // ACCA/ACCB (40-bit, sign-extended); memory-mapped at 0x22..0x2D
   uint32_t pc = 0;
@@ -66,9 +67,10 @@ public:
     slow_at = 0;
     sat_cfg[0] = (cc & CC_SATA) ? ((cc & CC_ACCSAT) ? 0x7FFFFFFFFFLL : 0x7FFFFFFFLL) : 0;
     sat_cfg[1] = (cc & CC_SATB) ? ((cc & CC_ACCSAT) ? 0x7FFFFFFFFFLL : 0x7FFFFFFFLL) : 0;
+    if (bend_nosat) { sat_cfg[0] = sat_cfg[1] = 0; }
     cur_ipl = (cc & CC_IPL3) ? 8 : ((sr() & SR_IPL) >> 5);
-    dsp_frac = !(cc & CC_IF);
-    acc_rnd_conv = !(cc & CC_RND); acc_satdw = (cc & CC_SATDW) != 0;
+    dsp_frac = !(cc & CC_IF); if (bend_int) dsp_frac = !dsp_frac;
+    acc_rnd_conv = !(cc & CC_RND); acc_satdw = (cc & CC_SATDW) != 0 && !bend_nosat;
     int us = (cc & CC_US) >> 12; dsp_sm = us == 0 ? 3 : us == 1 ? 0 : 2;   // 10 = mixed: Wm unsigned x Wn signed
   }
   bool dsp_frac = true; int dsp_sm = 3; int64_t sat_cfg[2] = {0, 0};   // cached from CORCON (sat_cfg: max |acc|, 0 = no saturation)

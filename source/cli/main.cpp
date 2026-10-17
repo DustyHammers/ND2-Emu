@@ -34,11 +34,42 @@ static void write_wav(const char* fn, const std::vector<int32_t>& s, double fs, 
   fclose(f);
 }
 
+struct BVox { int ch = 1; std::string mode; double amt = 0; int32_t hold = 0; int count = 0; };
+static std::vector<BVox> bvox;
+static int bskip[6] = {0, 0, 0, 0, 0, 0}; static int bskip_n[6] = {0, 0, 0, 0, 0, 0};
+static void vox_hook(dspic::CPU& c, void*) {
+  for (auto& v : bvox) {
+    const uint32_t a = 0x1E8E + 4 * (v.ch - 1);
+    int32_t x = (int32_t)(((uint32_t)c.ld16(a) << 16) | c.ld16(a + 2));
+    if (v.mode == "crush") { int bits = (int)v.amt; uint32_t keep = ~((1u << (32 - bits)) - 1); x = x >= 0 ? (int32_t)((uint32_t)x & keep) : -(int32_t)((uint32_t)(-(int64_t)x) & keep); }
+    else if (v.mode == "hold") { if (v.count++ % (int)v.amt == 0) v.hold = x; x = v.hold; }
+    else if (v.mode == "wrap") { x = (int32_t)(uint32_t)((int64_t)x * (int64_t)v.amt); }
+    else if (v.mode == "fold") { double y = x / 2147483648.0 * v.amt; while (y > 1 || y < -1) y = y > 1 ? 2 - y : -2 - y; x = (int32_t)(y * 2147483647.0); }
+    else if (v.mode == "flip") { x ^= (int32_t)(1u << (int)v.amt); }
+    c.st16(a, (uint16_t)((uint32_t)x >> 16)); c.st16(a + 2, (uint16_t)x);
+  }
+}
+static void skip_hook(dspic::CPU& c, void* ctx) {
+  const int ch = (int)(intptr_t)ctx;
+  if (bskip[ch] > 1 && (bskip_n[ch]++ % bskip[ch]) != 0) c.st16(0, (uint16_t)(0x3F00 + 4 * ch));   // skip the engine this sample
+}
+struct FeedBack : nd2::Board::AdcSource {
+  nd2::Board* b; double g; unsigned mask;
+  void next_block(double* add) override {
+    if (b->audio.size() < 2) return;
+    const double x = b->audio[b->audio.size() - 2] / 2147483648.0 * g;
+    static const int an[6] = {12, 2, 4, 6, 8, 10};
+    for (int p = 0; p < 6; p++) if (mask & (1u << p)) add[an[p]] += x;
+  }
+};
 int main(int argc, char** argv) {
   const char* os_path = getenv("ND2_OS");
   double secs = 1.0, wav_from = 0, syx_t = 0, tr_t = 0;
   const char *wav = nullptr, *flash_in = nullptr, *flash_out = nullptr, *midiout_path = nullptr, *raminit = nullptr, *pcprof = nullptr;
   bool stats = false;
+  bool bint = false; double bfb = 0; unsigned bfbmask = 0x3F;
+  int bframe = 0, bdac = 0; bool bnosat = false, bfind = false; const char* bsine = nullptr;
+  std::vector<std::pair<uint32_t, uint32_t>> bpatch, bram;
   std::vector<std::pair<double, std::vector<uint8_t>>> midi;
   std::vector<uint8_t> syx;
   std::vector<std::pair<int, uint16_t>> ports;
@@ -59,6 +90,18 @@ int main(int argc, char** argv) {
     else if (arg("-check")) raminit = argv[++i];
     else if (arg("-pcprof")) pcprof = argv[++i];
     else if (!strcmp(argv[i], "-stats")) stats = true;
+    else if (arg("-bframe")) bframe = atoi(argv[++i]);
+    else if (!strcmp(argv[i], "-bnosat")) bnosat = true;
+    else if (arg("-bsine")) bsine = argv[++i];
+    else if (arg("-bdac")) bdac = atoi(argv[++i]);
+    else if (!strcmp(argv[i], "-bfind")) bfind = true;
+    else if (!strcmp(argv[i], "-bint")) bint = true;
+    else if (arg("-bfb")) { sscanf(argv[++i], "%lf,%x", &bfb, &bfbmask); }
+    else if (arg("-bfill")) { unsigned a, n, v; sscanf(argv[++i], "%x,%u,%x", &a, &n, &v); for (unsigned k = 0; k < n; k++) bram.push_back({a + 2 * k, v}); }
+    else if (arg("-bvox")) { BVox v; char m[16]; sscanf(argv[++i], "%d,%15[^,],%lf", &v.ch, m, &v.amt); v.mode = m; bvox.push_back(v); }
+    else if (arg("-bskip")) { int ch, n; sscanf(argv[++i], "%d,%d", &ch, &n); bskip[ch - 1] = n; }
+    else if (arg("-bram")) { unsigned a, v; sscanf(argv[++i], "%x,%x", &a, &v); bram.push_back({a, v}); }
+    else if (arg("-bpatch")) { unsigned a, v; sscanf(argv[++i], "%x,%x", &a, &v); bpatch.push_back({a, v}); }
     else if (arg("-tr")) { tr_lo = strtoul(argv[++i], nullptr, 16); tr_hi = strtoul(argv[++i], nullptr, 16); tr_t = atof(argv[++i]); }
     else if (arg("-dump")) { uint32_t a, n; sscanf(argv[++i], "%x,%x", &a, &n); dumps.push_back({a, n}); }
     else if (arg("-bp")) bps.push_back(strtoul(argv[++i], nullptr, 16));
@@ -111,6 +154,35 @@ int main(int argc, char** argv) {
   dev.boot();
   printf("booted to main loop at %.3f s emulated, cycle %llu, ram hash %016llx (%.2f s wall)%s\n", C.cycles / FCY, (unsigned long long)C.cycles, [&]{ uint64_t h=1469598103934665603ULL; for (int i=0x60;i<0x10000;i++){ h^=C.ram[i]; h*=1099511628211ULL;} return (unsigned long long)h; }(),
          std::chrono::duration<double>(std::chrono::steady_clock::now() - tb).count(), C.halted ? " HALTED" : "");
+
+  // BEND experiments (scratch only)
+  if (bfind) for (size_t i = 0; i < C.prog.size(); i++) { uint32_t w = C.prog[i];
+    if ((w & 0xF00000) == 0x200000) { uint32_t lit = (w >> 4) & 0xFFFF;
+      if (lit == 0x8435 || lit == 0x0BB3 || lit == 0x636B || lit == 0x3619) printf("mov #%04x,w%u at %06zx\n", lit, w & 15, i * 2); }
+    uint32_t lo = w & 0xFFFF; if (lo == 0x8435 || lo == 0x0BB3 || lo == 0x636B || lo == 0x3619) printf("word %06x at %06zx\n", w, i * 2); }
+  if (bfind) for (uint32_t a = 0x1000; a < 0xE000; a += 2) { uint16_t v = C.ram[a] | (C.ram[a+1] << 8); if (v == 0x8435 || v == 0x0BB3 || v == 0x636B || v == 0x3619) printf("ram %04x = %04x\n", a, v); }
+  for (auto& p : bpatch) { printf("patch %06x: %06x -> %06x\n", p.first, C.prog[p.first / 2], p.second); C.prog[p.first / 2] = p.second; C.invalidate(p.first); }
+  for (auto& p : bram) { printf("ram %04x: %04x -> %04x\n", p.first, C.ram[p.first] | (C.ram[p.first+1] << 8), p.second); C.ram[p.first] = p.second & 0xFF; C.ram[p.first+1] = p.second >> 8; }
+  if (bint) { C.bend_int = true; C.update_ipl(); printf("bend: fractional/integer swapped\n"); }
+  if (!bvox.empty()) { C.add_hook(0x1A9EE, vox_hook, nullptr); printf("bend: %zu voice bends\n", bvox.size()); }
+  for (int k = 0; k < 6; k++) { uint32_t t = 0x1A68E + 0x90 * k, a = 0x3F00 + 4 * k;   // trampolines back to the dispatch
+    C.prog[a / 2] = 0x040000 | (t & 0xFFFE); C.prog[a / 2 + 1] = (t >> 16) & 0x7F; C.invalidate(a); C.invalidate(a + 2); }
+  for (int k = 0; k < 6; k++) if (bskip[k] > 1) { C.add_hook(0x1A68C + 0x90 * k, skip_hook, (void*)(intptr_t)k); printf("bend: channel %d engine 1 in %d\n", k + 1, bskip[k]); }
+  static FeedBack fbk; if (bfb != 0) { fbk.b = &B; fbk.g = bfb; fbk.mask = bfbmask; B.adc_live = &fbk; printf("bend: feedback %.2f into pads %x\n", bfb, bfbmask); }
+  if (bframe) { B.frame_cycles = bframe; printf("bend: %d cycles per frame\n", bframe); }
+  if (bnosat) { C.bend_nosat = true; C.update_ipl(); printf("bend: saturation off\n"); }
+  if (bsine) {   // the 2048-point sine table at RAM 0x39B8 (built at boot)
+    uint16_t t[2048], o[2048]; for (int i = 0; i < 2048; i++) t[i] = C.ram[0x39B8 + 2 * i] | (C.ram[0x39B9 + 2 * i] << 8);
+    std::string m = bsine;
+    for (int i = 0; i < 2048; i++) {
+      int j = i; uint16_t v = t[i];
+      if (m == "swap") { int b2 = (i >> 2) & 1, b9 = (i >> 9) & 1; j = (i & ~((1 << 2) | (1 << 9))) | (b9 << 2) | (b2 << 9); v = t[j]; }
+      else if (m == "stuck") v = t[i] | 0x1000;
+      else if (m == "crush") v = t[i] & 0xE000;
+      else if (m == "gray") v = t[i] ^ (t[i] >> 1);
+      o[i] = v; }
+    for (int i = 0; i < 2048; i++) { C.ram[0x39B8 + 2 * i] = o[i] & 0xFF; C.ram[0x39B9 + 2 * i] = o[i] >> 8; }
+    printf("bend: sine table %s\n", bsine); }
 
   // debug hooks
   std::map<uint32_t, int> bphits;
@@ -188,6 +260,7 @@ int main(int argc, char** argv) {
     double origin = audio_origin / FCY;
     size_t skip = std::min(B.audio.size(), (size_t)(std::max(0.0, wav_from - origin) * kNativeRate) * 2);
     std::vector<int32_t> out(B.audio.begin() + skip, B.audio.end());
+    if (bdac) { uint32_t keep = ~((1u << (32 - bdac)) - 1); for (auto& v : out) v = (int32_t)((uint32_t)v & keep); }
     int64_t pk = 0; for (auto v : out) pk = std::max<int64_t>(pk, std::llabs((long long)v));
     printf("audio peak %.1f dBFS\n", 20 * log10(std::max<int64_t>(1, pk) / 2147483648.0));
     write_wav(wav, out, kNativeRate, 16);

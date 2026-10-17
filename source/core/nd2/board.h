@@ -22,7 +22,8 @@ public:
   dspic::CPU cpu;
   void load_app(const std::vector<uint8_t>& img); // decrypted image, loads at program address 0x4000
   void boot();                                   // reset into crt0
-  bool fast_forward = true;                      // skip busy-wait loops (cycle-exact)
+  bool fast_forward = true;
+  uint32_t frame_cycles = FRAME_CYCLES;           // BEND experiment: CPU cycles per codec frame                      // skip busy-wait loops (cycle-exact)
   void install_fast_forward();
 
   // Channel outputs (an emulator extension; the hardware has only the stereo pair). The OS mixes six mono

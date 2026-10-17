@@ -19,6 +19,8 @@
 #include <cstdio>
 #include "BanksPanel.h"
 #include "ND2Window.h"
+#include "WindowScale.h"
+#include "skin_view.h"
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 #include "BankFiles.h"
@@ -280,7 +282,13 @@ int main(int argc, char** argv) {
                     win->frame().tabs().choose(ND2Window::kSkin);
                     pump(400);
                     CHECK(win->skinItems().size() >= 1 && win->skinItems()[0] == "* Default", "SKIN lists the Default skin, chosen");
-                    CHECK(win->zoom().selected() == 2, "SKIN: Zoom 100 %% (%d)", win->zoom().selected());
+                    {                                           // the step the plugin opened at (100 %, less on a small screen)
+                        const float scale = winscale::scaleForWidth(ed->getWidth(), int(skin::kBodyWidthDp), true);
+                        int expected = -1, i = 0;
+                        for (int z : winscale::kSteps) { if (winscale::isStep(scale, z)) expected = i; ++i; }
+                        CHECK(expected >= 0 && win->zoom().selected() == expected, "SKIN: Zoom shows the plugin's size (%d, expected %d)",
+                              win->zoom().selected(), expected);
+                    }
                     shot("4b_skin");
                 } else {
                     CHECK(false, "a right-click opens the ND2 window");
@@ -330,7 +338,7 @@ int main(int argc, char** argv) {
                 }
                 pump(2000);
                 shot("5_banks");
-                if (res.hasFactory()) {                                 // drag the first bank file onto bank 5
+                if (res.hasFactory()) {                                 // drag the first bank file in the list onto bank 5
                     const auto src = juce::MouseInputSource::InputSourceType::mouse;
                     const auto L = juce::ModifierKeys::leftButtonModifier;
                     auto t = juce::Time::currentTimeMillis();
@@ -350,7 +358,8 @@ int main(int argc, char** argv) {
                     pumpUntil([&] { return !p.banks().busy(); }, 60000);
                     pump(1500);
                     std::printf("drop: %s\n", p.banks().message().toRawUTF8());
-                    CHECK(p.banks().status(4).count == 50 && p.banks().status(4).crcs == p.banks().status(0).crcs, "bank 5 holds the dropped file");
+                    CHECK(p.banks().status(4).count == 50 && p.banks().message().contains("loaded into Bank 5")
+                              && bankfiles::findInLibrary(p.banks().status(4).crcs) != juce::File(), "bank 5 holds the dropped file");
                     shot("5c_loaded");
                 }
                 ND2Window* win = findWindow();                          // the MIDI tab

@@ -19,6 +19,7 @@ public:
     void setLabel(const juce::String& label) { label_ = label; repaint(); }
     const juce::String& label() const { return label_; }
     void setPrimary(bool primary) { primary_ = primary; repaint(); }
+    bool primary() const { return primary_; }
     std::function<void()> onClick;
     // The width that shows the whole label.
     static float idealWidth(const Theme& theme, const juce::String& label);
@@ -120,6 +121,8 @@ public:
     explicit Footer(const Theme& theme);
     struct Part { juce::String text; bool field = false, muted = false; };   // field: text = its starting text
     struct Action { juce::String label; std::function<void()> onClick; bool primary = false, enabled = true; };
+    // Shows the line; buttons with the same labels and kinds as before are kept (their actions updated), and a field
+    // that is already showing keeps what was typed in it.
     void show(std::vector<Part> parts, std::vector<Action> actions = {});
     void clear() { show({}, {}); }
     juce::TextEditor* field() { return field_.isVisible() ? &field_ : nullptr; }

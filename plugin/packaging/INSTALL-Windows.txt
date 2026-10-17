@@ -42,7 +42,7 @@ The Windows version is new and less tested than the macOS one. Please report pro
      Documents\ND2\Library\          bank files (the Banks window); Library\Factory: the factory banks
      Documents\ND2\cache\            the factory memory built from your bank files
      Documents\ND2\skins\<name>\     your own skins: a folder <name> containing <name>.rml (plus its files)
-   Right-click the plugin window for Skin, Reload skin (F5), Zoom, Banks, OS update file, Factory banks and
+   Right-click the plugin window for Banks, MIDI, Skin, Reload skin (F5), Zoom, OS update file, Factory banks and
    Developer.
 
 Third-party software in ND2: JUCE, RmlUi, Lua and FreeType (see THIRD_PARTY_NOTICES.md in the repository).

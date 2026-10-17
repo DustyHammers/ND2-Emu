@@ -61,6 +61,7 @@ set(ND2_PLUGIN_SOURCES
   Source/BankService.cpp
   Source/BanksPanel.cpp
   Source/ProgramEntry.cpp
+  Source/ND2Window.cpp
   Source/ui/Theme.cpp
   Source/ui/Widgets.cpp)
 target_sources(ND2 PRIVATE ${ND2_PLUGIN_SOURCES})

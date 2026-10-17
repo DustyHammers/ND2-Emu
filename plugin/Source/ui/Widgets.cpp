@@ -197,19 +197,32 @@ Footer::Footer(const Theme& theme) : theme_(theme) {
 }
 
 void Footer::show(std::vector<Part> parts, std::vector<Action> actions) {
+    // The same buttons as shown (labels and kinds): kept, so a button pressed while the text updates (progress) still
+    // gets its click; only their actions and enablement follow.
+    bool same = actions.size() == buttons_.size();
+    for (size_t i = 0; same && i < actions.size(); ++i)
+        same = buttons_[i]->label() == actions[i].label && buttons_[i]->primary() == actions[i].primary;
+    const bool hadField = field_.isVisible();
     parts_ = std::move(parts);
     actions_ = std::move(actions);
-    buttons_.clear();
-    for (const Action& a : actions_) {
-        auto b = std::make_unique<Button>(theme_, a.label, a.primary);
-        b->setEnabled(a.enabled);
-        b->onClick = a.onClick;
-        addAndMakeVisible(*b);
-        buttons_.push_back(std::move(b));
+    if (same) {
+        for (size_t i = 0; i < actions_.size(); ++i) {
+            buttons_[i]->setEnabled(actions_[i].enabled);
+            buttons_[i]->onClick = actions_[i].onClick;
+        }
+    } else {
+        buttons_.clear();
+        for (const Action& a : actions_) {
+            auto b = std::make_unique<Button>(theme_, a.label, a.primary);
+            b->setEnabled(a.enabled);
+            b->onClick = a.onClick;
+            addAndMakeVisible(*b);
+            buttons_.push_back(std::move(b));
+        }
     }
     bool hasField = false;
     for (const Part& p : parts_)
-        if (p.field) { hasField = true; field_.setText(p.text, juce::dontSendNotification); }
+        if (p.field) { hasField = true; if (!hadField) field_.setText(p.text, juce::dontSendNotification); }
     styleField(field_, theme_, dp::buttonText);
     field_.setVisible(hasField);
     resized();

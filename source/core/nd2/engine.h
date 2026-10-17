@@ -63,6 +63,10 @@ public:
   uint32_t uiSerial() const { return uiSerial_.load(); }
   // The program the OS has loaded: bank * 50 + program (bank 0-7, program 0-49), -1 before the machine runs.
   int currentProgram() const { return current_.load(std::memory_order_relaxed); }
+  // The OS's MIDI channels, 0-15 (-1: not known yet or not a channel): the global one, and drum channel c's (0-5).
+  int globalMidiChannel() const { return int(midiChannels_.load(std::memory_order_relaxed) & 31) - 1; }
+  int channelMidiChannel(int c) const {
+    return c >= 0 && c < kPads ? int((midiChannels_.load(std::memory_order_relaxed) >> (5 * (c + 1))) & 31) - 1 : -1; }
   bool trigClip(int pad) const { return pad >= 0 && pad < kPads && clipHold_[pad].load() > 0; }
 
   // ---- audio thread
@@ -156,6 +160,7 @@ private:
   std::atomic<uint32_t> segWord_{0xFFFFFFFF}, leds_{0}, uiSerial_{0};
   std::atomic<uint8_t> ledLevel_[32] = {};
   std::atomic<int> current_{-1};
+  std::atomic<uint64_t> midiChannels_{0};        // 5 bits each, channel + 1 (0: unknown): global, then drum channels 1-6
   uint64_t panelSince_ = 0;
   void publishPanel(Board& b);
 

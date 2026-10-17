@@ -1,15 +1,16 @@
 // The plugin window: the chosen skin (the Default skin built into the plugin, or one from ~/Documents/ND2/skins/)
 // at the chosen size, the message banners (OS update file, factory presets) and the right-click menu
-// (Banks, Skin, Reload skin, Zoom, OS update file, Factory banks, Developer), the Banks window and typed program entry
-// on the display (ProgramEntry). Approved mockups.
+// (Banks, MIDI, Skin, Reload skin, Zoom, OS update file, Factory banks, Developer; in the window's menu look), the ND2
+// window (BANKS and MIDI tabs, ND2Window) and typed program entry on the display (ProgramEntry). Approved mockups.
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <memory>
 #include "Banner.h"
 #include "PluginProcessor.h"
+#include "ui/Widgets.h"
 
 class RmlSkinComponent;
-class BanksPanel;
+class ND2Window;
 class ProgramEntry;
 
 // Shown only when no skin can be drawn (e.g. OpenGL is not available): why, the banners and the menu.
@@ -43,9 +44,9 @@ private:
     void showMenu();
     void chooseOs();
     void chooseBanks();
-    void toggleBanks();                              // the Banks window (the skin's BANKS label, the menu)
-    void closeBanks();
-    void placeBanks();
+    void toggleWindow(int tab);                      // the ND2 window on a tab (the skin's BANKS label, the menu)
+    void closeWindow();
+    void placeWindow();
     void message(const juce::String& text);          // a message for a few seconds (in whatever view is shown)
     std::vector<Banner> banners();                   // what is missing or under way right now
     void timerCallback() override;                   // the banners; saves the window size
@@ -53,7 +54,9 @@ private:
     ND2Processor& proc;
     std::unique_ptr<RmlSkinComponent> rml_;
     std::unique_ptr<FallbackView> fallback_;
-    std::unique_ptr<BanksPanel> banks_;
+    ui::Theme theme_;                                // the ND2 window's and the menu's look
+    ui::MenuLookAndFeel menuLook_{theme_};
+    std::unique_ptr<ND2Window> window_;
     std::unique_ptr<ProgramEntry> entry_;
     std::unique_ptr<juce::FileChooser> chooser_;
     juce::String current_;                           // the skin being shown

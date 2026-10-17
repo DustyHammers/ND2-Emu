@@ -30,6 +30,12 @@ VST3 and standalone app in one zip, for 64-bit Windows 10 or newer. Installing: 
 
 ## What's new
 
+### 0.2.3
+
+- New default skin, rendered from a 3D model.
+- One window for Banks and MIDI (right-click > Banks... or MIDI...): MIDI out to the host on or off, the MIDI
+  channels, the CC chart.
+
 ### 0.2.2
 
 - No more log files (ND2-log.txt, skin-log.txt).
@@ -112,9 +118,11 @@ On first start, choose the OS update file and then the factory bank files.
 - Encoder and MASTER LEVEL: drag up or down, or use the scroll wheel; hold Shift for fine steps.
 - Display: click it and type a program, bank first (`p312`, `P3.12` or `3 12` for bank 3, program 12), then Return.
   Esc or a click elsewhere cancels.
-- **BANKS** (top left) opens the Banks window; click it again, press Esc or click beside the window to close it.
-- Right-click the panel for the Banks window, skins, zoom, the OS update file and the factory banks.
-- MIDI: every sound setting has a MIDI CC ([chart](docs/MIDI_CC.md)); MIDI channels 1-6 address drum channels 1-6.
+- **BANKS** (top left) opens the ND2 window on its BANKS tab; the round button or Esc closes it.
+- Right-click the panel for Banks... and MIDI... (the window's two tabs), skins, zoom, the OS update file and the
+  factory banks.
+- MIDI: every sound setting has a MIDI CC ([chart](docs/MIDI_CC.md), also on the MIDI tab); MIDI channels 1-6 address
+  drum channels 1-6. The MIDI tab turns ND2's MIDI out to the host on or off (saved with the project).
 
 ## Files and folders
 

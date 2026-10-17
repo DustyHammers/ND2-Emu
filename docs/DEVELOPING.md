@@ -138,8 +138,17 @@ copy of the running machine (`Engine::getState`) restored in an offline machine 
 
 Programs missing from a file leave the bank's other slots as they were (the OS has no message that empties a slot).
 The plugin side is `plugin/Source/BankFiles.*` (files, library folder, bank names), `BankService.*` (jobs, one at a
-time per instance on a worker thread) and `BanksPanel.*` (the window). `tests/test_banks.cpp` covers the offline
-machine with the OS and the factory bank files (`ND2_OS`, `ND2_BANKS`).
+time per instance on a worker thread) and `BanksPanel.*` (the BANKS tab of the ND2 window). `tests/test_banks.cpp`
+covers the offline machine with the OS and the factory bank files (`ND2_OS`, `ND2_BANKS`).
+
+## The ND2 window
+
+`ND2Window.*`: one window over the whole plugin (approved mockup) with the tabs BANKS (`BanksPanel`) and MIDI (MIDI out
+to the host, saved with the project in processor state version 3; the OS's MIDI channels, read from RAM 0x49D8 and
+0x49DA by `Engine::publishPanel`, shown only; the CC chart of `docs/MIDI_CC.md`). Opened by the skin's BANKS label
+and the right-click menu (Banks..., MIDI...), closed by the round button or Esc. It is built from the shared window
+parts in `plugin/Source/ui/` (frame, tabs, footer, buttons, switch, rows, the popup menus' look), which come from the
+owner's other plugin with ND2's red highlight and the Banks window's font; the right-click menu uses the same look.
 
 ## CI
 

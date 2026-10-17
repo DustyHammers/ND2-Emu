@@ -17,6 +17,8 @@
 #include <cmath>
 #include <thread>
 #include <cstdio>
+#include "BanksPanel.h"
+#include "ND2Window.h"
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 #include "BankFiles.h"
@@ -155,9 +157,14 @@ int main(int argc, char** argv) {
                 CHECK(pumpUntil([&] { return fresh.engine().state() == nd2::Engine::State::Running; }, 15000), "a new instance runs");
                 CHECK(fresh.banks().records()[5].name == f.name, "a new instance names bank 6 %s", fresh.banks().records()[5].name.toRawUTF8());
             }
-            // state round trip: a second instance restores the machine and plays
+            CHECK(p.engine().globalMidiChannel() == 9, "the OS's global MIDI channel is shown as 10 (%d)", p.engine().globalMidiChannel() + 1);
+            for (int c = 0; c < 6; ++c)
+                CHECK(p.engine().channelMidiChannel(c) == c, "drum channel %d on MIDI channel %d", c + 1, p.engine().channelMidiChannel(c) + 1);
+            // state round trip: a second instance restores the machine and plays (and MIDI out to the host, off here)
+            p.setMidiToHost(false);
             juce::MemoryBlock st;
             p.getStateInformation(st);
+            p.setMidiToHost(true);
             std::printf("state %zu bytes\n", st.getSize());
             ND2Processor q;
             q.setBusesLayout(fullLayout());
@@ -167,6 +174,7 @@ int main(int argc, char** argv) {
             play(q, 0.3, -1, -1);
             const Run r2 = play(q, 1.0, 0.2, -1);
             CHECK(energy(r2.main) > 1.0, "the restored machine plays");
+            CHECK(!q.midiToHost(), "MIDI out to the host (off) is saved with the project");
             if (res.hasFactory())
                 CHECK(q.banks().records()[5].name == p.banks().records()[5].name && q.banks().records()[5].set, "bank names in the project state");
         }
@@ -286,7 +294,7 @@ int main(int argc, char** argv) {
                     const auto src = juce::MouseInputSource::InputSourceType::mouse;
                     const auto L = juce::ModifierKeys::leftButtonModifier;
                     auto t = juce::Time::currentTimeMillis();
-                    const juce::Point<float> from(300 * k, 212 * k), to(900 * k, 532 * k);
+                    const juce::Point<float> from(300 * k, 182 * k), to(900 * k, 524 * k);   // window body at 34, 96 dp
                     peer->handleMouseEvent(src, from, {}, juce::MouseInputSource::defaultPressure, 0, t);
                     peer->handleMouseEvent(src, from, L, juce::MouseInputSource::defaultPressure, 0, ++t);
                     for (int i = 1; i <= 20; ++i) {
@@ -304,8 +312,28 @@ int main(int argc, char** argv) {
                     CHECK(p.banks().status(4).count == 50 && p.banks().status(4).crcs == p.banks().status(0).crcs, "bank 5 holds the dropped file");
                     shot("5c_loaded");
                 }
-                click(180, 32, false);                                  // and closes it
-                CHECK(pumpUntil([&] { return !p.banksOpen.load(); }, 3000), "BANKS closes the Banks window");
+                ND2Window* win = nullptr;                               // the MIDI tab
+                std::function<void(juce::Component*)> find = [&](juce::Component* c) {
+                    if (auto* x = dynamic_cast<ND2Window*>(c)) win = x;
+                    for (auto* ch : c->getChildren()) find(ch);
+                };
+                find(ed.get());
+                CHECK(win != nullptr, "the ND2 window is open");
+                if (win != nullptr) {
+                    win->frame().tabs().choose(ND2Window::kMidi);
+                    pump(600);
+                    CHECK(!p.banksOpen.load(), "the MIDI tab: the BANKS label is not lit");
+                    std::printf("MIDI tab: %s; footer: %s\n", win->midiChannelsText().toRawUTF8(), win->frame().footer().text().toRawUTF8());
+                    CHECK(win->midiChannelsText() == "global 10; MIDI channels 1-6", "the MIDI tab shows the OS's channels");
+                    shot("5d_midi");
+                    win->midiSwitch().toggle();
+                    CHECK(!p.midiToHost(), "the switch turns MIDI out to the host off");
+                    CHECK(win->frame().footer().text().startsWith("MIDI out to the host is off"), "the footer follows the switch");
+                    win->midiSwitch().toggle();
+                    CHECK(p.midiToHost(), "and on again");
+                }
+                click(1674, 46, false);                                 // the round close button
+                CHECK(pumpUntil([&] { return !p.banksOpen.load() && win != nullptr; }, 3000), "the round button closes the window");
                 pump(600);
                 shot("6_banks_closed");
                 }

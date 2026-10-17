@@ -44,7 +44,8 @@ The plugins are ad-hoc signed (not notarised by Apple). That is why step 3 is ne
      ~/Documents/ND2/os/               the OS (os.cab, copied from the update file you chose)
      ~/Documents/ND2/cache/            the factory memory built from your bank files, the unpacked default skin
      ~/Documents/ND2/skins/<name>/     your own skins: a folder <name> containing <name>.rml (plus its files)
-   Right-click the plugin window for Skin, Reload skin (F5), Zoom, OS update file, Factory banks and Developer.
+   Right-click the plugin window for Banks, MIDI, Skin, Reload skin (F5), Zoom, OS update file, Factory banks and
+   Developer.
 
 Third-party software in ND2: JUCE, RmlUi, Lua and FreeType (see THIRD_PARTY_NOTICES.md in the repository).
 Portions of this software are copyright (c) 2026 The FreeType Project (www.freetype.org). All rights reserved.

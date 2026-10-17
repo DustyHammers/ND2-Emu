@@ -55,7 +55,11 @@ public:
     BankService& banks() { return banks_; }
     // Skin actions (<action name="banks">): a click on the panel, handled by the open editor (message thread).
     std::function<void(const juce::String&)> onSkinAction;
-    std::atomic<bool> banksOpen{false};              // the Banks window is open (the BANKS label is lit)
+    std::atomic<bool> banksOpen{false};              // the window is open on its BANKS tab (the BANKS label is lit)
+    // The OS's MIDI out to the host (panel moves as CCs, pad hits as notes, panel program changes); on by default,
+    // saved with the project.
+    void setMidiToHost(bool on) { midiToHost_ = on; engine_.setMidiToHost(on); }
+    bool midiToHost() const { return midiToHost_.load(); }
     // Typed program entry: what the display shows instead of the OS's display while it runs (any thread reads it).
     void setEntryDisplay(bool on, std::array<uint8_t, 4> seg) {
         entrySegs_.store(uint32_t(seg[0]) | uint32_t(seg[1]) << 8 | uint32_t(seg[2]) << 16 | uint32_t(seg[3]) << 24);
@@ -64,6 +68,7 @@ public:
     }
 
 private:
+    std::atomic<bool> midiToHost_{true};
     class Port : public skin::PanelPort {
     public:
         explicit Port(nd2::Engine& e) : engine(e) {}

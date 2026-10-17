@@ -250,6 +250,10 @@ void Engine::publishPanel(Board& b) {
   if (levels || s != segWord_.load() || l != leds_.load()) { segWord_.store(s); leds_.store(l); uiSerial_.fetch_add(1); }
   const int cur = b.cpu.ld16(panel::kRamCurrentProgram);
   current_.store(cur < kBanks * kBankPrograms ? cur : -1, std::memory_order_relaxed);
+  auto field = [](unsigned v) { return uint64_t(v < 16 ? v + 1 : 0); };   // read only: shown on the MIDI page
+  uint64_t ch = field(b.cpu.ram[panel::kRamGlobalChannel]);
+  for (int c = 0; c < kPads; c++) ch |= field(b.cpu.ld16(uint16_t(panel::kRamChannelMidi + 2 * c))) << (5 * (c + 1));
+  midiChannels_.store(ch, std::memory_order_relaxed);
 }
 
 // ---------------------------------------------------------------- MIDI

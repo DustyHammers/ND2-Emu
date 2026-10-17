@@ -1,7 +1,7 @@
 # Renders the skin's control images from the same scene, light and camera as the background (the straight-down
 # view), each cut to its control's box in the layout, so they sit on the background without seams:
 #   python3 sprites.py --maps MAPS --hdr HDR --out DIR --what bg|buttons|leds|master|encoder [--frames A:B]
-#   bg:      the background (controls at rest), band A of B (--frames A:B), full width -> DIR/bg_A.png
+#   bg:      the background without the controls (their shadows stay), band A of B (--frames A:B) -> DIR/bg_A.png
 #   buttons: black and grey, up and pressed     -> DIR/btn_{black,grey}_{up,down}.png
 #   leds:    red and green, unlit and lit       -> DIR/led_{red,green}_{off,on}.png
 #   master:  MASTER LEVEL frames 0..127         -> DIR/master_NNN.png
@@ -55,6 +55,13 @@ def setup(a, pressed=()):
     return sc
 
 
+def hide_controls():
+    """The background shows no controls: the plugin draws them. They stay in the scene, unseen by the camera, so
+    their shadows and reflections still fall on the panel, and the holes show what is under them."""
+    for ob in bpy.data.collections['Controls'].all_objects:
+        ob.visible_camera = False
+
+
 def box_px(cid):
     """The control's box in art px (2x): x0, y0, x1, y1."""
     rects, _ = scene.read_rcss()
@@ -86,6 +93,7 @@ def main():
     if a.what == 'bg':
         i, n = (int(v) for v in a.frames.split(':'))
         sc = setup(a)
+        hide_controls()
         r = sc.render
         H = D.CANVAS_H
         y0, y1 = H * i // n, H * (i + 1) // n

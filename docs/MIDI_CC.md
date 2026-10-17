@@ -3,7 +3,8 @@
 The OS responds to MIDI control changes (CC) for every sound setting on the panel, as the original hardware does,
 and sends the same CCs when a setting is turned on the panel. ND2 passes MIDI from the host to the OS unchanged and,
 since 0.2.1, the OS's MIDI out back to the host. So a host can record panel moves as CC automation and play them back,
-or you can draw CC envelopes yourself (in Ableton Live: a MIDI clip's envelopes, "MIDI Ctrl").
+or you can draw CC envelopes yourself (in Ableton Live: a MIDI clip's envelopes, "MIDI Ctrl"). The MIDI tab of the ND2
+window (right-click the panel, MIDI tab) shows this chart and turns the MIDI out to the host on or off.
 
 This chart was measured in the emulator (OS v3.00, factory settings): each CC sent to the OS, then the setting read
 on the display; and each setting turned on the panel, then the OS's MIDI out read.

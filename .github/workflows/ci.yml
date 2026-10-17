@@ -112,8 +112,15 @@ jobs:
           ccache --show-stats
       - name: Plugin test (bus layouts, state, editor window; no firmware)
         run: |
-          build/plugin/plugin/plugin_test
-          build/plugin/plugin/plugin_test --editor
+          set +e
+          status=0
+          for args in "" "--editor"; do
+            build/plugin/plugin/plugin_test $args 2>&1 | tee plugin_test.txt
+            s=${PIPESTATUS[0]}
+            grep "^FAIL" plugin_test.txt | sed 's/^/::error title=plugin_test $args::/'
+            [ $s -ne 0 ] && status=$s
+          done
+          exit $status
       - name: Ad-hoc sign
         run: |
           cd build/plugin/plugin/ND2_artefacts/Release

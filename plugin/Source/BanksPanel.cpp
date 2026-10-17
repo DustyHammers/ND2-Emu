@@ -3,9 +3,10 @@
 #include "Resources.h"
 
 namespace {
-const juce::Colour kText(0xffe8e8ea), kMuted(0xff8a8a92), kHeading(0xff9a9aa3), kLine(0xff34343a), kRed(0xffc9212a),
-                   kRedEdge(0xffe3262d), kBtn(0xff34343a), kBtnEdge(0xff44444c), kRow(0xff26262b), kRowEdge(0xff303036);
-constexpr int kHeader = 64, kFooter = 96, kLibW = 480, kFileRowH = 45, kBankRowH = 69, kBankGap = 8;
+const juce::Colour kText = ui::colours::text, kMuted = ui::colours::muted, kHeading = ui::colours::heading, kLine = ui::colours::line,
+                   kRed(0xffe3262d), kRedEdge(0xfff2555b), kBtn = ui::colours::button, kBtnEdge = ui::colours::buttonEdge,
+                   kRow = ui::colours::row, kRowEdge = ui::colours::rowEdge, kSel = ui::colours::selection, kSelEdge = ui::colours::selectionEdge;
+constexpr int kHint = 34, kLibW = 520, kFileRowH = 45, kBankRowH = 72, kBankGap = 8;
 
 juce::Font font(float size, bool bold = false) { return banner::font(size, bold); }
 juce::String bankName(int b) { return "Bank " + juce::String(b + 1); }
@@ -15,8 +16,12 @@ const juce::String kDragPrefix = "nd2bankfile:";
 
 // ================================================================== look
 
-class BanksPanel::LookAndFeel : public juce::LookAndFeel_V4 {
+class BanksPanel::LookAndFeel : public ui::MenuLookAndFeel {   // the window's buttons; its menus (Load...) in the menu look
 public:
+    explicit LookAndFeel(const ui::Theme& t) : ui::MenuLookAndFeel(t) {
+        setScale(1.15f);
+        setColour(juce::ScrollBar::thumbColourId, ui::colours::muted.withAlpha(0.6f));   // the library list's scroll bar
+    }
     void drawButtonBackground(juce::Graphics& g, juce::Button& b, const juce::Colour&, bool over, bool down) override {
         const bool primary = b.getProperties()["primary"];
         auto r = b.getLocalBounds().toFloat().reduced(0.5f);
@@ -56,9 +61,9 @@ public:
     void paint(juce::Graphics& g) override {
         auto r = getLocalBounds().toFloat();
         if (selected) {
-            g.setColour(juce::Colour(0xff2f3a4f));
+            g.setColour(kSel);
             g.fillRoundedRectangle(r, 8.0f);
-            g.setColour(juce::Colour(0xff4d6fa8));
+            g.setColour(kSelEdge);
             g.drawRoundedRectangle(r.reduced(0.5f), 8.0f, 1.0f);
         }
         paintContent(g, getWidth());
@@ -89,9 +94,9 @@ public:
             juce::Graphics g(img);
             g.addTransform(juce::AffineTransform::scale(scale).translated(float(m) * scale, float(m) * scale));
             const auto card = juce::Rectangle<int>(0, 0, w, getHeight()).toFloat();
-            g.setColour(juce::Colour(0xf02f3a4f));
+            g.setColour(kSel.withAlpha(0.94f));
             g.fillRoundedRectangle(card, 8.0f);
-            g.setColour(juce::Colour(0xff4d6fa8));
+            g.setColour(kSelEdge);
             g.drawRoundedRectangle(card.reduced(0.5f), 8.0f, 1.0f);
             paintContent(g, w);
         }
@@ -131,14 +136,14 @@ public:
     void paint(juce::Graphics& g) override {
         auto r = getLocalBounds().toFloat().reduced(0.5f);
         const bool target = hover_.isNotEmpty();
-        g.setColour(target ? juce::Colour(0xff273247) : kRow);
+        g.setColour(target ? kSel : kRow);
         g.fillRoundedRectangle(r, 10.0f);
         if (target) {
             juce::Path p, dashed;
             p.addRoundedRectangle(r, 10.0f);
             const float dash[] = {6.0f, 4.0f};
             juce::PathStrokeType(1.3f).createDashedStroke(dashed, p, dash, 2);
-            g.setColour(juce::Colour(0xff6d93d6));
+            g.setColour(kSelEdge);
             g.fillPath(dashed);
         } else {
             g.setColour(kRowEdge);
@@ -158,14 +163,15 @@ public:
         bool dim = false;
         juce::String title = panel_.bankTitle(bank_, dim), detail = panel_.bankDetail(bank_);
         if (target) { title = "Drop to replace: " + hover_; detail = bankName(bank_) + " will be overwritten"; dim = false; }
+        const juce::Colour targetText(0xffffd9d6);
         auto top = a.withTrimmedBottom(a.getHeight() / 2).withTrimmedTop(4);
         auto bottom = a.withTrimmedTop(a.getHeight() / 2).withTrimmedBottom(6);
         g.setFont(font(19.0f));
-        g.setColour(target ? juce::Colour(0xffcfe0ff) : dim ? kMuted : kText);
+        g.setColour(target ? targetText : dim ? kMuted : kText);
         g.drawText(title, detail.isEmpty() ? a : top, detail.isEmpty() ? juce::Justification::centredLeft : juce::Justification::bottomLeft, true);
         if (detail.isNotEmpty()) {
             g.setFont(font(16.0f));
-            g.setColour(target ? juce::Colour(0xffcfe0ff) : kMuted);
+            g.setColour(target ? targetText : kMuted);
             g.drawText(detail, bottom, juce::Justification::topLeft, true);
         }
     }
@@ -204,11 +210,10 @@ private:
     juce::TextButton load_{"Load..."}, save_{"Save as file..."};
 };
 
-// ================================================================== panel
+// ================================================================== page
 
-BanksPanel::BanksPanel(ND2Processor& p) : proc_(p), lnf_(std::make_unique<LookAndFeel>()) {
+BanksPanel::BanksPanel(ND2Processor& p, const ui::Theme& theme) : proc_(p), theme_(theme), lnf_(std::make_unique<LookAndFeel>(theme)) {
     setLookAndFeel(lnf_.get());
-    setWantsKeyboardFocus(true);
     libView_.setViewedComponent(&libList_, false);
     libView_.setScrollBarsShown(true, false);
     libView_.setScrollBarThickness(8);
@@ -217,45 +222,19 @@ BanksPanel::BanksPanel(ND2Processor& p) : proc_(p), lnf_(std::make_unique<LookAn
         bankRows_.push_back(std::make_unique<BankRow>(*this, b));
         addAndMakeVisible(*bankRows_.back());
     }
-    for (juce::TextButton* b : {&addBtn_, &folderBtn_, &cancelBtn_, &newBtn_, &yesBtn_, &noBtn_, &closeBtn_}) {
-        style(*b, b == &yesBtn_);
-        addChildComponent(*b);
+    for (juce::TextButton* b : {&addBtn_, &folderBtn_}) {
+        style(*b);
+        addAndMakeVisible(*b);
     }
-    addAndMakeVisible(addBtn_);
-    addAndMakeVisible(folderBtn_);
-    addAndMakeVisible(newBtn_);
-    addAndMakeVisible(closeBtn_);
-    closeBtn_.setButtonText(juce::String::fromUTF8("\xc3\x97"));   // multiplication sign
-    closeBtn_.getProperties().set("round", true);
-    closeBtn_.onClick = [this] { if (onClose) onClose(); };
     addBtn_.onClick = [this] { addFiles(); };
     folderBtn_.onClick = [] { bankfiles::libraryFolder().createDirectory(); bankfiles::libraryFolder().startAsProcess(); };
-    cancelBtn_.onClick = [this] { proc_.banks().cancel(); };
-    newBtn_.onClick = [this] { useForNew(); };
-    noBtn_.onClick = [this] { pendingYes_ = nullptr; pendingText_.clear(); refresh(); };
-    yesBtn_.onClick = [this] {
-        auto f = std::move(pendingYes_);
-        pendingYes_ = nullptr;
-        pendingText_.clear();
-        if (f) f();
-        refresh();
-    };
     rescan();
     proc_.banks().makeFactoryFiles();                 // Library/Factory, once, if it is empty
     proc_.banks().check();                            // what the banks hold (skipped if nothing changed)
     refresh();
-    startTimerHz(10);
 }
 
-BanksPanel::~BanksPanel() {
-    stopTimer();
-    setLookAndFeel(nullptr);
-}
-
-void BanksPanel::place(juce::Rectangle<int> parent, float z) {
-    setTransform(juce::AffineTransform::scale(z).translated(float(parent.getX()), float(parent.getY()) + kTopDp * z));
-    setBounds(0, 0, juce::roundToInt(float(parent.getWidth()) / z), juce::roundToInt(float(parent.getHeight()) / z - kTopDp));
-}
+BanksPanel::~BanksPanel() { setLookAndFeel(nullptr); }
 
 juce::String BanksPanel::librarySignature() {
     juce::String sig;
@@ -324,12 +303,12 @@ bool BanksPanel::canSave(int bank) const {
 void BanksPanel::setMessage(const juce::String& m, bool error) {
     message_ = m;
     messageError_ = error;
-    repaint();
+    if (onFooterChanged) onFooterChanged();
 }
 
 void BanksPanel::askLoad(int bank, const bankfiles::BankFile& file) {
     pendingText_ = "Load " + quoted(file.name) + " into " + bankName(bank) + "? " + bankName(bank) + " will be overwritten.";
-    yesBtn_.setButtonText("Load");
+    pendingLabel_ = "Load";
     pendingYes_ = [this, bank, file] { loadNow(bank, file); };
     refresh();
 }
@@ -423,7 +402,7 @@ void BanksPanel::addFiles() {
 void BanksPanel::useForNew() {
     if (busy()) return;
     pendingText_ = "New instances of ND2 start with these 8 banks from now on (projects keep their own).";
-    yesBtn_.setButtonText("Use these banks");
+    pendingLabel_ = "Use these banks";
     pendingYes_ = [this] {
         std::array<juce::String, nd2::kBanks> names;
         for (int b = 0; b < nd2::kBanks; ++b) {
@@ -439,7 +418,7 @@ void BanksPanel::useForNew() {
 
 // ------------------------------------------------------------------ updates
 
-void BanksPanel::timerCallback() {
+void BanksPanel::tick() {
     const uint32_t s = proc_.banks().serial();
     const int cur = proc_.engine().currentProgram();
     if (s != serial_) {
@@ -452,39 +431,62 @@ void BanksPanel::timerCallback() {
         current_ = cur;
         for (auto& r : bankRows_) r->repaint();
     }
-    if (busy() || proc_.banks().checking()) { layoutFooter(); repaint(windowDp().removeFromBottom(kFooter)); }
+    if (busy() || proc_.banks().checking()) if (onFooterChanged) onFooterChanged();   // progress
 }
 
 void BanksPanel::refresh() {
     for (auto& r : bankRows_) r->refresh();
-    layoutFooter();
+    addBtn_.setEnabled(!busy());
     repaint();
+    if (onFooterChanged) onFooterChanged();
 }
 
-void BanksPanel::layoutFooter() {
-    auto f = windowDp().removeFromBottom(kFooter).reduced(24, 0);
-    const bool b = busy(), ask = pendingYes_ != nullptr && !b;
-    cancelBtn_.setVisible(b);
-    yesBtn_.setVisible(ask);
-    noBtn_.setVisible(ask);
-    newBtn_.setEnabled(!b && !ask);
-    addBtn_.setEnabled(!b);
-    newBtn_.setBounds(f.removeFromRight(330).withSizeKeepingCentre(330, 33).withY(f.getCentreY() + 2));
-    f.removeFromRight(24);
-    if (b) cancelBtn_.setBounds(f.removeFromRight(100).withSizeKeepingCentre(100, 37));
-    if (ask) {
-        noBtn_.setBounds(f.removeFromRight(100).withSizeKeepingCentre(100, 37));
-        f.removeFromRight(8);
-        const int w = juce::GlyphArrangement::getStringWidthInt(font(17.0f), yesBtn_.getButtonText()) + 40;
-        yesBtn_.setBounds(f.removeFromRight(w).withSizeKeepingCentre(w, 37));
+bool BanksPanel::cancelQuestion() {
+    if (pendingYes_ == nullptr) return false;
+    pendingYes_ = nullptr;
+    pendingText_.clear();
+    refresh();
+    return true;
+}
+
+BanksPanel::Line BanksPanel::footerLine() {
+    Line l;
+    BankService& s = proc_.banks();
+    if (s.busy()) {
+        int done = 0, total = 0;
+        s.progress(done, total);
+        juce::String t = s.busyText();
+        if (total > 0) t << ": program " << juce::jmin(done + 1, total) << " of " << total;
+        l.parts.push_back({t});
+        l.actions.push_back({"Cancel", [this] { proc_.banks().cancel(); }});
+        return l;
     }
+    if (pendingYes_ != nullptr) {
+        l.parts.push_back({pendingText_});
+        l.actions.push_back({pendingLabel_, [this] {
+                                 auto f = std::move(pendingYes_);
+                                 pendingYes_ = nullptr;
+                                 pendingText_.clear();
+                                 if (f) f();
+                                 refresh();
+                             }, true});
+        l.actions.push_back({"Cancel", [this] { cancelQuestion(); }});
+        return l;
+    }
+    if (message_.isNotEmpty()) l.parts.push_back({message_ + " ", false, false});
+    else if (s.checking()) {
+        const int b = s.checkingBank();
+        l.parts.push_back({juce::String::fromUTF8("Checking what the banks hold\xe2\x80\xa6") + (b >= 0 ? " (" + bankName(b) + ")" : juce::String()) + " ",
+                           false, true});
+    }
+    l.parts.push_back({"The 8 banks are saved with this project.", false, true});
+    l.actions.push_back({"Use these banks for new instances", [this] { useForNew(); }});
+    return l;
 }
 
 void BanksPanel::resized() {
-    const auto w = windowDp();
-    closeBtn_.setBounds(w.getRight() - 24 - 35, w.getY() + (kHeader - 35) / 2, 35, 35);
-    auto body = w.withTrimmedTop(kHeader).withTrimmedBottom(kFooter);
-    auto lib = body.removeFromLeft(kLibW).reduced(21, 19);
+    auto body = getLocalBounds().withTrimmedTop(kHint);
+    auto lib = body.removeFromLeft(kLibW);
     lib.removeFromTop(30);                             // heading
     auto buttons = lib.removeFromBottom(40);
     addBtn_.setBounds(buttons.removeFromLeft(130));
@@ -499,44 +501,27 @@ void BanksPanel::resized() {
         y += kFileRowH;
     }
     libList_.setSize(lib.getWidth() - 10, y);
-    auto slots = body.reduced(24, 19);
+    auto slots = body.withTrimmedLeft(int(ui::dp::gap) * 2);
     slots.removeFromTop(30);
     for (auto& r : bankRows_) {
         r->setBounds(slots.removeFromTop(kBankRowH));
         slots.removeFromTop(kBankGap);
     }
-    layoutFooter();
 }
 
 void BanksPanel::paint(juce::Graphics& g) {
-    g.fillAll(juce::Colours::black.withAlpha(0.55f));
-    const auto w = windowDp();
-    const auto wf = w.toFloat();
-    g.setColour(juce::Colours::black.withAlpha(0.35f));
-    g.fillRoundedRectangle(wf.translated(0, 10).expanded(6), 20.0f);
-    g.setColour(juce::Colour(0xff202024));
-    g.fillRoundedRectangle(wf, 16.0f);
-    g.setColour(juce::Colour(0xff3a3a40));
-    g.drawRoundedRectangle(wf.reduced(0.5f), 16.0f, 1.0f);
-    // header
-    auto h = w.withHeight(kHeader).reduced(24, 0);
-    g.setColour(kText);
-    g.setFont(font(24.0f, true));
-    g.drawText("BANKS", h.removeFromLeft(90), juce::Justification::centredLeft);
-    h.removeFromLeft(8);
+    const auto w = getLocalBounds();
     g.setColour(kMuted);
     g.setFont(font(17.0f));
-    g.drawText("load any bank file into one of the 8 banks, or save a bank as a file", h.withTrimmedRight(60), juce::Justification::centredLeft, true);
+    g.drawText("Load any bank file into one of the 8 banks, or save a bank as a file.", w.withHeight(24), juce::Justification::centredLeft, true);
     g.setColour(kLine);
-    g.fillRect(w.getX(), w.getY() + kHeader, w.getWidth(), 1);
-    g.fillRect(w.getX() + kLibW, w.getY() + kHeader, 1, w.getHeight() - kHeader - kFooter);
-    g.fillRect(w.getX(), w.getBottom() - kFooter, w.getWidth(), 1);
+    g.fillRect(kLibW + int(ui::dp::gap), kHint, 1, w.getHeight() - kHint);
     // headings
     g.setColour(kHeading);
     g.setFont(font(16.0f, true).withExtraKerningFactor(0.12f));
-    g.drawText(juce::String::fromUTF8("BANK FILES \xc2\xb7 ") + bankfiles::shownFolder("Library"), w.getX() + 21, w.getY() + kHeader + 19, kLibW - 42, 24,
+    g.drawText(juce::String::fromUTF8("BANK FILES \xc2\xb7 ") + bankfiles::shownFolder("Library"), 0, kHint, kLibW, 24,
                juce::Justification::centredLeft, true);
-    g.drawText(juce::String::fromUTF8("ND2 MEMORY \xc2\xb7 8 BANKS \xc3\x97 50 PROGRAMS"), w.getX() + kLibW + 24, w.getY() + kHeader + 19, 600, 24,
+    g.drawText(juce::String::fromUTF8("ND2 MEMORY \xc2\xb7 8 BANKS \xc3\x97 50 PROGRAMS"), kLibW + int(ui::dp::gap) * 2, kHint, 600, 24,
                juce::Justification::centredLeft, true);
     // separator between the factory banks and the others
     for (size_t i = 1; i < fileRows_.size(); ++i)
@@ -551,55 +536,4 @@ void BanksPanel::paint(juce::Graphics& g) {
         g.drawFittedText("No bank files yet. Add files... copies .nd2_bank files here; Save as file... puts a bank here.",
                          libView_.getBounds().withHeight(80), juce::Justification::topLeft, 3);
     }
-    // footer
-    auto f = w.withTop(w.getBottom() - kFooter).reduced(24, 0);
-    auto note = f.removeFromRight(330);
-    g.setColour(kMuted);
-    g.setFont(font(16.0f));
-    g.drawText("The 8 banks are saved with this project.", note.withHeight(f.getHeight() / 2 - 2), juce::Justification::bottomRight);
-    f.removeFromRight(24);
-    BankService& s = proc_.banks();
-    g.setFont(font(17.0f));
-    if (s.busy()) {
-        int done = 0, total = 0;
-        s.progress(done, total);
-        f.removeFromRight(cancelBtn_.getWidth() + 16);
-        auto bar = f.removeFromRight(347).withSizeKeepingCentre(347, 11).toFloat();
-        f.removeFromRight(16);
-        g.setColour(kBtn);
-        g.fillRoundedRectangle(bar, 5.5f);
-        if (total > 0) {
-            g.setColour(kRed);
-            g.fillRoundedRectangle(bar.withWidth(bar.getWidth() * float(done) / float(total)), 5.5f);
-        }
-        g.setColour(juce::Colour(0xffb8b8be));
-        juce::String t = s.busyText();
-        if (total > 0) t << ": program " << juce::jmin(done + 1, total) << " of " << total;
-        g.drawText(t, f, juce::Justification::centredLeft, true);
-    } else if (pendingYes_ != nullptr) {
-        f.removeFromRight(yesBtn_.getWidth() + noBtn_.getWidth() + 24);
-        g.setColour(kText);
-        g.drawFittedText(pendingText_, f, juce::Justification::centredLeft, 2);
-    } else if (message_.isNotEmpty()) {
-        g.setColour(messageError_ ? juce::Colour(0xffff6b5e) : juce::Colour(0xffb8b8be));
-        g.drawFittedText(message_, f, juce::Justification::centredLeft, 2);
-    } else if (s.checking()) {
-        const int b = s.checkingBank();
-        g.setColour(kMuted);
-        g.drawText(juce::String::fromUTF8("Checking what the banks hold\xe2\x80\xa6") + (b >= 0 ? " (" + bankName(b) + ")" : juce::String()), f,
-                   juce::Justification::centredLeft, true);
-    }
-}
-
-void BanksPanel::mouseDown(const juce::MouseEvent& e) {
-    if (!windowDp().contains(e.getPosition()) && onClose) onClose();   // a click beside the window closes it
-}
-
-bool BanksPanel::keyPressed(const juce::KeyPress& k) {
-    if (k == juce::KeyPress::escapeKey) {
-        if (pendingYes_) { pendingYes_ = nullptr; pendingText_.clear(); refresh(); }
-        else if (onClose) onClose();
-        return true;
-    }
-    return false;
 }

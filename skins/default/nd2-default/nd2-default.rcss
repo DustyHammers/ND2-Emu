@@ -3,138 +3,138 @@
 
 @spritesheet buttons_black { src: ND2BlackButton.png; resolution: 2x; btn_black_up: 0px 0px 244px 118px; btn_black_down: 0px 118px 244px 118px; }
 @spritesheet buttons_grey { src: ND2GreyButton.png; resolution: 2x; btn_grey_up: 0px 0px 244px 118px; btn_grey_down: 0px 118px 244px 118px; }
-@spritesheet leds_red { src: ND2RedLed.png; resolution: 1x; led_red_off: 0px 0px 31px 31px; led_red_on: 0px 31px 31px 31px; }
-@spritesheet leds_green { src: ND2GreenLed.png; resolution: 1x; led_green_off: 0px 0px 31px 31px; led_green_on: 0px 31px 31px 31px; }
+@spritesheet leds_red { src: ND2RedLed.png; resolution: 2x; led_red_off: 0px 0px 44px 44px; led_red_on: 0px 44px 56px 56px; }
+@spritesheet leds_green { src: ND2GreenLed.png; resolution: 2x; led_green_off: 0px 0px 44px 44px; led_green_on: 0px 44px 56px 56px; }
 @spritesheet segments { src: ND2DisplaySegments.png; resolution: 2x; seg_unlit: 0px 0px 176px 212px; seg_a: 176px 0px 176px 212px; seg_b: 352px 0px 176px 212px; seg_c: 528px 0px 176px 212px; seg_d: 704px 0px 176px 212px; seg_e: 880px 0px 176px 212px; seg_f: 1056px 0px 176px 212px; seg_g: 1232px 0px 176px 212px; seg_dp: 1408px 0px 176px 212px; }
 @spritesheet master { src: ND2MasterKnob.png; resolution: 2x;
-  master_000: 0px 0px 240px 240px;
-  master_001: 240px 0px 240px 240px;
-  master_002: 480px 0px 240px 240px;
-  master_003: 720px 0px 240px 240px;
-  master_004: 960px 0px 240px 240px;
-  master_005: 1200px 0px 240px 240px;
-  master_006: 1440px 0px 240px 240px;
-  master_007: 1680px 0px 240px 240px;
-  master_008: 1920px 0px 240px 240px;
-  master_009: 2160px 0px 240px 240px;
-  master_010: 2400px 0px 240px 240px;
-  master_011: 2640px 0px 240px 240px;
-  master_012: 2880px 0px 240px 240px;
-  master_013: 3120px 0px 240px 240px;
-  master_014: 0px 240px 240px 240px;
-  master_015: 240px 240px 240px 240px;
-  master_016: 480px 240px 240px 240px;
-  master_017: 720px 240px 240px 240px;
-  master_018: 960px 240px 240px 240px;
-  master_019: 1200px 240px 240px 240px;
-  master_020: 1440px 240px 240px 240px;
-  master_021: 1680px 240px 240px 240px;
-  master_022: 1920px 240px 240px 240px;
-  master_023: 2160px 240px 240px 240px;
-  master_024: 2400px 240px 240px 240px;
-  master_025: 2640px 240px 240px 240px;
-  master_026: 2880px 240px 240px 240px;
-  master_027: 3120px 240px 240px 240px;
-  master_028: 0px 480px 240px 240px;
-  master_029: 240px 480px 240px 240px;
-  master_030: 480px 480px 240px 240px;
-  master_031: 720px 480px 240px 240px;
-  master_032: 960px 480px 240px 240px;
-  master_033: 1200px 480px 240px 240px;
-  master_034: 1440px 480px 240px 240px;
-  master_035: 1680px 480px 240px 240px;
-  master_036: 1920px 480px 240px 240px;
-  master_037: 2160px 480px 240px 240px;
-  master_038: 2400px 480px 240px 240px;
-  master_039: 2640px 480px 240px 240px;
-  master_040: 2880px 480px 240px 240px;
-  master_041: 3120px 480px 240px 240px;
-  master_042: 0px 720px 240px 240px;
-  master_043: 240px 720px 240px 240px;
-  master_044: 480px 720px 240px 240px;
-  master_045: 720px 720px 240px 240px;
-  master_046: 960px 720px 240px 240px;
-  master_047: 1200px 720px 240px 240px;
-  master_048: 1440px 720px 240px 240px;
-  master_049: 1680px 720px 240px 240px;
-  master_050: 1920px 720px 240px 240px;
-  master_051: 2160px 720px 240px 240px;
-  master_052: 2400px 720px 240px 240px;
-  master_053: 2640px 720px 240px 240px;
-  master_054: 2880px 720px 240px 240px;
-  master_055: 3120px 720px 240px 240px;
-  master_056: 0px 960px 240px 240px;
-  master_057: 240px 960px 240px 240px;
-  master_058: 480px 960px 240px 240px;
-  master_059: 720px 960px 240px 240px;
-  master_060: 960px 960px 240px 240px;
-  master_061: 1200px 960px 240px 240px;
-  master_062: 1440px 960px 240px 240px;
-  master_063: 1680px 960px 240px 240px;
-  master_064: 1920px 960px 240px 240px;
-  master_065: 2160px 960px 240px 240px;
-  master_066: 2400px 960px 240px 240px;
-  master_067: 2640px 960px 240px 240px;
-  master_068: 2880px 960px 240px 240px;
-  master_069: 3120px 960px 240px 240px;
-  master_070: 0px 1200px 240px 240px;
-  master_071: 240px 1200px 240px 240px;
-  master_072: 480px 1200px 240px 240px;
-  master_073: 720px 1200px 240px 240px;
-  master_074: 960px 1200px 240px 240px;
-  master_075: 1200px 1200px 240px 240px;
-  master_076: 1440px 1200px 240px 240px;
-  master_077: 1680px 1200px 240px 240px;
-  master_078: 1920px 1200px 240px 240px;
-  master_079: 2160px 1200px 240px 240px;
-  master_080: 2400px 1200px 240px 240px;
-  master_081: 2640px 1200px 240px 240px;
-  master_082: 2880px 1200px 240px 240px;
-  master_083: 3120px 1200px 240px 240px;
-  master_084: 0px 1440px 240px 240px;
-  master_085: 240px 1440px 240px 240px;
-  master_086: 480px 1440px 240px 240px;
-  master_087: 720px 1440px 240px 240px;
-  master_088: 960px 1440px 240px 240px;
-  master_089: 1200px 1440px 240px 240px;
-  master_090: 1440px 1440px 240px 240px;
-  master_091: 1680px 1440px 240px 240px;
-  master_092: 1920px 1440px 240px 240px;
-  master_093: 2160px 1440px 240px 240px;
-  master_094: 2400px 1440px 240px 240px;
-  master_095: 2640px 1440px 240px 240px;
-  master_096: 2880px 1440px 240px 240px;
-  master_097: 3120px 1440px 240px 240px;
-  master_098: 0px 1680px 240px 240px;
-  master_099: 240px 1680px 240px 240px;
-  master_100: 480px 1680px 240px 240px;
-  master_101: 720px 1680px 240px 240px;
-  master_102: 960px 1680px 240px 240px;
-  master_103: 1200px 1680px 240px 240px;
-  master_104: 1440px 1680px 240px 240px;
-  master_105: 1680px 1680px 240px 240px;
-  master_106: 1920px 1680px 240px 240px;
-  master_107: 2160px 1680px 240px 240px;
-  master_108: 2400px 1680px 240px 240px;
-  master_109: 2640px 1680px 240px 240px;
-  master_110: 2880px 1680px 240px 240px;
-  master_111: 3120px 1680px 240px 240px;
-  master_112: 0px 1920px 240px 240px;
-  master_113: 240px 1920px 240px 240px;
-  master_114: 480px 1920px 240px 240px;
-  master_115: 720px 1920px 240px 240px;
-  master_116: 960px 1920px 240px 240px;
-  master_117: 1200px 1920px 240px 240px;
-  master_118: 1440px 1920px 240px 240px;
-  master_119: 1680px 1920px 240px 240px;
-  master_120: 1920px 1920px 240px 240px;
-  master_121: 2160px 1920px 240px 240px;
-  master_122: 2400px 1920px 240px 240px;
-  master_123: 2640px 1920px 240px 240px;
-  master_124: 2880px 1920px 240px 240px;
-  master_125: 3120px 1920px 240px 240px;
-  master_126: 0px 2160px 240px 240px;
-  master_127: 240px 2160px 240px 240px;
+  master_000: 0px 0px 262px 262px;
+  master_001: 262px 0px 262px 262px;
+  master_002: 524px 0px 262px 262px;
+  master_003: 786px 0px 262px 262px;
+  master_004: 1048px 0px 262px 262px;
+  master_005: 1310px 0px 262px 262px;
+  master_006: 1572px 0px 262px 262px;
+  master_007: 1834px 0px 262px 262px;
+  master_008: 2096px 0px 262px 262px;
+  master_009: 2358px 0px 262px 262px;
+  master_010: 2620px 0px 262px 262px;
+  master_011: 2882px 0px 262px 262px;
+  master_012: 3144px 0px 262px 262px;
+  master_013: 3406px 0px 262px 262px;
+  master_014: 0px 262px 262px 262px;
+  master_015: 262px 262px 262px 262px;
+  master_016: 524px 262px 262px 262px;
+  master_017: 786px 262px 262px 262px;
+  master_018: 1048px 262px 262px 262px;
+  master_019: 1310px 262px 262px 262px;
+  master_020: 1572px 262px 262px 262px;
+  master_021: 1834px 262px 262px 262px;
+  master_022: 2096px 262px 262px 262px;
+  master_023: 2358px 262px 262px 262px;
+  master_024: 2620px 262px 262px 262px;
+  master_025: 2882px 262px 262px 262px;
+  master_026: 3144px 262px 262px 262px;
+  master_027: 3406px 262px 262px 262px;
+  master_028: 0px 524px 262px 262px;
+  master_029: 262px 524px 262px 262px;
+  master_030: 524px 524px 262px 262px;
+  master_031: 786px 524px 262px 262px;
+  master_032: 1048px 524px 262px 262px;
+  master_033: 1310px 524px 262px 262px;
+  master_034: 1572px 524px 262px 262px;
+  master_035: 1834px 524px 262px 262px;
+  master_036: 2096px 524px 262px 262px;
+  master_037: 2358px 524px 262px 262px;
+  master_038: 2620px 524px 262px 262px;
+  master_039: 2882px 524px 262px 262px;
+  master_040: 3144px 524px 262px 262px;
+  master_041: 3406px 524px 262px 262px;
+  master_042: 0px 786px 262px 262px;
+  master_043: 262px 786px 262px 262px;
+  master_044: 524px 786px 262px 262px;
+  master_045: 786px 786px 262px 262px;
+  master_046: 1048px 786px 262px 262px;
+  master_047: 1310px 786px 262px 262px;
+  master_048: 1572px 786px 262px 262px;
+  master_049: 1834px 786px 262px 262px;
+  master_050: 2096px 786px 262px 262px;
+  master_051: 2358px 786px 262px 262px;
+  master_052: 2620px 786px 262px 262px;
+  master_053: 2882px 786px 262px 262px;
+  master_054: 3144px 786px 262px 262px;
+  master_055: 3406px 786px 262px 262px;
+  master_056: 0px 1048px 262px 262px;
+  master_057: 262px 1048px 262px 262px;
+  master_058: 524px 1048px 262px 262px;
+  master_059: 786px 1048px 262px 262px;
+  master_060: 1048px 1048px 262px 262px;
+  master_061: 1310px 1048px 262px 262px;
+  master_062: 1572px 1048px 262px 262px;
+  master_063: 1834px 1048px 262px 262px;
+  master_064: 2096px 1048px 262px 262px;
+  master_065: 2358px 1048px 262px 262px;
+  master_066: 2620px 1048px 262px 262px;
+  master_067: 2882px 1048px 262px 262px;
+  master_068: 3144px 1048px 262px 262px;
+  master_069: 3406px 1048px 262px 262px;
+  master_070: 0px 1310px 262px 262px;
+  master_071: 262px 1310px 262px 262px;
+  master_072: 524px 1310px 262px 262px;
+  master_073: 786px 1310px 262px 262px;
+  master_074: 1048px 1310px 262px 262px;
+  master_075: 1310px 1310px 262px 262px;
+  master_076: 1572px 1310px 262px 262px;
+  master_077: 1834px 1310px 262px 262px;
+  master_078: 2096px 1310px 262px 262px;
+  master_079: 2358px 1310px 262px 262px;
+  master_080: 2620px 1310px 262px 262px;
+  master_081: 2882px 1310px 262px 262px;
+  master_082: 3144px 1310px 262px 262px;
+  master_083: 3406px 1310px 262px 262px;
+  master_084: 0px 1572px 262px 262px;
+  master_085: 262px 1572px 262px 262px;
+  master_086: 524px 1572px 262px 262px;
+  master_087: 786px 1572px 262px 262px;
+  master_088: 1048px 1572px 262px 262px;
+  master_089: 1310px 1572px 262px 262px;
+  master_090: 1572px 1572px 262px 262px;
+  master_091: 1834px 1572px 262px 262px;
+  master_092: 2096px 1572px 262px 262px;
+  master_093: 2358px 1572px 262px 262px;
+  master_094: 2620px 1572px 262px 262px;
+  master_095: 2882px 1572px 262px 262px;
+  master_096: 3144px 1572px 262px 262px;
+  master_097: 3406px 1572px 262px 262px;
+  master_098: 0px 1834px 262px 262px;
+  master_099: 262px 1834px 262px 262px;
+  master_100: 524px 1834px 262px 262px;
+  master_101: 786px 1834px 262px 262px;
+  master_102: 1048px 1834px 262px 262px;
+  master_103: 1310px 1834px 262px 262px;
+  master_104: 1572px 1834px 262px 262px;
+  master_105: 1834px 1834px 262px 262px;
+  master_106: 2096px 1834px 262px 262px;
+  master_107: 2358px 1834px 262px 262px;
+  master_108: 2620px 1834px 262px 262px;
+  master_109: 2882px 1834px 262px 262px;
+  master_110: 3144px 1834px 262px 262px;
+  master_111: 3406px 1834px 262px 262px;
+  master_112: 0px 2096px 262px 262px;
+  master_113: 262px 2096px 262px 262px;
+  master_114: 524px 2096px 262px 262px;
+  master_115: 786px 2096px 262px 262px;
+  master_116: 1048px 2096px 262px 262px;
+  master_117: 1310px 2096px 262px 262px;
+  master_118: 1572px 2096px 262px 262px;
+  master_119: 1834px 2096px 262px 262px;
+  master_120: 2096px 2096px 262px 262px;
+  master_121: 2358px 2096px 262px 262px;
+  master_122: 2620px 2096px 262px 262px;
+  master_123: 2882px 2096px 262px 262px;
+  master_124: 3144px 2096px 262px 262px;
+  master_125: 3406px 2096px 262px 262px;
+  master_126: 0px 2358px 262px 262px;
+  master_127: 262px 2358px 262px 262px;
 }
 @spritesheet encoder { src: ND2Encoder.png; resolution: 2x;
   enc_000: 0px 0px 448px 448px;
@@ -223,15 +223,11 @@ led { width: 22dp; height: 22dp; }
 led lamp { display: block; position: absolute; left: -3dp; top: -3dp; width: 28dp; height: 28dp; opacity: 0; }
 led.red { decorator: image(led_red_off); }      led.red lamp { decorator: image(led_red_on); }
 led.green { decorator: image(led_green_off); }  led.green lamp { decorator: image(led_green_on); }
-/* plugin actions: BANKS opens the Banks window; the green outline shows while it is open */
-action lamp { display: block; position: absolute; left: -12dp; top: -12dp; width: 116dp; height: 58dp; decorator: image(ND2BanksLit.png); visibility: hidden; }
-action.lit lamp { visibility: visible; }
-action#a_banks { decorator: image(ND2BanksLabel.png); }   /* the lettering (not in the baked background) */
 knob#master { frames: 128; spriteprefix: master_; }
 encoder#value { frames: 72; detents: 24; spriteprefix: enc_; }
 /* display digit: unlit segments as the background, one child per segment, shown with class lit */
-segdigit { width: 88dp; height: 106dp; decorator: image(seg_unlit); }
-segdigit seg { display: block; position: absolute; left: 0dp; top: 0dp; width: 88dp; height: 106dp; visibility: hidden; }
+segdigit { width: 71dp; height: 86dp; decorator: image(seg_unlit); }
+segdigit seg { display: block; position: absolute; left: 0dp; top: 0dp; width: 71dp; height: 86dp; visibility: hidden; }
 segdigit seg.lit { visibility: visible; }
 segdigit seg.a { decorator: image(seg_a); } segdigit seg.b { decorator: image(seg_b); } segdigit seg.c { decorator: image(seg_c); } segdigit seg.d { decorator: image(seg_d); } segdigit seg.e { decorator: image(seg_e); } segdigit seg.f { decorator: image(seg_f); } segdigit seg.g { decorator: image(seg_g); } segdigit seg.dp { decorator: image(seg_dp); }
 
@@ -281,8 +277,7 @@ segdigit seg.a { decorator: image(seg_a); } segdigit seg.b { decorator: image(se
 #l_7 { left: 196dp; top: 621dp; width: 22dp; height: 22dp; }
 #master { left: 87.5dp; top: 299.5dp; width: 131dp; height: 131dp; }
 #value { left: 789dp; top: 709dp; width: 224dp; height: 224dp; }
-#d0 { left: 496dp; top: 248dp; width: 88dp; height: 106dp; }
-#d1 { left: 554dp; top: 248dp; width: 88dp; height: 106dp; }
-#d2 { left: 612dp; top: 248dp; width: 88dp; height: 106dp; }
-#d3 { left: 670dp; top: 248dp; width: 88dp; height: 106dp; }
-#a_banks { left: 134dp; top: 15dp; width: 92dp; height: 34dp; }
+#d0 { left: 497dp; top: 262dp; width: 71dp; height: 86dp; }
+#d1 { left: 561dp; top: 262dp; width: 71dp; height: 86dp; }
+#d2 { left: 625dp; top: 262dp; width: 71dp; height: 86dp; }
+#d3 { left: 689dp; top: 262dp; width: 71dp; height: 86dp; }

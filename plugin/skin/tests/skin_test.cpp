@@ -176,12 +176,11 @@ int main() {
         // the display (496,248 .. 758,354 dp) starts typed program entry
         d.mouseMove(620, 300, 0); d.mouseDown(0, 0); d.mouseUp(0, 0);
         CHECK(!p2.log.empty() && p2.log.back() == "action program_entry", "display: %s", p2.log.empty() ? "" : p2.log.back().c_str());
-        // the BANKS label (134,15 .. 226,49 dp) opens the Banks window and is lit while it is open
+        // no BANKS label any more (everything is in the ND2 window a right-click opens): the top left does nothing
+        const size_t before = p2.log.size();
         d.mouseMove(180, 32, 0); d.mouseDown(0, 0); d.mouseUp(0, 0);
-        CHECK(!p2.log.empty() && p2.log.back() == "action banks", "BANKS label: %s", p2.log.empty() ? "" : p2.log.back().c_str());
-        p2.banksOpen = true; d.update(1.2);
-        Rml::Element* banks = doc->GetElementById("a_banks");
-        CHECK(banks && banks->IsClassSet("lit"), "BANKS lit");
+        CHECK(p2.log.size() == before, "nothing at the old BANKS label: %s", p2.log.empty() ? "" : p2.log.back().c_str());
+        CHECK(doc->GetElementById("a_banks") == nullptr, "no BANKS label in the Default skin");
     }
 
     std::printf(fails ? "%d failure(s)\n" : "all skin tests passed\n", fails);

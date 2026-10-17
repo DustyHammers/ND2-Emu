@@ -110,8 +110,8 @@ build/plugin/plugin/plugin_test [--editor [screenshot dir]]
 `ND2_OS_SOURCE=` any update file, located as the plugin does) and `ND2_BANKS=` the factory bank files, it also
 builds the factory memory, plays MIDI and a piezo hit, checks that the channel outputs add up to the main output,
 and round-trips the state; with the factory memory also the Banks window's work (bank 1 saved as a file, loaded
-into bank 6, the banks checked, the names in the project state). `--editor` opens the window, clicks a button, the
-encoder and the BANKS label.
+into bank 6, the banks checked, the names in the project state). `--editor` opens the panel, clicks a button and the
+encoder, and goes through the ND2 window's tabs (right-click, last tab, closing by the dimmed area and the round button).
 
 Plugin data lives in `~/Documents/ND2/` (`os/`, `cache/`, `skins/`, `Library/`); global settings in
 `~/Library/Application Support/ND2/ND2.settings`.
@@ -138,8 +138,21 @@ copy of the running machine (`Engine::getState`) restored in an offline machine 
 
 Programs missing from a file leave the bank's other slots as they were (the OS has no message that empties a slot).
 The plugin side is `plugin/Source/BankFiles.*` (files, library folder, bank names), `BankService.*` (jobs, one at a
-time per instance on a worker thread) and `BanksPanel.*` (the window). `tests/test_banks.cpp` covers the offline
-machine with the OS and the factory bank files (`ND2_OS`, `ND2_BANKS`).
+time per instance on a worker thread) and `BanksPanel.*` (the BANKS tab of the ND2 window). `tests/test_banks.cpp`
+covers the offline machine with the OS and the factory bank files (`ND2_OS`, `ND2_BANKS`).
+
+## The ND2 window
+
+`ND2Window.*`: the one menu system (approved mockup), opened by a right-click on the panel on the tab used last (the
+first time BANKS). Tabs: SYSTEM (version, the OS update file, the factory banks, the data folder; the RmlUi debugger),
+BANKS (`BanksPanel`), SKIN (skins, Reload skin, Show skins folder, zoom) and MIDI (MIDI out to the host, saved with
+the project in processor state version 3; the OS's MIDI channels, read from RAM 0x49D8 and 0x49DA by
+`Engine::publishPanel`, shown only; the CC chart of `docs/MIDI_CC.md`). Placed as in the owner's other plugin: laid
+out at 1500 x 900 dp, drawn 1300 dp of the skin wide, centred over a dimmed backdrop with a shadow (`ui::placeCentred`,
+`ui::drawBackdrop`). The round button, Esc or a click on the dimmed area closes it (a question in the footer is
+cancelled first); the bottom-right corner stays with the resize grip. Built from the shared window parts in
+`plugin/Source/ui/` (frame, tabs, footer, buttons, switch, segmented, rows), which come from the owner's other plugin
+with ND2's red highlight and the Banks window's font. Skin actions: "banks" opens the BANKS tab.
 
 ## CI
 

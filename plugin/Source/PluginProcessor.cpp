@@ -5,7 +5,7 @@
 
 namespace {
 constexpr uint32_t kStateMagic = 0x50324E44;     // "ND2P" (little-endian)
-constexpr uint32_t kStateVersion = 2;            // 2: bank names after the machine
+constexpr uint32_t kStateVersion = 3;            // 2: bank names after the machine; 3: then MIDI out to the host
 constexpr int kTimerMs = 100;
 }  // namespace
 
@@ -21,7 +21,7 @@ juce::AudioProcessor::BusesProperties ND2Processor::buses() {
 ND2Processor::ND2Processor() : AudioProcessor(buses()) {
     events_.reserve(4096);
     port_.owner = this;
-    engine_.setMidiToHost(true);                     // the OS's MIDI out (panel CCs, pad notes, programs) to the host
+    setMidiToHost(true);                             // the OS's MIDI out (panel CCs, pad notes, programs) to the host
     Resources::get();                                // finds the OS and the factory memory
     timerCallback();
     startTimer(kTimerMs);
@@ -187,6 +187,7 @@ void ND2Processor::getStateInformation(juce::MemoryBlock& dest) {
     out.writeInt64(juce::int64(packed.getSize()));
     out.write(packed.getData(), packed.getSize());
     bankfiles::writeRecords(out, banks_.records());
+    out.writeByte(midiToHost() ? 1 : 0);
 }
 
 void ND2Processor::setStateInformation(const void* data, int size) {
@@ -208,6 +209,7 @@ void ND2Processor::setStateInformation(const void* data, int size) {
     bankfiles::BankRecords names{};
     for (auto& b : names) b.crcs.fill(bankfiles::kEmpty);
     if (version >= 2) bankfiles::readRecords(in, names);
+    setMidiToHost(version >= 3 && !in.isExhausted() ? in.readByte() != 0 : true);   // older projects: on (as 0.2.1)
     banks_.setRecords(names);                        // projects from before 0.1.7: no names (the window finds them)
     projectBanks_ = true;
     std::string err;

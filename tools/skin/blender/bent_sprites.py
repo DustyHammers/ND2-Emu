@@ -55,7 +55,7 @@ def main():
         band(sc, i, n, os.path.join(a.out, f'base_{i}.png'))
         return
     bent_mod.add(a.out)
-    shafts = [o for o in bpy.data.objects if o.name.startswith('Pot') and o.name.endswith(('_shaft', '_mark'))]
+    shafts = [o for o in bpy.data.objects if o.name.startswith('Pot') and o.name.endswith('_shaft')]
     led = bpy.data.objects['ModLed']
     if a.what == 'strip':
         for o in shafts + [led]:            # the plugin draws these; their shadows and the LED's glow stay

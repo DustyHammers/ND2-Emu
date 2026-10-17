@@ -64,3 +64,19 @@ envelope words, held back on N-1 of N passes (at the T5 loop head 0x343E0) when 
 Map tools: `BMAP=t0,t1,file` (bytes the scheduler changes), `BCHG=t0,t1,file` (words changed by anything),
 `BLOG=a,b,...` (log words per pass), `-bsched` (goto sites), `BDUMP=pc` (one task in full).
 Still to do for a real feature: the tone-model-specific decay words, for every tone model in every channel.
+
+## Per-voice sine and noise; the ten proposed knob bends
+
+- `-bvnoise ch,mode`: channel ch's noise from its own bent generator (mode 1: multiplier bit 0 cleared, metallic;
+  2: multiplier 5, buzzy). The generator writes six words 0xDDBA..0xDDC4 (0xDDBA is also its state, high word; each
+  next word = low word ^ the previous one); channel k's noise filter prefetches word k at 0x1A4D8, 0x1A4DC, 0x1A4E0,
+  0x1A4E2, 0x1A4E6, 0x1A4E8. Hook 0x1A4D8 bends words 0-4; hook 0x1A4DC restores the generator state, recomputes word 5
+  from the unbent word 4 and bends word 5. Checked: bending the other five never changes a pad.
+- `-bvsine ch`: a bent copy (address lines 2 and 9 swapped) of the 2048-word table at 0x39B8 is swapped in at the
+  channel's engine dispatch (0x1A68C + 0x90ch) and the normal table back at its return (+2), at the next channel's
+  dispatch, and at the mix (0x1A9EE) (one engine doesn't return through +2). Checked: bending the other five never
+  changes a pad. One hook per address: these share addresses with the underclock hooks (combine them in one hook).
+- `-bvox ch,stuck0,bit`: a data line stuck low (truncation toward zero, so no DC at silence; `flip` makes DC).
+- Crush on the channel signal needs about 8 kept bits (5 is near silence: the channel signals are small).
+- Reel settings (all six pads): crush 8, hold 8, wrap 2.5, fold 3, stuck0 25, crackle 0.002, underclock 1 in 2,
+  stretch x3, sine swap, noise mode 1.

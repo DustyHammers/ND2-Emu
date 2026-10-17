@@ -47,6 +47,7 @@ static void vox_hook(dspic::CPU& c, void*) {
     else if (v.mode == "wrap") { x = (int32_t)(uint32_t)((int64_t)x * (int64_t)v.amt); }
     else if (v.mode == "fold") { double y = x / 2147483648.0 * v.amt; while (y > 1 || y < -1) y = y > 1 ? 2 - y : -2 - y; x = (int32_t)(y * 2147483647.0); }
     else if (v.mode == "flip") { x ^= (int32_t)(1u << (int)v.amt); }
+    else if (v.mode == "stuck0") { x = x >= 0 ? (int32_t)((uint32_t)x & ~(1u << (int)v.amt)) : -(int32_t)((uint32_t)(-(int64_t)x) & ~(1u << (int)v.amt)); }
     else if (v.mode == "crackle") { brng = brng * 1664525u + 1013904223u; if ((brng >> 8) / 16777216.0 < v.amt) { brng = brng * 1664525u + 1013904223u; x ^= (int32_t)(1u << (26 + (brng >> 29))); } }
     c.st16(a, (uint16_t)((uint32_t)x >> 16)); c.st16(a + 2, (uint16_t)x);
   }
@@ -88,6 +89,29 @@ struct Saved { uint16_t sine[2048], lcg[4], decay[256]; uint32_t mix[2]; };
 static Saved bsaved;
 static uint32_t rr() { brng = brng * 1664525u + 1013904223u; return brng >> 8; }
 static double ru() { return rr() / 16777216.0; }
+// per-voice noise: channel k's noise word (NOISE_BASE + 2k) replaced after the noise generator, from a bent LCG of its own
+static int bnoise[6] = {0, 0, 0, 0, 0, 0}; static uint32_t bnoise_x[6] = {1, 2, 3, 4, 5, 6};
+static uint16_t bnoise_base = 0xDDBA; static uint32_t bnoise_hookpc = 0x1A4DC;
+// The noise generator writes six words 0xDDBA..0xDDC4 (0xDDBA is also the generator's state, hi word; each next word =
+// low word ^ the previous one); channel k's noise filter prefetches word k at 0x1A4D8 (k=0), 0x1A4DC, 0x1A4E0, 0x1A4E2,
+// 0x1A4E6, 0x1A4E8. Hook A (0x1A4D8, after the 4th xor) bends words 0-4; hook B (0x1A4DC, after the 5th xor and after
+// channel 0's prefetch) puts the generator state back, recomputes word 5 from the unbent word 4, and bends word 5.
+static uint16_t bnoise_orig[6];
+static uint16_t bnoise_next(int k) { uint32_t& x = bnoise_x[k];
+  if (bnoise[k] == 1) x = x * 0x0BB38434u + 0x3619636Bu; else if (bnoise[k] == 2) x = x * 0x00000005u + 0x3619636Bu; else x = 0;
+  return (uint16_t)(x >> 16); }
+static void noise_hookA(dspic::CPU& c, void*) {
+  for (int k = 0; k < 5; k++) { bnoise_orig[k] = c.ld16(0xDDBA + 2 * k); if (bnoise[k]) c.st16(0xDDBA + 2 * k, bnoise_next(k)); } }
+static void noise_hookB(dspic::CPU& c, void*) {
+  c.st16(0xDDBA, bnoise_orig[0]);
+  if (bnoise[4]) c.st16(0xDDC4, (uint16_t)(c.W(0) ^ bnoise_orig[4]));
+  if (bnoise[5]) c.st16(0xDDC4, bnoise_next(5)); }
+// per-voice sine table: a bent copy swapped in while channel k's tone engine runs
+static int bsinev[6] = {0, 0, 0, 0, 0, 0}; static uint16_t bsine_norm[2048], bsine_bent[2048]; static bool bsine_ready = false;
+static bool bsine_in2 = false;
+static void sinein_hook(dspic::CPU& c, void* ctx) { const int k = (int)(intptr_t)ctx; if (bsinev[k]) { memcpy(c.ram + 0x39B8, bsine_bent, 4096); bsine_in2 = true; } else if (bsine_in2) { memcpy(c.ram + 0x39B8, bsine_norm, 4096); bsine_in2 = false; } }
+static bool bsine_in = false;
+static void sineout_hook(dspic::CPU& c, void* ctx) { const int k = (int)(intptr_t)ctx; if ((k >= 0 && bsinev[k]) || (k < 0 && bsine_in2)) { memcpy(c.ram + 0x39B8, bsine_norm, 4096); bsine_in2 = false; } }
 struct FeedBack : nd2::Board::AdcSource {
   nd2::Board* b; double g; unsigned mask;
   void next_block(double* add) override {
@@ -136,6 +160,9 @@ int main(int argc, char** argv) {
     else if (arg("-bjitter")) bjitter = atof(argv[++i]);
     else if (arg("-bfreeze")) { double a, b; sscanf(argv[++i], "%lf,%lf", &a, &b); bfreeze.push_back({a, b}); }
     else if (arg("-bbrown")) bbrown = atof(argv[++i]);
+    else if (arg("-bvnoise")) { int ch, m; sscanf(argv[++i], "%d,%d", &ch, &m); bnoise[ch - 1] = m; }
+    else if (arg("-bnoisemap")) { unsigned b, pc; sscanf(argv[++i], "%x,%x", &b, &pc); bnoise_base = (uint16_t)b; bnoise_hookpc = pc; }
+    else if (arg("-bvsine")) { int ch; sscanf(argv[++i], "%d", &ch); bsinev[ch - 1] = 1; }
     else if (!strcmp(argv[i], "-bsched")) bsched_an = true;
     else if (arg("-bvstretch")) { int ch, n; sscanf(argv[++i], "%d,%d", &ch, &n); bvstretch[ch - 1] = n; bvs_any = true; }
     else if (arg("-broll")) { sscanf(argv[++i], "%u,%lf,%lf", &broll_seed, &broll_at, &broll_reset); }
@@ -217,6 +244,13 @@ int main(int argc, char** argv) {
     for (uint32_t a = T; a <= T + 16; a += 2) printf("  %06x %s\n", a, C.disasm_at(a).c_str());
     C.add_hook(T, sched_hook, nullptr);
     printf("bend: stretch %d, jitter %.2f, %zu freezes\n", bstretch, bjitter, bfreeze.size()); }
+  { bool any = false; for (int k = 0; k < 6; k++) any |= bnoise[k] != 0; if (any) { C.add_hook(0x1A4D8, noise_hookA, nullptr); C.add_hook(0x1A4DC, noise_hookB, nullptr); printf("bend: per-voice noise\n"); } }
+  { bool any = false; for (int k = 0; k < 6; k++) any |= bsinev[k] != 0;
+    if (any) { for (int i = 0; i < 2048; i++) bsine_norm[i] = C.ld16(0x39B8 + 2 * i);
+      for (int i = 0; i < 2048; i++) { int b2 = (i >> 2) & 1, b9 = (i >> 9) & 1; bsine_bent[i] = bsine_norm[(i & ~0x204) | (b9 << 2) | (b2 << 9)]; }
+      for (int k = 0; k < 6; k++) { C.add_hook(0x1A68C + 0x90 * k, sinein_hook, (void*)(intptr_t)k); C.add_hook(0x1A68E + 0x90 * k, sineout_hook, (void*)(intptr_t)k); }
+      C.add_hook(0x1A9EE, sineout_hook, (void*)(intptr_t)-1);
+      printf("bend: per-voice sine table\n"); } }
   if (bint) { C.bend_int = true; C.update_ipl(); printf("bend: fractional/integer swapped\n"); }
   if (!bvox.empty() || broll_seed) { C.add_hook(0x1A9EE, vox_hook, nullptr); printf("bend: %zu voice bends\n", bvox.size()); }
   for (int k = 0; k < 6; k++) { uint32_t t = 0x1A68E + 0x90 * k, a = 0x3F00 + 4 * k;   // trampolines back to the dispatch

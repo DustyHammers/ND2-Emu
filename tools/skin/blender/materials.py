@@ -20,22 +20,27 @@ PAINT = dict(
     # the reference photos show a satin finish with only a faint sheen
     # owner: a very fine orange peel with a slight shine that sparkles in places
     coat_red=0.16, coat_ink=0.20, coat_rough_red=0.42, coat_rough_ink=0.48, coat_ior=1.5,   # satin
-    peel_wavelength=0.30 * D.MM,            # orange peel cell size (very fine)
-    peel_distance=0.20,                     # bump distance (px): a visible fine stipple, like the photos
+    peel_wavelength=0.26 * D.MM,            # orange peel cell size (very fine)
+    peel_distance=2.5,                      # bump distance (px): the photo shows a clearly lit, pebbly fine relief
+    coat_peel_share=0.2,                    # share of that relief in the coat's normal
     mottle=0.035,                           # powder-coat mottle: +/- share of the paint colour
     # powder-coat grain in the colour itself (owner's straight-on photo: dense fine speckle on red and black)
     grain_size=0.12 * D.MM,                 # particle spacing
     grain_var=0.10,                         # every particle's brightness varies by up to +/- this share
-    grain_bright=0.06,                      # share of particles that are clearly lighter (sparse flecks)
+    grain_bright=0.025,                     # share of particles that are clearly lighter (sparse flecks)
     grain_lift_red=(0.16, 0.035, 0.045),    # a light fleck on the red (light red, linear)
     grain_lift_black=(0.022, 0.022, 0.024), # a light fleck on the black print (grey)
     # sparkle: a small share of the coat's grains sit tilted and catch the light as tiny glints
     sparkle_size=0.09 * D.MM,               # grain spacing
-    sparkle_density=0.08,                   # share of grains that are tilted
-    sparkle_dot=0.40,                       # glint size within its grain (share of the spacing)
+    sparkle_density=0.25,                   # share of grains that are tilted
+    sparkle_coat=0.85,                      # a tilted grain's coat weight is raised by this: a crisp glint
+    sparkle_black=0.1,                      # share of that raise on the black print
+    sparkle_dot=0.45,                       # glint size within its grain (share of the spacing)
     sparkle_tilt=0.75,                      # how far a tilted grain leans (about 35 degrees at most)
     sparkle_smooth=0.30,                    # tilted grains are this much glossier, so their glints are crisp
     virtual_perspective=False,              # only for an orthographic skin camera
+    edge_gloss_gain=5.0,                    # how fast the edge gloss comes in as a surface leans (1 - normal z)
+    edge_gloss_coat=1.0, edge_gloss_rough=0.12,   # coat weight and roughness on a fully leaning bend
     ink_distance=0.12,                      # printed relief (px)
     lip_distance=0.35,                      # build-up lip (px)
     smudge_size=30 * D.MM, smudge_amount=0.06,
@@ -171,10 +176,11 @@ def paint(maps_dir, peel_strips=None):
         f = _m(nt, 'ADD', _m(nt, 'MULTIPLY', a, 0.5, (-950, -2400)), _m(nt, 'ADD', b, 0.5, (-950, -2600)), (-750, -2500))
         peel_dist = _m(nt, 'MULTIPLY', f, peel_d.outputs[0], (-550, -2400)).outputs[0]
 
-    def bump_chain(normal_in, x):
+    def bump_chain(normal_in, x, peel_share=None):
         n = normal_in
+        pd = peel_dist if peel_share is None else _m(nt, 'MULTIPLY', peel_dist, peel_share, (x, -1900)).outputs[0]
         for k, (h, dist) in enumerate(((ink_h.outputs['Color'], P['ink_distance']), (lip_h.outputs['Color'], P['lip_distance']),
-                                       (peel.outputs['Fac'], peel_dist))):
+                                       (peel.outputs['Fac'], pd))):
             b = nt.nodes.new('ShaderNodeBump')
             b.location = (x + 180 * k, -1600)
             b.inputs['Strength'].default_value = 1.0
@@ -197,7 +203,16 @@ def paint(maps_dir, peel_strips=None):
     h = _vm(nt, 'NORMALIZE', _vm(nt, 'ADD', r, (0, 0, 1), (-1000, -2900)), None, (-800, -2900))
     tilt = _vm(nt, 'SUBTRACT', h, (0, 0, 1), (-600, -2900))
     nv = _vm(nt, 'NORMALIZE', _vm(nt, 'ADD', geo.outputs['Normal'], tilt, (-400, -2900)), None, (-200, -2900), 'virtual_normal')
-    coat_n = bump_chain(nv.outputs[0] if P['virtual_perspective'] else None, 300)
+    # how far the surface leans away from the top (bends, rolled edges, hole fillets): 0 on the flat, 1 when steep
+    gz = nt.nodes.new('ShaderNodeSeparateXYZ')
+    gz.location = (900, -3450)
+    _link(nt, geo.outputs['Normal'], gz.inputs[0])
+    lean = _m(nt, 'MULTIPLY', _m(nt, 'SUBTRACT', 1.0, gz.outputs['Z'], (1080, -3450)), P['edge_gloss_gain'], (1260, -3450))
+    lean.use_clamp = True
+    # the coat follows the peel more gently (strong enough to break up its sheen) and not at all on the bends, so
+    # a bend shows one clean highlight line
+    coat_share = _m(nt, 'MULTIPLY', _m(nt, 'SUBTRACT', 1.0, lean, (1080, -1900)), P['coat_peel_share'], (1260, -1900))
+    coat_n = bump_chain(nv.outputs[0] if P['virtual_perspective'] else None, 300, coat_share)
     # sparkle: Voronoi grains; a random few, and only a dot in each, get a random tilt in the coat's normal
     vor = nt.nodes.new('ShaderNodeTexVoronoi')
     vor.name = vor.label = 'sparkle'
@@ -214,6 +229,8 @@ def paint(maps_dir, peel_strips=None):
     pick = _m(nt, 'GREATER_THAN', sc_.outputs[0], 1.0 - P['sparkle_density'], (720, -2800))
     dot = _m(nt, 'LESS_THAN', vor.outputs['Distance'], P['sparkle_dot'], (720, -2950))
     amt = _m(nt, 'MULTIPLY', _m(nt, 'MULTIPLY', pick, dot, (900, -2850)), P['sparkle_tilt'], (1080, -2850))
+    # no glints on the bends: there the coat shows one clean highlight line, as on the photo's back edge
+    amt = _m(nt, 'MULTIPLY', amt, _m(nt, 'SUBTRACT', 1.0, lean, (1080, -2750)), (1180, -2850))
     tilt = _vm(nt, 'SCALE', rnd.outputs[0], None, (1080, -2650))
     _link(nt, amt.outputs[0], tilt.inputs['Scale'])
     spark_n = _vm(nt, 'NORMALIZE', _vm(nt, 'ADD', coat_n, tilt.outputs[0], (1260, -2650)), None, (1420, -2650), 'sparkle_normal')
@@ -225,6 +242,27 @@ def paint(maps_dir, peel_strips=None):
           bsdf.inputs['Coat Roughness'])
     nt.nodes[-2].inputs[2].default_value = 0.0
     _link(nt, cr, nt.nodes[-2].inputs[2])
+    # the tilted grains carry more coat, so they glint like flakes while the rest of the paint stays satin
+    cw = bsdf.inputs['Coat Weight'].links[0].from_socket
+    # on the red paint only: the photo's black print shows hardly any glints
+    on_red = _m(nt, 'MULTIPLY_ADD', masks['black'], P['sparkle_black'], (1080, -3150))
+    _link(nt, _m(nt, 'ADD', masks['red'], masks['tag'], (900, -3150)), on_red.inputs[2])
+    cwn = _m(nt, 'MULTIPLY_ADD', _m(nt, 'MULTIPLY', grain, on_red, (1180, -3250)), P['sparkle_coat'], (1260, -3250))
+    _link(nt, cw, cwn.inputs[2])
+    _link(nt, _m(nt, 'MINIMUM', cwn, 1.0, (1420, -3250)).outputs[0], bsdf.inputs['Coat Weight'])
+    # bends and rolled edges: seen by a real camera at a glancing angle, the coat reflects much more there
+    # (Fresnel), so the photo shows a bright line along the rolled back edge. The straight-down camera can't see
+    # that, so surfaces that lean away from the top get a glossier, fuller coat
+    cw2 = bsdf.inputs['Coat Weight'].links[0].from_socket
+    _link(nt, _m(nt, 'MAXIMUM', cw2, _m(nt, 'MULTIPLY', lean, P['edge_gloss_coat'], (1420, -3450)), (1580, -3350)).outputs[0],
+          bsdf.inputs['Coat Weight'])
+    cr2 = bsdf.inputs['Coat Roughness'].links[0].from_socket
+    mixr = nt.nodes.new('ShaderNodeMix')
+    mixr.location = (1580, -3550)
+    _link(nt, lean, mixr.inputs['Factor'])
+    _link(nt, cr2, mixr.inputs['A'])
+    mixr.inputs['B'].default_value = P['edge_gloss_rough']
+    _link(nt, mixr.outputs['Result'], bsdf.inputs['Coat Roughness'])
     # powder-coat mottle on the paint colour
     mot = nt.nodes.new('ShaderNodeTexNoise')
     mot.location = (-1400, -3300)

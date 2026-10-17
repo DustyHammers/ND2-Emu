@@ -132,9 +132,9 @@ def case_shell(bm, inner=False):
     P = D.PLATE
     t = P['thickness']
     U = up_vector()
-    rb = D.CASE['corner_back_r']                     # back corners rounded like the red top's
+    rb = D.CASE['chassis_corner_r']                  # nearly square back corners (they show in the top's notches)
     if inner:
-        out = rounded_rect_fb(t, t, D.CANVAS_W - t, D.CANVAS_H - t, rb - t, 2.0, k=8, m=10)
+        out = rounded_rect_fb(t, t, D.CANVAS_W - t, D.CANVAS_H - t, max(rb - t, 1.0), 2.0, k=8, m=10)
         z0, extra = -t, 50.0
     else:
         out = rounded_rect_fb(0.0, 0.0, D.CANVAS_W, D.CANVAS_H, rb, 1.0, k=8, m=10)
@@ -151,7 +151,7 @@ def case_shell(bm, inner=False):
 
 def cover_section():
     """The red top's cross-section in (y, z) (Blender y: 0 at the back edge, -H at the front): outer path from
-    the back edge over the top, the rolled front bend and down the short lip, with the inward normal at each
+    the bottom of the back flange up round the back bend, over the top, the rolled front bend and down the short lip, with the inward normal at each
     point (the inner surface is the outer one moved by the sheet thickness)."""
     C, P = D.CASE, D.PLATE
     t, H = P['thickness'], D.CANVAS_H
@@ -163,7 +163,15 @@ def cover_section():
     alpha = math.acos(s)                             # how far the bend turns (90 degrees less the slope)
     d = R * math.tan(alpha / 2)
     pc = Vector((-H, 0.0))                           # the sharp corner the bend rounds off
-    path = [(Vector((0.0, 0.0)), Vector((0.0, -1.0))), (Vector((-H + d, 0.0)), Vector((0.0, -1.0)))]
+    Rb, fl = C['back_bend_r'], C['back_flange_h']
+    path = [(Vector((0.0, -fl)), Vector((-1.0, 0.0)))]           # back flange, square to the top
+    cb = Vector((-Rb, -Rb))
+    nb = 12
+    for i in range(nb + 1):                          # the back bend, from the flange up to the top
+        th = (math.pi / 2) * i / nb
+        v = Vector((math.cos(th), math.sin(th)))
+        path.append((cb + v * Rb, -v))
+    path.append((Vector((-H + d, 0.0)), Vector((0.0, -1.0))))
     cc = Vector((-H + d, -R))
     n = 14
     for i in range(1, n + 1):
@@ -208,7 +216,9 @@ def build_chassis(col):
     out_last = path[-1][0]
     n_out = Vector((-U.z, U.y))                      # out of the front, horizontal in the world
     far = 6000.0
-    poly = inner + [out_last + n_out * far, Vector((-D.CANVAS_H - far, far)), Vector((far, far)), Vector((far, -t))]
+    # everything above the top's inner surface goes, and behind the back flange down to its bottom edge
+    poly = inner + [out_last + n_out * far, Vector((-D.CANVAS_H - far, far)), Vector((far, far)),
+                    Vector((far, -D.CASE['back_flange_h']))]
     env = bmesh.new()
     lo = [env.verts.new((-200.0, p.x, p.y)) for p in poly]
     hi = [env.verts.new((D.CANVAS_W + 200.0, p.x, p.y)) for p in poly]
@@ -260,9 +270,9 @@ def build_plate(rects, kinds, col):
     cover_mesh(bm)                                   # the top bending straight down into the front lip
     plate = new_object('Plate', bm, col, smooth=False)
     C = D.CASE
-    keep = bmesh.new()                               # round the back corners in plan; the lip is untouched
-    prism(keep, rounded_rect_fb(0.0, 0.0, D.CANVAS_W, D.CANVAS_H + 400.0, C['corner_back_r'], 1.0, k=16, m=40),
-          -2000.0, 50.0)
+    keep = bmesh.new()                               # notch the back corners at 45 degrees; the lip is untouched
+    c, W0, H0 = C['corner_chamfer'], D.CANVAS_W, D.CANVAS_H + 400.0
+    prism(keep, [(W0, H0), (0.0, H0), (0.0, c), (c, 0.0), (W0 - c, 0.0), (W0, c)], -2000.0, 50.0)
     _boolean(plate, new_object('cover_keep', keep, col, smooth=False), 'INTERSECT')
     # round over the sheet's side and back edges now, on the clean sheet (before the holes), where the bevel
     # can clamp safely; the front bend is in the cross-section already
@@ -288,6 +298,8 @@ def build_plate(rects, kinds, col):
         if all(abs(f.normal.z) > 0.99 for f in e.link_faces):
             continue
         if -max(v.co.y for v in e.verts) > D.CANVAS_H - 300:      # the front bend is in the section
+            continue
+        if -min(v.co.y for v in e.verts) < C['back_bend_r'] + 2:   # so is the back bend
             continue
         e[bw0] = 1.0                                             # back edge and back corners
     bm.to_mesh(plate.data)
@@ -353,7 +365,7 @@ def build_plate(rects, kinds, col):
         if all(abs(f.normal.z) > 0.99 for f in e.link_faces):
             continue                                 # a split inside the flat top, not a rim
         mx, my = (v0.x + v1.x) / 2, -(v0.y + v1.y) / 2
-        if min(mx, my, D.CANVAS_W - mx) < D.CASE['corner_back_r'] + D.CASE['edge_roll_r'] + 8:
+        if min(mx, my, D.CANVAS_W - mx) < D.CASE['back_bend_r'] + D.CASE['corner_chamfer'] + 8:
             continue                                 # the rolled side and back edges are done already
         cid, _, _, fil = min(holes, key=lambda h: (h[1] - mx) ** 2 + (h[2] - my) ** 2)
         e[bw] = fil * (0.85 + 0.15 * hash01(cid)) / wmax
@@ -382,7 +394,7 @@ def build_plate(rects, kinds, col):
     # hole and a rounded edge don't pick up the edge's tilt (it showed as streaks across the paint)
     vg = plate.vertex_groups.new(name='flat_top')     # the flat top only: the bend must keep smooth shading
     vg.add([v.index for v in plate.data.vertices if v.co.z > -0.01 and -v.co.y < D.CANVAS_H - 80
-            and D.CASE['corner_back_r'] < v.co.x < D.CANVAS_W - D.CASE['corner_back_r']], 1.0, 'REPLACE')
+            and D.CASE['corner_chamfer'] < v.co.x < D.CANVAS_W - D.CASE['corner_chamfer']], 1.0, 'REPLACE')
     wn = plate.modifiers.new('flat_top', 'WEIGHTED_NORMAL')
     wn.mode, wn.weight, wn.keep_sharp, wn.vertex_group = 'FACE_AREA', 100, True, 'flat_top'
     return plate

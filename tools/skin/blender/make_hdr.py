@@ -13,10 +13,10 @@ OUT = sys.argv[1]
 W = int(sys.argv[2]) if len(sys.argv) > 2 else 2048
 H = W // 2
 
-# pixel centres -> directions (Blender equirect: u = atan2(d.y, -d.x) / 2pi + 0.5, v = elevation / pi + 0.5)
+# pixel centres -> directions (Blender equirect: u = 0.5 - atan2(d.y, -d.x) / 2pi, v = elevation / pi + 0.5)
 u = (np.arange(W) + 0.5) / W
 v = 1.0 - (np.arange(H) + 0.5) / H
-phi = (u - 0.5) * 2 * math.pi
+phi = (0.5 - u) * 2 * math.pi
 th = (v - 0.5) * math.pi
 PH, TH = np.meshgrid(phi, th)
 dx, dy, dz = -np.cos(TH) * np.cos(PH), np.cos(TH) * np.sin(PH), np.sin(TH)
@@ -59,10 +59,15 @@ blend = 1.0 / (1.0 + np.exp(-el / 6.0))          # about 20 degrees wide
 wall = floor + (wall_up - floor) * blend
 img += wall[..., None] * np.array([1.0, 0.99, 0.97])
 # lights (radiance in linear units): broad, soft-edged boxes only (thin strips streak across a glossy panel)
-img += panel(unit(-0.10, 0.35, 1.0), 30, 22, 6.0, soft=0.55)                          # overhead box, a bit back
-img += panel(unit(-0.75, -0.65, 0.65), 18, 24, 12.0, soft=0.50, rgb=(1.0, 0.98, 0.95))  # key, front left
-img += panel(unit(0.85, 0.45, 0.45), 12, 22, 3.0, soft=0.60)                           # rim box, back right
-img += panel(unit(0.80, -0.55, 0.30), 20, 20, 1.6, soft=0.60, rgb=(0.97, 0.98, 1.0))   # fill card, front right
+# (the first four were placed before the azimuth was corrected, so their y is mirrored: they stay where the
+# approved renders had them)
+img += panel(unit(-0.10, -0.35, 1.0), 30, 22, 6.0, soft=0.55)                         # overhead box, a bit forward
+img += panel(unit(-0.75, 0.65, 0.65), 18, 24, 12.0, soft=0.50, rgb=(1.0, 0.98, 0.95))  # key, back left
+img += panel(unit(0.85, -0.45, 0.45), 12, 22, 3.0, soft=0.60)                          # rim box, front right
+img += panel(unit(0.80, 0.55, 0.30), 20, 20, 1.6, soft=0.60, rgb=(0.97, 0.98, 1.0))    # fill card, back right
+# a long, low strip behind the unit: only surfaces that lean back toward it (the back bend) catch it, as the
+# rolled back edge does in the owner's photo
+img += panel(unit(0.0, 1.0, 0.62), 45, 4.0, 22.0, soft=0.45)
 img = img.astype(np.float32)
 OpenEXR.File({'compression': OpenEXR.ZIP_COMPRESSION, 'type': OpenEXR.scanlineimage},
              {'RGB': np.ascontiguousarray(img)}).write(OUT)

@@ -90,7 +90,12 @@ CASE = dict(
     front_bend_r=3.0 * MM,   # outer radius of the bend into the front lip (owner: less than 5 mm)
     lip_h=10.0 * MM,         # from the top surface down to the lip's bottom edge
     edge_roll_r=1.0 * MM,    # the sheet's side and back edges, rounded over (under the 1.2 mm thickness)
-    corner_back_r=4.0 * MM,  # plan radius of the back corners
+    # the back edge bends straight down into a short flange, like the front (owner's photo: a rolled band along
+    # the back that catches the light); the back corners are small 45-degree notches, not radii
+    back_bend_r=1.6 * MM,    # outer radius of the bend at the back (photo: a band about 1.6 mm deep seen from above)
+    back_flange_h=4.0 * MM,  # from the top surface down to the back flange's bottom edge (estimate)
+    corner_chamfer=2.0 * MM, # each back corner cut at 45 degrees, about 2 mm along each edge (photo)
+    chassis_corner_r=0.6 * MM,  # the black chassis' back corners: nearly square, so it shows in the notches
     lip_screw_x=(0.12, 0.88),
     back_h=40.0 * MM,        # from the back edge of the top down to the base (estimate; 43 mm with feet)
     front_h=12.0 * MM,       # from the front edge of the top down to the base: the red lip nearly covers it (photo)

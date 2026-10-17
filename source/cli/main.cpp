@@ -69,6 +69,12 @@ static void sched_hook(dspic::CPU& c, void*) {
 }
 // brownouts: CPU starve in short random bursts; crackle: sparse bit hits per voice
 static double bbrown = 0; static uint64_t bbrown_until = 0;
+// random roll: a random set of bends; undone at broll_reset (all bends are reversible)
+static uint32_t broll_seed = 0; static double broll_at = 1.5, broll_reset = 0; static std::string broll_desc;
+struct Saved { uint16_t sine[2048], lcg[4], decay[256]; uint32_t mix[2]; };
+static Saved bsaved;
+static uint32_t rr() { brng = brng * 1664525u + 1013904223u; return brng >> 8; }
+static double ru() { return rr() / 16777216.0; }
 struct FeedBack : nd2::Board::AdcSource {
   nd2::Board* b; double g; unsigned mask;
   void next_block(double* add) override {
@@ -116,6 +122,7 @@ int main(int argc, char** argv) {
     else if (arg("-bjitter")) bjitter = atof(argv[++i]);
     else if (arg("-bfreeze")) { double a, b; sscanf(argv[++i], "%lf,%lf", &a, &b); bfreeze.push_back({a, b}); }
     else if (arg("-bbrown")) bbrown = atof(argv[++i]);
+    else if (arg("-broll")) { sscanf(argv[++i], "%u,%lf,%lf", &broll_seed, &broll_at, &broll_reset); }
     else if (arg("-bfb")) { sscanf(argv[++i], "%lf,%x", &bfb, &bfbmask); }
     else if (arg("-bfill")) { unsigned a, n, v; sscanf(argv[++i], "%x,%u,%x", &a, &n, &v); for (unsigned k = 0; k < n; k++) bram.push_back({a + 2 * k, v}); }
     else if (arg("-bvox")) { BVox v; char m[16]; sscanf(argv[++i], "%d,%15[^,],%lf", &v.ch, m, &v.amt); v.mode = m; bvox.push_back(v); }
@@ -183,7 +190,7 @@ int main(int argc, char** argv) {
   if (bfind) for (uint32_t a = 0x1000; a < 0xE000; a += 2) { uint16_t v = C.ram[a] | (C.ram[a+1] << 8); if (v == 0x8435 || v == 0x0BB3 || v == 0x636B || v == 0x3619) printf("ram %04x = %04x\n", a, v); }
   for (auto& p : bpatch) { printf("patch %06x: %06x -> %06x\n", p.first, C.prog[p.first / 2], p.second); C.prog[p.first / 2] = p.second; C.invalidate(p.first); }
   for (auto& p : bram) { printf("ram %04x: %04x -> %04x\n", p.first, C.ram[p.first] | (C.ram[p.first+1] << 8), p.second); C.ram[p.first] = p.second & 0xFF; C.ram[p.first+1] = p.second >> 8; }
-  if (bstretch > 1 || bjitter > 0 || !bfreeze.empty()) {   // trampoline at 0x3F40 around the scheduler
+  if (bstretch > 1 || bjitter > 0 || !bfreeze.empty() || broll_seed) {   // trampoline at 0x3F40 around the scheduler
     const uint32_t T = 0x3F40; auto P = [&](uint32_t a, uint32_t w) { C.prog[a / 2] = w; C.invalidate(a); };
     const uint32_t inc = C.prog[0x1ACBC / 2], bt0 = C.prog[0x1ACBE / 2], g1 = C.prog[0x1ACC0 / 2], g2 = C.prog[0x1ACC2 / 2];
     P(T + 0, 0x320006);                       // bra z, T+14
@@ -195,11 +202,13 @@ int main(int argc, char** argv) {
     C.add_hook(T, sched_hook, nullptr);
     printf("bend: stretch %d, jitter %.2f, %zu freezes\n", bstretch, bjitter, bfreeze.size()); }
   if (bint) { C.bend_int = true; C.update_ipl(); printf("bend: fractional/integer swapped\n"); }
-  if (!bvox.empty()) { C.add_hook(0x1A9EE, vox_hook, nullptr); printf("bend: %zu voice bends\n", bvox.size()); }
+  if (!bvox.empty() || broll_seed) { C.add_hook(0x1A9EE, vox_hook, nullptr); printf("bend: %zu voice bends\n", bvox.size()); }
   for (int k = 0; k < 6; k++) { uint32_t t = 0x1A68E + 0x90 * k, a = 0x3F00 + 4 * k;   // trampolines back to the dispatch
     C.prog[a / 2] = 0x040000 | (t & 0xFFFE); C.prog[a / 2 + 1] = (t >> 16) & 0x7F; C.invalidate(a); C.invalidate(a + 2); }
-  for (int k = 0; k < 6; k++) if (bskip[k] > 1) { C.add_hook(0x1A68C + 0x90 * k, skip_hook, (void*)(intptr_t)k); printf("bend: channel %d engine 1 in %d\n", k + 1, bskip[k]); }
-  static FeedBack fbk; if (bfb != 0) { fbk.b = &B; fbk.g = bfb; fbk.mask = bfbmask; B.adc_live = &fbk; printf("bend: feedback %.2f into pads %x\n", bfb, bfbmask); }
+  if (broll_seed) for (int k = 0; k < 6; k++) C.add_hook(0x1A68C + 0x90 * k, skip_hook, (void*)(intptr_t)k);
+  else for (int k = 0; k < 6; k++) if (bskip[k] > 1) { C.add_hook(0x1A68C + 0x90 * k, skip_hook, (void*)(intptr_t)k); printf("bend: channel %d engine 1 in %d\n", k + 1, bskip[k]); }
+  static FeedBack fbk; fbk.b = &B; if (broll_seed) B.adc_live = &fbk;
+  if (bfb != 0) { fbk.b = &B; fbk.g = bfb; fbk.mask = bfbmask; B.adc_live = &fbk; printf("bend: feedback %.2f into pads %x\n", bfb, bfbmask); }
   if (bframe) { B.frame_cycles = bframe; printf("bend: %d cycles per frame\n", bframe); }
   if (bnosat) { C.bend_nosat = true; C.update_ipl(); printf("bend: saturation off\n"); }
   if (bsine) {   // the 2048-point sine table at RAM 0x39B8 (built at boot)
@@ -268,6 +277,45 @@ int main(int argc, char** argv) {
     if (mi < midi.size()) stop = std::min<uint64_t>(stop, std::max<uint64_t>(C.cycles + 1, (uint64_t)std::ceil(midi[mi].first * FCY)));
     if (ui < uis.size()) stop = std::min<uint64_t>(stop, std::max<uint64_t>(C.cycles + 1, (uint64_t)std::ceil(uis[ui].t * FCY)));
     if (hi < hits.size()) stop = std::min<uint64_t>(stop, std::max<uint64_t>(C.cycles + 1, (uint64_t)std::ceil(hits[hi].t * FCY)));
+    if (broll_seed && broll_at >= 0 && now >= broll_at) {
+      broll_at = -1; brng = broll_seed * 2654435761u + 1;
+      for (int i = 0; i < 2048; i++) bsaved.sine[i] = C.ld16(0x39B8 + 2 * i);
+      bsaved.lcg[0] = C.ld16(0x1DFA); bsaved.lcg[1] = C.ld16(0xDDB4); bsaved.lcg[2] = C.ld16(0x1DFC); bsaved.lcg[3] = C.ld16(0xDDB6);
+      for (int i = 0; i < 256; i++) bsaved.decay[i] = C.ld16(0xAD62 + 2 * i);
+      bsaved.mix[0] = C.prog[0x1AA1E / 2]; bsaved.mix[1] = C.prog[0x1AA58 / 2];
+      int n = 0; char d[96];
+      while (n == 0) for (int b = 0; b < 10; b++) if (ru() < 0.3) { n++; switch (b) {
+        case 0: { int fc = 900 + (int)(ru() * 900); B.frame_cycles = fc; snprintf(d, sizeof d, "starve %d; ", fc); break; }
+        case 1: { int m = rr() % 4; for (int i = 0; i < 2048; i++) { uint16_t v = bsaved.sine[i];
+            if (m == 0) { int b2 = (i >> 2) & 1, b9 = (i >> 9) & 1; v = bsaved.sine[(i & ~0x204) | (b9 << 2) | (b2 << 9)]; }
+            else if (m == 1) v |= (uint16_t)(1u << (8 + rr() % 1 + (int)(ru() * 7)));
+            else if (m == 2) v &= 0xE000; else v ^= v >> 1;
+            C.st16(0x39B8 + 2 * i, v); } snprintf(d, sizeof d, "sine %d; ", m); break; }
+        case 2: { uint16_t m = (uint16_t)rr(); C.st16(0x1DFA, m); if (ru() < 0.5) C.st16(0xDDB4, (uint16_t)rr()); snprintf(d, sizeof d, "noise %04x; ", m); break; }
+        case 3: { int sh = 4 + rr() % 3; uint32_t w = 0xC80040 | ((64 - sh) & 0x3F); C.prog[0x1AA1E / 2] = w; C.prog[0x1AA58 / 2] = w; C.invalidate(0x1AA1E); C.invalidate(0x1AA58); snprintf(d, sizeof d, "hot -%d; ", sh); break; }
+        case 4: C.bend_nosat = true; C.update_ipl(); snprintf(d, sizeof d, "nosat; "); break;
+        case 5: { uint16_t v = ru() < 0.5 ? (uint16_t)(1 + rr() % 16) : (uint16_t)(0x1000 + rr() % 0x7000); for (int i = 0; i < 256; i++) C.st16(0xAD62 + 2 * i, v); snprintf(d, sizeof d, "decay %04x; ", v); break; }
+        case 6: fbk.g = 0.3 + ru() * 3; fbk.mask = 1 + rr() % 63; snprintf(d, sizeof d, "feedback %.1f %02x; ", fbk.g, fbk.mask); break;
+        case 7: { int nv = 1 + rr() % 6; std::string t = "voices:"; for (int k = 0; k < nv; k++) { int ch = 1 + rr() % 6, m = rr() % 6;
+            if (m == 5) { bskip[ch - 1] = 2 + rr() % 3; t += " " + std::to_string(ch) + "=under" + std::to_string(bskip[ch - 1]); continue; }
+            static const char* mm[5] = {"crush", "hold", "wrap", "fold", "crackle"}; static const double lo[5] = {2, 2, 2, 1.5, 0.0005}, hi[5] = {10, 32, 32, 12, 0.01};
+            BVox v; v.ch = ch; v.mode = mm[m]; v.amt = lo[m] + ru() * (hi[m] - lo[m]); bvox.push_back(v); t += " " + std::to_string(ch) + "=" + v.mode; }
+          snprintf(d, sizeof d, "%s; ", t.c_str()); break; }
+        case 8: bstretch = 2 + rr() % 7; snprintf(d, sizeof d, "stretch %d; ", bstretch); break;
+        case 9: bbrown = 0.00002 + ru() * 0.00008; snprintf(d, sizeof d, "brownouts; "); break; }
+        broll_desc += d; }
+      printf("roll %u at %.2f: %s\n", broll_seed, now, broll_desc.c_str());
+    }
+    if (broll_seed && broll_reset > 0 && now >= broll_reset) {
+      broll_reset = 0;
+      B.frame_cycles = FRAME_CYCLES; bbrown = 0; bstretch = 1; bvox.clear(); for (int k = 0; k < 6; k++) bskip[k] = 0; fbk.g = 0;
+      C.bend_nosat = false; C.update_ipl();
+      for (int i = 0; i < 2048; i++) C.st16(0x39B8 + 2 * i, bsaved.sine[i]);
+      C.st16(0x1DFA, bsaved.lcg[0]); C.st16(0xDDB4, bsaved.lcg[1]); C.st16(0x1DFC, bsaved.lcg[2]); C.st16(0xDDB6, bsaved.lcg[3]);
+      for (int i = 0; i < 256; i++) C.st16(0xAD62 + 2 * i, bsaved.decay[i]);
+      C.prog[0x1AA1E / 2] = bsaved.mix[0]; C.prog[0x1AA58 / 2] = bsaved.mix[1]; C.invalidate(0x1AA1E); C.invalidate(0x1AA58);
+      printf("reset at %.2f\n", now);
+    }
     if (bbrown > 0) { brng = brng * 1664525u + 1013904223u;
       if (C.cycles >= bbrown_until && (brng >> 8) / 16777216.0 < bbrown) { bbrown_until = C.cycles + (uint64_t)(FCY * (0.02 + 0.08 * ((brng >> 4) & 255) / 255.0)); }
       B.frame_cycles = C.cycles < bbrown_until ? 700 : 2048; }

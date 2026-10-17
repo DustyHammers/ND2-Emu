@@ -25,3 +25,14 @@ plugin; with no option given, the output is unchanged.
 | `-bjitter p` | the scheduler is skipped at random with a slowly wandering probability up to p (subtle) |
 | `-bbrown p` | brownouts: random bursts (20-100 ms) of CPU starve (700 cycles per frame) |
 | `-bvox ch,crackle,p` | per voice: a random high bit flipped with probability p per sample |
+
+## Random roll
+
+`-broll seed,t_roll,t_reset`: at t_roll a random set of bends (each of 10 kinds with probability 0.3, at least one;
+random amounts; per-voice bends on a random number of random voices), all undone at t_reset (originals saved first:
+sine table, noise constants, decay table, mix words; flags and hooks switched off).
+
+Fuzz, 240 seeds on bank 1 program 5 (roll at 1.5 s, reset at 5.6 s, run to 10 s): no OS crash or hang, every run
+back to normal after the reset (last 2 s within 1.0 dB of the unbent render, 0.25 s windows; median 0.3 dB). Level
+is the hazard: while bent the median was -13.5 dB RMS against -24.6 dB normal, 92 runs above -10 dB RMS and 154
+reaching full scale (hot mix bus, wrap, feedback, jammed decay, stretch). A level guard is needed.

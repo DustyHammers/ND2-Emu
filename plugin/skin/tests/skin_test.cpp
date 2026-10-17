@@ -173,7 +173,7 @@ int main() {
         // the Program button sits where the art has it: 359,271 .. 481,330 dp
         d.mouseMove(420, 300, 0); d.mouseDown(0, 0); d.mouseUp(0, 0);
         CHECK(p2.log.size() >= 2 && p2.log[p2.log.size() - 2] == "button 1 down", "Program button at its place");
-        // the display (496,248 .. 758,354 dp) starts typed program entry
+        // the display (497,262 .. 760,348 dp) starts typed program entry
         d.mouseMove(620, 300, 0); d.mouseDown(0, 0); d.mouseUp(0, 0);
         CHECK(!p2.log.empty() && p2.log.back() == "action program_entry", "display: %s", p2.log.empty() ? "" : p2.log.back().c_str());
         // the BANKS label (134,15 .. 226,49 dp) opens the Banks window and is lit while it is open

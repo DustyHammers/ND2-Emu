@@ -230,8 +230,8 @@ action#a_banks { decorator: image(ND2BanksLabel.png); }   /* the lettering (not 
 knob#master { frames: 128; spriteprefix: master_; }
 encoder#value { frames: 72; detents: 24; spriteprefix: enc_; }
 /* display digit: unlit segments as the background, one child per segment, shown with class lit */
-segdigit { width: 88dp; height: 106dp; decorator: image(seg_unlit); }
-segdigit seg { display: block; position: absolute; left: 0dp; top: 0dp; width: 88dp; height: 106dp; visibility: hidden; }
+segdigit { width: 71dp; height: 86dp; decorator: image(seg_unlit); }
+segdigit seg { display: block; position: absolute; left: 0dp; top: 0dp; width: 71dp; height: 86dp; visibility: hidden; }
 segdigit seg.lit { visibility: visible; }
 segdigit seg.a { decorator: image(seg_a); } segdigit seg.b { decorator: image(seg_b); } segdigit seg.c { decorator: image(seg_c); } segdigit seg.d { decorator: image(seg_d); } segdigit seg.e { decorator: image(seg_e); } segdigit seg.f { decorator: image(seg_f); } segdigit seg.g { decorator: image(seg_g); } segdigit seg.dp { decorator: image(seg_dp); }
 
@@ -281,8 +281,8 @@ segdigit seg.a { decorator: image(seg_a); } segdigit seg.b { decorator: image(se
 #l_7 { left: 196dp; top: 621dp; width: 22dp; height: 22dp; }
 #master { left: 87.5dp; top: 299.5dp; width: 131dp; height: 131dp; }
 #value { left: 789dp; top: 709dp; width: 224dp; height: 224dp; }
-#d0 { left: 496dp; top: 248dp; width: 88dp; height: 106dp; }
-#d1 { left: 554dp; top: 248dp; width: 88dp; height: 106dp; }
-#d2 { left: 612dp; top: 248dp; width: 88dp; height: 106dp; }
-#d3 { left: 670dp; top: 248dp; width: 88dp; height: 106dp; }
+#d0 { left: 497dp; top: 262dp; width: 71dp; height: 86dp; }
+#d1 { left: 561dp; top: 262dp; width: 71dp; height: 86dp; }
+#d2 { left: 625dp; top: 262dp; width: 71dp; height: 86dp; }
+#d3 { left: 689dp; top: 262dp; width: 71dp; height: 86dp; }
 #a_banks { left: 134dp; top: 15dp; width: 92dp; height: 34dp; }

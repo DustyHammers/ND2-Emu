@@ -395,8 +395,8 @@ def digit_board(name):
     sx = nt.nodes.new('ShaderNodeSeparateXYZ')
     nt.links.new(geo.outputs['Position'], sx.inputs[0])
     # distance to the nearest gap: gaps at x0 + pitch * k (k = 0..4), divider_w wide
-    # gaps halfway between digit centres (centres at digit_x0 + 88 + pitch * i)
-    rel = _m(nt, 'SUBTRACT', sx.outputs['X'], d['digit_x0'] + 88.0 - d['digit_pitch'] / 2)
+    # gaps halfway between digit centres (centres at digit_x0 + digit_w / 2 + pitch * i)
+    rel = _m(nt, 'SUBTRACT', sx.outputs['X'], d['digit_x0'] + d['digit_w'] / 2 - d['digit_pitch'] / 2)
     wrapped = _m(nt, 'PINGPONG', rel, d['digit_pitch'] / 2)
     gap = _m(nt, 'LESS_THAN', wrapped, d['divider_w'] / 2)
     mix = nt.nodes.new('ShaderNodeMix')

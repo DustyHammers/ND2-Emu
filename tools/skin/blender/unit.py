@@ -158,16 +158,20 @@ def display_emission(out_dir, text='P1.01'):
         else:
             digits.append(ch)
             dps.append(False)
+    d = D.DISPLAY
+    w = int(d['digit_w'])
+    h = int(round(w * 212 / 176))
+    cells = {n: c.resize((w, h), Image.LANCZOS) for n, c in cells.items()}
     lit = np.zeros((D.CANVAS_H, D.CANVAS_W), np.float32)
     unlit = np.zeros_like(lit)
     for i, (ch, dp) in enumerate(zip(digits[:4], dps[:4])):
-        x0, y0 = int(992 + 116 * i), 496
+        x0, y0 = int(d['digit_x0'] + d['digit_pitch'] * i), int(d['digit_y0'])
         u = np.asarray(cells['unlit'], np.float32) / 255
-        unlit[y0:y0 + 212, x0:x0 + 176] = np.maximum(unlit[y0:y0 + 212, x0:x0 + 176], u)
+        unlit[y0:y0 + h, x0:x0 + w] = np.maximum(unlit[y0:y0 + h, x0:x0 + w], u)
         names = list(font.get(ch, '')) + (['dp'] if dp else [])
         for sname in names:
             a = np.asarray(cells[sname], np.float32) / 255
-            lit[y0:y0 + 212, x0:x0 + 176] = np.maximum(lit[y0:y0 + 212, x0:x0 + 176], a)
+            lit[y0:y0 + h, x0:x0 + w] = np.maximum(lit[y0:y0 + h, x0:x0 + w], a)
     img = np.stack([lit, unlit, np.zeros_like(lit)], -1)
     path = os.path.join(out_dir, 'display_emission.png')
     Image.fromarray((img * 255).astype(np.uint8)).save(path)

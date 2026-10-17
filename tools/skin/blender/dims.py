@@ -45,8 +45,10 @@ DISPLAY = dict(
     x0=994.0, x1=1506.0, y0=509.0, y1=706.0, r=8.0,   # the art's window opening
     lens_z=-1.6 * MM,        # smoked lens just under the plate (estimate)
     board_z=-4.0 * MM,
-    # four digit packages behind the red filter, on the skin's digit pitch (the plugin draws the segments)
-    digit_x0=992.0, digit_pitch=116.0, divider_w=8.0,
+    # four digit packages behind the red filter (the plugin draws the segments). Measured on the straight-on
+    # photo and scaled into this window: digits about 6 mm wide and 8.5 mm tall on an 8.2 mm pitch, so each
+    # sprite cell is 142 x 172 px (71 x 86 dp) at a 128 px (64 dp) pitch, the first cell's left edge at 994 px.
+    digit_x0=994.0, digit_pitch=128.0, digit_w=142.0, digit_y0=524.0, divider_w=8.0,
 )
 
 MASTER = dict(

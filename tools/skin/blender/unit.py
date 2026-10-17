@@ -193,5 +193,5 @@ def backdrop(col):
 def add_all(col_case, col_back, maps_dir):
     base_and_feet(col_case)
     screws(col_case)
-    connectors(col_back)
+    # no back-panel connectors (owner): they stood out over the back edge in the skin views
     return display_emission(maps_dir)

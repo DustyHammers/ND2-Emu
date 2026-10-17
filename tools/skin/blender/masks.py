@@ -91,7 +91,11 @@ _cx = np.clip(_xx, _r, W - 1 - _r)
 _cy = np.clip(_yy, _r, H - 1 - _r)
 _out = (np.hypot(_xx - _cx, _yy - _cy) > _r - 3)
 inks[_out] = (1.0, 0.0, 0.0, 0.0)
-del _yy, _xx, _cx, _cy
+# the art draws an edge shadow along its sides and bottom (up to about 18 px); in 3D the sheet's bends shade
+# themselves, so the outer band is plain body paint (nothing is printed there)
+_band = (_yy > H - 40) | (_xx < 20) | (_xx > W - 21) | (_yy < 20)
+inks[_band] = (1.0, 0.0, 0.0, 0.0)
+del _yy, _xx, _cx, _cy, _band
 
 # 2b) keep lettering and label windows clear of the LED holes and their rounded edges: a group (a line of
 #     lettering, or a label window with its letters) that reaches into a hole's keep-out circle is narrowed

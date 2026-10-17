@@ -170,6 +170,8 @@ def main():
     ap.add_argument('--tilt', type=float, default=20.0)
     ap.add_argument('--knob-frame', type=int, default=64, help='MASTER LEVEL frame, 0-127')
     ap.add_argument('--denoise', default='detail', choices=('on', 'detail', 'off'))
+    ap.add_argument('--display', default='empty', choices=('empty', 'lit'),
+                    help='empty: the window as the skin background needs it (the plugin draws the digits)')
     ap.add_argument('--border', type=float, nargs=4, metavar=('X0', 'X1', 'Y0', 'Y1'),
                     help='render only this part of the frame (0-1, y up), cropped')
     ap.add_argument('--res', type=int, default=50, help='percent of the 2x canvas (50 = 1x)')
@@ -192,7 +194,7 @@ def main():
     # straight down and orthographic: reflections as if seen from a camera 1 m above the centre (the sheen
     # gradient a real camera would see, with every control exactly where the skin layout puts it)
     materials.PAINT['virtual_perspective'] = a.view == 'top'
-    mats = materials.assign_all(sc, os.path.abspath(a.maps), None, emission)
+    mats = materials.assign_all(sc, os.path.abspath(a.maps), None, emission if a.display == 'lit' else None)
     V = lighting.setup(sc, a.light, a.hdr)
     sc.render.engine = 'CYCLES'
     cy = sc.cycles

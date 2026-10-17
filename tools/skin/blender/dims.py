@@ -37,7 +37,7 @@ BUTTON = dict(
 LED = dict(
     hole_r=23.0,             # photo: about 3 mm lens (22 px radius) in a hole just larger
     lens_r=22.0,
-    dome_z=0.25 * MM,        # dome apex just proud of the panel (estimate)
+    dome_z=0.05 * MM,        # dome apex about level with the panel: it sits down in its hole (straight-on photo)
     body_bottom=-4.0 * MM,
 )
 
@@ -45,6 +45,8 @@ DISPLAY = dict(
     x0=994.0, x1=1506.0, y0=509.0, y1=706.0, r=8.0,   # the art's window opening
     lens_z=-1.6 * MM,        # smoked lens just under the plate (estimate)
     board_z=-4.0 * MM,
+    # four digit packages behind the red filter, on the skin's digit pitch (the plugin draws the segments)
+    digit_x0=992.0, digit_pitch=116.0, divider_w=8.0,
 )
 
 MASTER = dict(

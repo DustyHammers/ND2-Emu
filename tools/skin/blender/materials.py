@@ -373,6 +373,41 @@ def knob_plastic(name, rgb=(0.016, 0.016, 0.017), rough=0.62, grain_mm=0.06, gra
     return m
 
 
+def led_lens(name, rgb):
+    """A milky, lightly tinted epoxy dome: frosted inside, glossy outside (owner: translucent, not solid
+    colour; the photo's unlit lenses are pale and diffuse)."""
+    m = simple(name, rgb, 0.35, 0.5, coat=0.8, coat_rough=0.04, transmission=0.25)
+    b = m.node_tree.nodes.get('Principled BSDF')
+    b.inputs['Subsurface Weight'].default_value = 0.6
+    b.inputs['Subsurface Radius'].default_value = (12.0, 8.0, 8.0)
+    return m
+
+
+def digit_board(name):
+    """The four digit packages under the display filter: dark grey faces with black gaps between them."""
+    d = D.DISPLAY
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    b = nt.nodes.get('Principled BSDF')
+    b.inputs['Roughness'].default_value = 0.55
+    geo = nt.nodes.new('ShaderNodeNewGeometry')
+    sx = nt.nodes.new('ShaderNodeSeparateXYZ')
+    nt.links.new(geo.outputs['Position'], sx.inputs[0])
+    # distance to the nearest gap: gaps at x0 + pitch * k (k = 0..4), divider_w wide
+    # gaps halfway between digit centres (centres at digit_x0 + 88 + pitch * i)
+    rel = _m(nt, 'SUBTRACT', sx.outputs['X'], d['digit_x0'] + 88.0 - d['digit_pitch'] / 2)
+    wrapped = _m(nt, 'PINGPONG', rel, d['digit_pitch'] / 2)
+    gap = _m(nt, 'LESS_THAN', wrapped, d['divider_w'] / 2)
+    mix = nt.nodes.new('ShaderNodeMix')
+    mix.data_type = 'RGBA'
+    _link(nt, gap.outputs[0], mix.inputs['Factor'])
+    mix.inputs['A'].default_value = (0.022, 0.02, 0.02, 1)       # package face (dark red through the filter)
+    mix.inputs['B'].default_value = (0.0, 0.0, 0.0, 1)           # gap
+    _link(nt, mix.outputs['Result'], b.inputs['Base Color'])
+    return m
+
+
 def metal(name, rgb, rough):
     m = simple(name, rgb, rough, 0.5)
     m.node_tree.nodes.get('Principled BSDF').inputs['Metallic'].default_value = 1.0
@@ -380,18 +415,19 @@ def metal(name, rgb, rough):
 
 
 def assign_all(scene, maps_dir, peel_strips=None, emission_png=None):
-    lens = simple('DisplayLens', (0.55, 0.05, 0.05), 0.04, 0.5, transmission=1.0)
+    lens = simple('DisplayLens', (0.95, 0.002, 0.004), 0.08, 0.08, transmission=1.0)  # deep red filter, low glare
+    lens.node_tree.nodes.get('Principled BSDF').inputs['IOR'].default_value = 1.05     # anti-glare filter
     mats = {
         'paint': paint(maps_dir, peel_strips),
         'interior': simple('Interior', (0.012, 0.012, 0.013), 0.8, 0.3),
         'lens': lens,
-        'board': emissive_board('DisplayBoard', emission_png) if emission_png else simple('DisplayBoard', (0.006, 0.004, 0.004), 0.7, 0.2),
+        'board': emissive_board('DisplayBoard', emission_png) if emission_png else digit_board('DisplayBoard'),
         'grey': simple('ButtonGrey', (0.56, 0.58, 0.64), 0.55, 0.5),      # light cool grey (photo)
         'black_plastic': simple('BlackPlastic', (0.022, 0.022, 0.024), 0.5, 0.5),
         'encoder': knob_plastic('EncoderPlastic'),
-        # unlit LED lenses look grey-olive in the photo (red and green alike)
-        'led_red': simple('LedRed', (0.20, 0.19, 0.15), 0.12, 0.5, transmission=0.3),
-        'led_green': simple('LedGreen', (0.18, 0.19, 0.15), 0.12, 0.5, transmission=0.3),
+        # LED lenses: tinted red and green domes (owner), glossy, partly translucent
+        'led_red': led_lens('LedRed', (0.42, 0.20, 0.18)),
+        'led_green': led_lens('LedGreen', (0.24, 0.36, 0.22)),
         'pointer': simple('Pointer', (0.80, 0.80, 0.80), 0.4, 0.5),
         'knob': knob_with_pointer('MasterKnob'),
         'base': simple('BasePlate', (0.02, 0.02, 0.022), 0.5, 0.4),

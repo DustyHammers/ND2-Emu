@@ -22,6 +22,7 @@ juce::AudioProcessor::BusesProperties ND2Processor::buses() {
 ND2Processor::ND2Processor() : AudioProcessor(buses()) {
     events_.reserve(4096);
     port_.owner = this;
+    engine_.setMidiToHost(true);                     // the OS's MIDI out (panel CCs, pad notes, programs) to the host
     nd2diag::log(juce::String("processor created: ND2 ") + JucePlugin_VersionString + " " + nd2diag::arch() + ", "
                  + juce::AudioProcessor::getWrapperTypeDescription(wrapperType) + ", host \"" + juce::PluginHostType().getHostDescription()
                  + "\", " + juce::File::getSpecialLocation(juce::File::hostApplicationPath).getFullPathName());

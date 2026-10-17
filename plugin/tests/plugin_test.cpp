@@ -3,8 +3,8 @@
 //   plugin_test                 always: construction, bus layouts, silence without the OS, state with no machine.
 //                               With the OS in ~/Documents/ND2/os/ (or ND2_OS_SOURCE=any file holding it, which is
 //                               then located as the plugin does): boot, MIDI through the main and channel outputs
-//                               (they add up), a piezo hit on Trigger In, the state round trip; with ND2_BANKS=bank
-//                               files, the factory memory is built first.
+//                               (they add up), a piezo hit on Trigger In (and its note on the MIDI out to the host),
+//                               the state round trip; with ND2_BANKS=bank files, the factory memory is built first.
 //                               With the factory memory: the Banks window's work (save bank 1 as a file, load it
 //                               into bank 6, check the banks, the names in the project state).
 //   plugin_test --editor DIR    also opens the editor (needs a display) and, with DIR, saves screenshots there
@@ -38,7 +38,7 @@ static juce::AudioProcessor::BusesLayout fullLayout() {
     return l;
 }
 
-struct Run { std::vector<float> main, stems[6]; double maxErr = 0; };
+struct Run { std::vector<float> main, stems[6]; double maxErr = 0; int notesOut = 0; };
 
 // Plays `seconds`, with a note (pad 1) at `noteAt` and a piezo hit on Trigger In 1 at `hitAt` (negative: none).
 static Run play(ND2Processor& p, double seconds, double noteAt, double hitAt) {
@@ -55,6 +55,7 @@ static Run play(ND2Processor& p, double seconds, double noteAt, double hitAt) {
             buf.setSample(0, i, t < 0 ? 0.0f : float(0.7 * std::sin(2 * M_PI * 400 * t) * std::exp(-t / 0.004)));
         }
         p.processBlock(buf, midi);
+        for (const auto meta : midi) if (meta.getMessage().isNoteOn()) ++r.notesOut;   // the OS's MIDI out
         for (int i = 0; i < block; ++i) {
             const float m = buf.getSample(0, i);
             r.main.push_back(m);
@@ -118,6 +119,7 @@ int main(int argc, char** argv) {
             CHECK(r.maxErr < 1e-5, "the channel outputs add up to the main output (%.2e)", r.maxErr);
             CHECK(energy(r.stems[0]) > 0.5 && energy(r.stems[1]) == 0 && energy(r.stems[5]) == 0, "pad 1 only on Ch 1");
             CHECK(energy(r.stems[0], size_t(0.95 * 48000)) > 0.1, "the piezo hit on Trigger In 1 plays pad 1");
+            CHECK(r.notesOut == 1, "the OS's MIDI out reaches the host: the piezo hit's note, not the incoming one (%d)", r.notesOut);
             if (res.hasFactory()) {          // the Banks window's work, without the window
                 BankService& bs = p.banks();
                 bs.save(0);

@@ -30,6 +30,11 @@ VST3 and standalone app in one zip, for 64-bit Windows 10 or newer. Installing: 
 
 ## What's new
 
+### 0.2.1
+
+- MIDI out to the host: panel moves (as CCs), pad hits and program changes can be recorded and played back.
+- MIDI CC chart: [docs/MIDI_CC.md](docs/MIDI_CC.md).
+
 ### 0.2.0
 
 - Windows version: VST3 and standalone (64-bit).
@@ -105,6 +110,7 @@ On first start, choose the OS update file and then the factory bank files.
   Esc or a click elsewhere cancels.
 - **BANKS** (top left) opens the Banks window; click it again, press Esc or click beside the window to close it.
 - Right-click the panel for the Banks window, skins, zoom, the OS update file and the factory banks.
+- MIDI: every sound setting has a MIDI CC ([chart](docs/MIDI_CC.md)); MIDI channels 1-6 address drum channels 1-6.
 
 ## Files and folders
 

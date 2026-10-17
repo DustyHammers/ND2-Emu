@@ -31,7 +31,7 @@ BUTTON = dict(
     dish=0.22 * MM,          # the pill's top is a shallow finger groove: concave across, running along it (owner)
     draft=2.0,               # wall draft, px per side over the wall height
     bottom_z=-3.0 * MM,
-    travel=1.2 * MM,         # pressed frame (estimate)
+    travel=2.0 * MM,         # pressed frame (estimate; deep enough that a press reads from straight above)
 )
 
 LED = dict(

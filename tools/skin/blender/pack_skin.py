@@ -27,6 +27,7 @@ MASTER_FRAMES, ENC_FRAMES = 128, 72
 MASTER_CELL, MASTER_COLS = 262, 14     # 131 dp at 2x
 ENC_CELL, ENC_COLS = 448, 12           # 224 dp at 2x
 LED_OFF, LED_ON = 44, 56               # 22 dp and the 28 dp lamp, at 2x
+PRESS_DROP, PRESS_DARKEN = 2, 0.88     # pressed buttons: as a press looks from slightly in front of the panel
 HOLE_R = 23.0                          # LED hole radius (dims.LED)
 
 R, OUT = sys.argv[1], sys.argv[2]
@@ -87,8 +88,14 @@ flat.save(os.path.join(OUT, 'ND2Background.jpg'), quality=92, subsampling=0, opt
 for cls in ('black', 'grey'):
     sheet = Image.new('RGBA', (244, 236))
     for k, st in enumerate(('up', 'down')):
-        im = inner(load(f'btn_{cls}_{st}.png'), 244, 118)
+        src = load(f'btn_{cls}_{st}.png')
+        if st == 'up':
+            im = inner(src, 244, 118)
+        else:                    # pressed: the cap sits PRESS_DROP px lower (the gap above it opens) and darker
+            im = src.crop((MARGIN, MARGIN - PRESS_DROP, MARGIN + 244, MARGIN - PRESS_DROP + 118))
         a = np.asarray(im).copy()
+        if st == 'down':
+            a[..., :3] = np.clip(a[..., :3].astype(np.float32) * PRESS_DARKEN, 0, 255).astype(np.uint8)
         a[..., 3] = 255
         sheet.paste(Image.fromarray(a, 'RGBA'), (0, 118 * k))
     sheet.save(os.path.join(OUT, f'ND2{cls.capitalize()}Button.png'))

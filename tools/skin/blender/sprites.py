@@ -16,6 +16,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bpy
+from mathutils import Matrix
 
 import dims as D
 import lighting
@@ -137,15 +138,15 @@ def main():
         cid = next(k for k, v in kinds.items() if v[0] == 'encoder')
         cx, cy, _, _ = rects[cid]
         box = box_px(cid)
-        mats = {n: bpy.data.objects[n].active_material for n in ('Encoder', 'EncoderCap')}
-        col = bpy.data.objects['Encoder'].users_collection[0]
+        # build once at frame 0 and turn the object about the encoder's centre, so the texture of its sandblasted
+        # top turns with it (rebuilding the shape each frame left the grain standing still)
+        obs = [bpy.data.objects[n] for n in ('Encoder', 'EncoderCap')]
+        for ob in obs:
+            ob.data.transform(Matrix.Translation((-cx, cy, 0.0)))
+            ob.location = (cx, -cy, 0.0)
         for f in range(lo, hi):
-            for n in ('Encoder', 'EncoderCap'):
-                bpy.data.objects.remove(bpy.data.objects[n])
-            scene.encoder(cx, cy, col, f)
-            for n, m in mats.items():
-                bpy.data.objects[n].data.materials.clear()
-                bpy.data.objects[n].data.materials.append(m)
+            for ob in obs:
+                ob.rotation_euler = (0.0, 0.0, -2 * math.pi * f / E['frames'])    # clockwise seen from above
             render_box(sc, box, os.path.join(a.out, f'enc_{f:03d}.png'))
     print(f'sprites {a.what}: {time.time() - t0:.0f} s')
 

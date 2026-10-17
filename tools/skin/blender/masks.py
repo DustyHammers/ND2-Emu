@@ -84,6 +84,25 @@ m_black = np.where(best == 0, t, np.where(best == 2, 1 - t, 0))
 m_white = np.where(best == 1, t, np.where(best == 2, t, 0))
 tag_frac = (red_here[..., 0] == TAG[0]).astype(np.float32)
 m_body, m_tag = m_red * (1 - tag_frac), m_red * tag_frac
+# dark red lettering printed on a tag (EDIT GROUP, SCL PRE): its own ink in the art, so the black/tag blend above
+# puts only about half black in the glyphs and they print far too light. Inside the tag boxes, pixels that match a
+# tag-to-dark-red blend better than a tag-to-black one get the black share that gives the art's dark red in light
+# terms (printed inks mix by area, linearly), so the lettering keeps its contrast.
+DARKRED = (98, 9, 12)
+_lin = lambda v: (np.asarray(v, np.float32) / 255.0) ** 2.2
+W_DARK = float((_lin(TAG[0]) - _lin(DARKRED[0])) / (_lin(TAG[0]) - _lin(BLACK[0])))
+t_dr, e_dr = blend(np.broadcast_to(np.array(TAG, np.float32), p.shape), np.broadcast_to(np.array(DARKRED, np.float32), p.shape))
+# only the tags whose lettering is dark red (a white-lettered tag's soft letter shadows stay as they are)
+_boxes, _nb = nd.label(nd.binary_fill_holes(is_tag))
+_glyph = (np.abs(p - np.array(DARKRED, np.float32)).max(-1) < 22)
+_count = nd.sum(_glyph, _boxes, range(1, _nb + 1))
+_dark_boxes = [i + 1 for i, c in enumerate(_count) if c > 300]
+in_box = nd.binary_erosion(np.isin(_boxes, _dark_boxes), iterations=2)
+dr = in_box & (best == 0) & (red_here[..., 0] == TAG[0]) & (e_dr < res[0][1]) & (t_dr > 0.02)
+m_black = np.where(dr, W_DARK * core(t_dr), m_black)
+m_tag = np.where(dr, 1 - W_DARK * core(t_dr), m_tag)
+m_body = np.where(dr, 0.0, m_body)
+print(f'dark red lettering: {int(dr.sum())} px, black share in the glyphs {W_DARK:.2f}')
 
 inks = np.stack([m_body, m_black, m_tag, m_white], -1)
 # outside the art's rounded corners (window colour) the sheet is still red paint: it bends down into the walls

@@ -176,6 +176,7 @@ def main():
                     help='render only this part of the frame (0-1, y up), cropped')
     ap.add_argument('--res', type=int, default=50, help='percent of the 2x canvas (50 = 1x)')
     ap.add_argument('--light', default='C')
+    ap.add_argument('--bent', action='store_true', help='exploration: the opened panel with the bend pots (bent_mod.py)')
     ap.add_argument('--maps', required=True)
     ap.add_argument('--hdr')
     ap.add_argument('--samples', type=int, default=96)
@@ -196,6 +197,9 @@ def main():
     materials.PAINT['virtual_perspective'] = a.view == 'top'
     mats = materials.assign_all(sc, os.path.abspath(a.maps), None, emission if a.display == 'lit' else None)
     V = lighting.setup(sc, a.light, a.hdr)
+    if a.bent:
+        import bent_mod
+        bent_mod.add(os.path.dirname(os.path.abspath(a.out)))
     sc.render.engine = 'CYCLES'
     cy = sc.cycles
     cy.device, cy.samples, cy.use_denoising = 'CPU', a.samples, a.denoise != 'off'

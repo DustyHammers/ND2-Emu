@@ -402,9 +402,13 @@ def digit_board(name):
     mix = nt.nodes.new('ShaderNodeMix')
     mix.data_type = 'RGBA'
     _link(nt, gap.outputs[0], mix.inputs['Factor'])
-    mix.inputs['A'].default_value = (0.022, 0.02, 0.02, 1)       # package face (dark red through the filter)
-    mix.inputs['B'].default_value = (0.0, 0.0, 0.0, 1)           # gap
+    mix.inputs['A'].default_value = (0.009, 0.009, 0.009, 1)     # package face: dark behind the smoked filter (photo)
+    mix.inputs['B'].default_value = (0.004, 0.004, 0.004, 1)     # gap: a darker line between packages (photo)
     _link(nt, mix.outputs['Result'], b.inputs['Base Color'])
+    # most of what shows through the filter is the faces' sheen, so keep them nearly matte (the photo's window
+    # is dark) and the gaps duller still, so the dividers read as darker lines
+    sp = _m(nt, 'ADD', _m(nt, 'MULTIPLY', gap, -0.11), 0.15)
+    _link(nt, sp.outputs[0], b.inputs['Specular IOR Level'])
     return m
 
 
@@ -415,7 +419,8 @@ def metal(name, rgb, rough):
 
 
 def assign_all(scene, maps_dir, peel_strips=None, emission_png=None):
-    lens = simple('DisplayLens', (0.95, 0.002, 0.004), 0.08, 0.08, transmission=1.0)  # deep red filter, low glare
+    # smoked red filter: the photo's window is a dark, slightly purple red, a little darker than the black panel
+    lens = simple('DisplayLens', (0.95, 0.24, 0.37), 0.08, 0.08, transmission=1.0)
     lens.node_tree.nodes.get('Principled BSDF').inputs['IOR'].default_value = 1.05     # anti-glare filter
     mats = {
         'paint': paint(maps_dir, peel_strips),

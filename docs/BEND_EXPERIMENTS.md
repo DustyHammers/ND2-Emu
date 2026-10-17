@@ -36,3 +36,13 @@ Fuzz, 240 seeds on bank 1 program 5 (roll at 1.5 s, reset at 5.6 s, run to 10 s)
 back to normal after the reset (last 2 s within 1.0 dB of the unbent render, 0.25 s windows; median 0.3 dB). Level
 is the hazard: while bent the median was -13.5 dB RMS against -24.6 dB normal, 92 runs above -10 dB RMS and 154
 reaching full scale (hot mix bus, wrap, feedback, jammed decay, stretch). A level guard is needed.
+
+### Pool v2 (owner: no constant roar, no excessive noise, no feedback; no limiter)
+
+No feedback; the decay table only chokes (0x1000-0x7FFF, never the jam that drones); one bend per voice; per-voice
+wrap and fold gains 1.5-3; crackle at most 0.003; stretch x2-x3; mix bus +6 dB only, and only alone (not with
+stretch, wrap or clipping off). Nothing is processed after the chip.
+
+Fuzz, 240 seeds: no crash or hang; back to normal after every reset (worst 1.0 dB). Bent median RMS -25.2 dB against
+-24.2 dB normal; loudest roll -16.0 dB (+8 dB); level between hits at most -20.7 dB (normal -34 dB), so no roar;
+11 rolls more than 6 dB louder than normal.

@@ -283,27 +283,32 @@ int main(int argc, char** argv) {
       bsaved.lcg[0] = C.ld16(0x1DFA); bsaved.lcg[1] = C.ld16(0xDDB4); bsaved.lcg[2] = C.ld16(0x1DFC); bsaved.lcg[3] = C.ld16(0xDDB6);
       for (int i = 0; i < 256; i++) bsaved.decay[i] = C.ld16(0xAD62 + 2 * i);
       bsaved.mix[0] = C.prog[0x1AA1E / 2]; bsaved.mix[1] = C.prog[0x1AA58 / 2];
-      int n = 0; char d[96];
-      while (n == 0) for (int b = 0; b < 10; b++) if (ru() < 0.3) { n++; switch (b) {
+      int n = 0; char d[96]; bool want_hot = false;
+      while (n == 0) for (int b = 0; b < 10; b++) if (ru() < 0.3) { n++; d[0] = 0; switch (b) {
+        // pool v2 (owner, 2026-10-17): no feedback, no constant roar (no jammed decay), no excessive noise
+        // (mix bus at most +6 dB and never with clipping off, mild per-voice gains, light crackle, stretch up to x4)
         case 0: { int fc = 900 + (int)(ru() * 900); B.frame_cycles = fc; snprintf(d, sizeof d, "starve %d; ", fc); break; }
         case 1: { int m = rr() % 4; for (int i = 0; i < 2048; i++) { uint16_t v = bsaved.sine[i];
             if (m == 0) { int b2 = (i >> 2) & 1, b9 = (i >> 9) & 1; v = bsaved.sine[(i & ~0x204) | (b9 << 2) | (b2 << 9)]; }
-            else if (m == 1) v |= (uint16_t)(1u << (8 + rr() % 1 + (int)(ru() * 7)));
+            else if (m == 1) v |= (uint16_t)(1u << (8 + (int)(ru() * 7)));
             else if (m == 2) v &= 0xE000; else v ^= v >> 1;
             C.st16(0x39B8 + 2 * i, v); } snprintf(d, sizeof d, "sine %d; ", m); break; }
         case 2: { uint16_t m = (uint16_t)rr(); C.st16(0x1DFA, m); if (ru() < 0.5) C.st16(0xDDB4, (uint16_t)rr()); snprintf(d, sizeof d, "noise %04x; ", m); break; }
-        case 3: { int sh = 4 + rr() % 3; uint32_t w = 0xC80040 | ((64 - sh) & 0x3F); C.prog[0x1AA1E / 2] = w; C.prog[0x1AA58 / 2] = w; C.invalidate(0x1AA1E); C.invalidate(0x1AA58); snprintf(d, sizeof d, "hot -%d; ", sh); break; }
-        case 4: C.bend_nosat = true; C.update_ipl(); snprintf(d, sizeof d, "nosat; "); break;
-        case 5: { uint16_t v = ru() < 0.5 ? (uint16_t)(1 + rr() % 16) : (uint16_t)(0x1000 + rr() % 0x7000); for (int i = 0; i < 256; i++) C.st16(0xAD62 + 2 * i, v); snprintf(d, sizeof d, "decay %04x; ", v); break; }
-        case 6: fbk.g = 0.3 + ru() * 3; fbk.mask = 1 + rr() % 63; snprintf(d, sizeof d, "feedback %.1f %02x; ", fbk.g, fbk.mask); break;
-        case 7: { int nv = 1 + rr() % 6; std::string t = "voices:"; for (int k = 0; k < nv; k++) { int ch = 1 + rr() % 6, m = rr() % 6;
+        case 3: want_hot = true; break;
+        case 4: if (C.prog[0x1AA1E / 2] == bsaved.mix[0]) { C.bend_nosat = true; C.update_ipl(); snprintf(d, sizeof d, "nosat; "); } break;
+        case 5: { uint16_t v = (uint16_t)(0x1000 + rr() % 0x7000); for (int i = 0; i < 256; i++) C.st16(0xAD62 + 2 * i, v); snprintf(d, sizeof d, "choke %04x; ", v); break; }
+        case 6: break;   // feedback: left out
+        case 7: { int nv = 1 + rr() % 6; std::string t = "voices:"; bool used[6] = {}; for (int k = 0; k < nv; k++) { int ch = 1 + rr() % 6, m = rr() % 6;
+            if (used[ch - 1]) continue; used[ch - 1] = true;
             if (m == 5) { bskip[ch - 1] = 2 + rr() % 3; t += " " + std::to_string(ch) + "=under" + std::to_string(bskip[ch - 1]); continue; }
-            static const char* mm[5] = {"crush", "hold", "wrap", "fold", "crackle"}; static const double lo[5] = {2, 2, 2, 1.5, 0.0005}, hi[5] = {10, 32, 32, 12, 0.01};
+            static const char* mm[5] = {"crush", "hold", "wrap", "fold", "crackle"}; static const double lo[5] = {3, 2, 1.5, 1.2, 0.0003}, hi[5] = {10, 16, 3, 3, 0.003};
             BVox v; v.ch = ch; v.mode = mm[m]; v.amt = lo[m] + ru() * (hi[m] - lo[m]); bvox.push_back(v); t += " " + std::to_string(ch) + "=" + v.mode; }
           snprintf(d, sizeof d, "%s; ", t.c_str()); break; }
-        case 8: bstretch = 2 + rr() % 7; snprintf(d, sizeof d, "stretch %d; ", bstretch); break;
+        case 8: bstretch = 2 + rr() % 2; snprintf(d, sizeof d, "stretch %d; ", bstretch); break;
         case 9: bbrown = 0.00002 + ru() * 0.00008; snprintf(d, sizeof d, "brownouts; "); break; }
         broll_desc += d; }
+      if (want_hot) { bool wrap = false; for (auto& v : bvox) wrap |= v.mode == "wrap";
+        if (bstretch == 1 && !wrap && !C.bend_nosat) { uint32_t w = 0xC80040 | ((64 - 4) & 0x3F); C.prog[0x1AA1E / 2] = w; C.prog[0x1AA58 / 2] = w; C.invalidate(0x1AA1E); C.invalidate(0x1AA58); broll_desc += "hot +6dB; "; } }
       printf("roll %u at %.2f: %s\n", broll_seed, now, broll_desc.c_str());
     }
     if (broll_seed && broll_reset > 0 && now >= broll_reset) {

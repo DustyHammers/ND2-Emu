@@ -408,19 +408,34 @@ def button(name, cx, cy, col, pressed=False):
     w0, h0, r0 = B['cap_w'] - 2 * B['draft'], B['cap_h'] - 2 * B['draft'], B['cap_r']
     # top profile (u = progress from the wall outline to the pill outline, v = share of the shoulder height),
     # after the close-up photo: a rounded top edge on the wall onto a flat ledge, then a raised pill
-    profile = [(0.01, 0.16), (0.03, 0.28), (0.07, 0.38), (0.12, 0.44), (0.20, 0.47), (0.50, 0.50), (0.80, 0.52),
-               (0.86, 0.56), (0.90, 0.68), (0.94, 0.84), (0.97, 0.95), (0.99, 0.99), (1.0, 1.0)]
+    # a small round onto a flat ledge, then a clearly raised pill with a soft rounded rim
+    profile = [(0.01, 0.14), (0.03, 0.24), (0.06, 0.30), (0.12, 0.33), (0.50, 0.35), (0.78, 0.37),
+               (0.83, 0.45), (0.87, 0.62), (0.91, 0.80), (0.95, 0.92), (0.98, 0.98), (1.0, 1.0)]
     for u, v in profile:
         w = w0 + (B['pill_w'] - w0) * u
         h = h0 + (B['pill_h'] - h0) * u
         r = r0 + (B['pill_h'] * 0.49 - r0) * u      # just under h/2: a true stadium has a zero-length side
         rings.append((rounded_rect(cx, cy, w, h, r, k, m), z_sh + B['shoulder'] * v + dz))
-    for i in range(1, 6):                            # crowned top face
-        s = 1 - i / 6
+    n_top = 12
+    for i in range(1, n_top):                        # the pill's top face (shaped into a groove below)
+        s = 1 - i / n_top
         pts = rounded_rect(cx, cy, B['pill_w'] * s + 1e-3, B['pill_h'] * s + 1e-3, B['pill_h'] * s * 0.49, k, m)
-        rings.append((pts, B['top_z'] + B['crown'] * (1 - s * s) + dz))
+        rings.append((pts, B['top_z'] + dz))
     bm = bmesh.new()
     loft(bm, rings, cap_top=True, cap_bottom=True)
+    # finger groove: concave across the pill's short side, running along its length, easing out at the ends
+    zt = B['top_z'] + dz
+    hw, hh = B['pill_w'] / 2, B['pill_h'] / 2
+    for v in bm.verts:
+        if abs(v.co.z - zt) > 1e-3:
+            continue
+        u = abs(v.co.x - cx) / hw
+        w = abs(-v.co.y - cy) / hh
+        if u >= 1 or w >= 1:
+            continue
+        across = 1 - w * w
+        along = 1 - u ** 6
+        v.co.z = zt - B['dish'] * across * along
     return new_object(name, bm, col)
 
 

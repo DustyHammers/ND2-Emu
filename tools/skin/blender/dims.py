@@ -23,12 +23,12 @@ PLATE = dict(
 )
 
 BUTTON = dict(
-    hole_w=248.0, hole_h=123.0, hole_r=16.0,   # the art's hole (all buttons but SHIFT, which is drawn 12 x 10 px smaller)
-    cap_w=242.0, cap_h=118.0, cap_r=13.0,      # photo: cap fills the hole with about 3 px clearance
-    pill_w=165.0, pill_h=70.0,                 # photo: the light top face is a stadium of about 10.6 x 4.5 mm
+    hole_w=248.0, hole_h=123.0, hole_r=6.0,    # the art's hole size; nearly square corners (straight-on photo)
+    cap_w=242.0, cap_h=118.0, cap_r=5.0,       # cap fills the hole with about 3 px clearance; nearly square corners
+    pill_w=176.0, pill_h=78.0,                 # straight-on photo: the raised pill is about 11.5 x 5.4 mm
     top_z=3.0 * MM,          # cap top above the panel (owner: lower than 5 mm)
     shoulder=1.3 * MM,       # from the wall's top edge to the top of the raised pill (estimate)
-    crown=0.15 * MM,         # the top face's slight dome (estimate)
+    dish=0.22 * MM,          # the pill's top is a shallow finger groove: concave across, running along it (owner)
     draft=2.0,               # wall draft, px per side over the wall height
     bottom_z=-3.0 * MM,
     travel=1.2 * MM,         # pressed frame (estimate)

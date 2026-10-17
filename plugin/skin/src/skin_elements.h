@@ -1,5 +1,6 @@
 // The custom skin elements: <pbutton button>, <led code> (with an optional <lamp> child), <knob control="master">,
-// <encoder>, <segdigit pos> (with <seg class="a".."g"|"dp"> children), <action name> (a plugin action, e.g. "banks").
+// <encoder>, <segdigit pos> (with <seg class="a".."g"|"dp"> children), <action name> (a plugin action, e.g. "banks"),
+// and for the circuit-bent mode <bendpot pad="1".."6"> and <bendled> (with <lamp> children).
 #pragma once
 #include <RmlUi/Core/Element.h>
 #include <string>
@@ -119,6 +120,44 @@ private:
     SkinView* view_;
     std::string name_;
     int lit_ = -1;
+};
+
+// Circuit-bent mode: a bend pot <bendpot pad="1".."6"> (a sprite like the knob: RCSS frames, spriteprefix). Step 0
+// (Off) ... kBendSteps - 1 sit at frames round(step x (frames - 1) / (kBendSteps - 1)). A drag turns it smoothly and
+// selects the nearest step as it goes; on release it settles on that step. Vertical drag, mouse wheel (a step a notch).
+class BendPotElement : public SpriteElement {
+public:
+    explicit BendPotElement(const Rml::String& tag);
+    ~BendPotElement() override;
+    int pad() const { return pad_; }                    // 0-5, -1 without a valid pad attribute
+    int step() const { return step_; }
+    double frame() const { return frame_; }
+    void show(int step);                                // the instrument's value (unless being dragged)
+    void beginDrag();
+    void dragTo(double frame);                          // turns; sends the step when it changes
+    void endDrag();
+    void wheel(int steps);
+    double stepFrame(int step);
+protected:
+    void OnUpdate() override;
+    void OnAttributeChange(const Rml::ElementAttributes& changed) override;
+private:
+    SkinView* view_;
+    int pad_ = -1, step_ = 0;
+    double frame_ = 0;
+    bool dragging_ = false;
+};
+
+// Circuit-bent mode: the indicator LED. Its <lamp> children are lit while the bent panel is shown and flicker while a
+// bend pot turns (the runtime sets their opacity).
+class BendLedElement : public Rml::Element {
+public:
+    explicit BendLedElement(const Rml::String& tag);
+    ~BendLedElement() override;
+    bool setOpacity(float opacity);                     // true if it changed
+private:
+    SkinView* view_;
+    float opacity_ = -1;
 };
 
 int parseInt(const std::string& s, int fallback);   // decimal or 0x hex

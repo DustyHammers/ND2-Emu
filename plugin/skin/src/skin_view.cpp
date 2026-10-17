@@ -20,6 +20,8 @@ namespace {
 constexpr double kRawPerDp = double(kMasterMax) / 256.0;   // knob drag: full range over 256 dp
 constexpr double kFineFactor = 0.1;                        // with Shift
 constexpr double kDpPerDetent = 12.0, kFineDpPerDetent = 36.0;   // encoder drag
+constexpr double kPotDpPerTurn = 256.0;                    // bend pot drag: its whole travel over 256 dp, like the knob
+constexpr double kFlickerSeconds = 0.15, kFlickerHz = 30;  // the bend LED flickers while a pot turns (and just after)
 constexpr size_t kLogLines = 300;
 
 // Draws nothing (tests, and a view whose renderer is not ready).
@@ -162,6 +164,8 @@ void SkinView::dispatchShow(Rml::Element* e) {
 }
 
 void SkinView::unload() {
+    if (dragPot_) { BendPotElement* p = dragPot_; dragPot_ = nullptr; p->endDrag(); }
+    bent_ = -1;
     dragKnob_ = nullptr;
     dragEncoder_ = nullptr;
     if (mousePressed_) { mousePressed_->mouseRelease(); mousePressed_ = nullptr; }
@@ -214,8 +218,23 @@ void SkinView::update(double now) {
 
 SkinView::Stats SkinView::stats() const { return {frames_.load(), changedFrames_.load(), luaCalls_.load()}; }
 
+// The bend LED: lit; flickering while a pot turns (and kFlickerSeconds after its last move).
+bool SkinView::updateBendLeds() {
+    const bool flickering = lastPotTurn_ >= 0 && now_ - lastPotTurn_ < kFlickerSeconds;
+    if (!flickering) flicker_ = 1;
+    else if (now_ >= nextFlicker_) {
+        flickerRng_ ^= flickerRng_ << 13; flickerRng_ ^= flickerRng_ >> 17; flickerRng_ ^= flickerRng_ << 5;
+        flicker_ = 0.35f + 0.65f * float(flickerRng_ >> 8) / 16777216.0f;
+        nextFlicker_ = now_ + 1.0 / kFlickerHz;
+    }
+    bool changed = false;
+    for (BendLedElement* l : bendLeds_) if (l->setOpacity(flicker_)) changed = true;
+    return changed;
+}
+
 void SkinView::computeNextWake() {
     double wake = std::numeric_limits<double>::infinity();
+    if (lastPotTurn_ >= 0 && now_ - lastPotTurn_ < kFlickerSeconds + 0.05) wake = std::min(nextFlicker_, lastPotTurn_ + kFlickerSeconds + 0.01);
     if (document_ && hasFrameHandler_) wake = lastFrameEvent_ + 1.0 / kFrameEventHz;
     if (context_) {
         const double d = context_->GetNextUpdateDelay();         // animations, transitions (0: next frame)
@@ -252,6 +271,21 @@ bool SkinView::poll() {
     }
     for (SegDigitElement* d : digits_) if (d->setByte(segs_[size_t(d->pos())])) changed = true;
     for (ActionElement* a : actions_) if (a->setLit(port_.actionLit(a->name()))) changed = true;
+    const int bv = port_.bentView() ? 1 : 0;
+    if (bv != bent_) {
+        bent_ = bv;
+        if (document_) document_->SetClass("bent", bv == 1);
+        changed = true;
+    }
+    for (int p = 0; p < kBendPads; ++p) {
+        const int b = port_.bend(p);
+        if (b != bends_[size_t(p)] || !known_) {
+            bends_[size_t(p)] = b;
+            changed = true;
+        }
+    }
+    for (BendPotElement* pot : pots_) if (pot != dragPot_ && pot->pad() >= 0) pot->show(bends_[size_t(pot->pad())]);
+    if (updateBendLeds()) changed = true;
     const int m = port_.master();
     if (m != master_ && !dragKnob_) {
         master_ = m;
@@ -288,6 +322,13 @@ void SkinView::turnEncoder(int detents) {
     encoderTurned(detents);
 }
 
+void SkinView::bendTurned(int pad, int step) {
+    lastPotTurn_ = now_;
+    if (pad < 0 || pad >= kBendPads || step < 0) return;
+    bends_[size_t(pad)] = step;
+    port_.setBend(pad, step);
+}
+
 void SkinView::button(int index, bool down) {
     if (index < 0 || index >= kButtons) return;
     if ((down_.count(index) != 0) == down) return;  // only press and release edges
@@ -317,6 +358,11 @@ void SkinView::mouseMove(int x, int y, int mods) {
             const double perPx = kRawPerDp * (fine ? kFineFactor : 1.0) / double(dpRatio_);
             dragKnob_->move(dragStartRaw_ + int(std::lround(double(dragStartY_ - y) * perPx)));
         }
+        if (dragPot_) {
+            if (fine != dragFine_) { dragFine_ = fine; dragStartY_ = y; dragStartFrame_ = dragPot_->frame(); }
+            const double framesPerPx = (dragPot_->stepFrame(kBendSteps - 1) / kPotDpPerTurn) * (fine ? kFineFactor : 1.0) / double(dpRatio_);
+            dragPot_->dragTo(dragStartFrame_ + double(dragStartY_ - y) * framesPerPx);
+        }
         if (dragEncoder_) {
             if (fine != dragFine_) { dragFine_ = fine; dragStartY_ = y; dragDetents_ = 0; }
             const double perDetent = (fine ? kFineDpPerDetent : kDpPerDetent) * double(dpRatio_);
@@ -333,11 +379,20 @@ void SkinView::mouseDown(int button, int mods) {
     guarded(this, [&] {
         ViewScope s(this);
         if (!context_) return;
+        if (button == 0 && document_ && (mods & ModMeta)) {   // Cmd-click: the bent panel shows / hides
+            port_.setBentView(!port_.bentView());
+            poll();
+            return;
+        }
         if (button == 0 && document_) {
             Rml::Element* hover = context_->GetHoverElement();
             dragFine_ = (mods & ModShift) != 0;
             dragStartY_ = mouseY_;
-            if (KnobElement* k = findUp<KnobElement>(hover)) {
+            if (BendPotElement* p = findUp<BendPotElement>(hover); p && p->pad() >= 0) {
+                dragPot_ = p;
+                dragStartFrame_ = p->frame();
+                p->beginDrag();
+            } else if (KnobElement* k = findUp<KnobElement>(hover)) {
                 dragKnob_ = k;
                 dragStartRaw_ = k->raw();
             } else if (EncoderElement* e = findUp<EncoderElement>(hover)) {
@@ -360,6 +415,7 @@ void SkinView::mouseUp(int button, int mods) {
         ViewScope s(this);
         if (context_) context_->ProcessMouseButtonUp(button, mods);
         if (button == 0) {
+            if (dragPot_) { BendPotElement* p = dragPot_; dragPot_ = nullptr; p->endDrag(); }
             dragKnob_ = nullptr;
             dragEncoder_ = nullptr;
             if (mousePressed_) { PButtonElement* b = mousePressed_; mousePressed_ = nullptr; b->mouseRelease(); }
@@ -373,6 +429,10 @@ void SkinView::mouseWheel(float deltaY, int mods) {
         if (!context_) return;
         if (document_) {
             Rml::Element* hover = context_->GetHoverElement();
+            if (BendPotElement* p = findUp<BendPotElement>(hover); p && p->pad() >= 0) {
+                p->wheel(deltaY < 0 ? 1 : -1);
+                return;
+            }
             if (KnobElement* k = findUp<KnobElement>(hover)) { k->wheel(-deltaY, (mods & ModShift) != 0); return; }
             if (EncoderElement* e = findUp<EncoderElement>(hover)) {
                 const int d = deltaY < 0 ? int(std::ceil(-deltaY)) : -int(std::ceil(deltaY));
@@ -453,5 +513,9 @@ void SkinView::unregisterElement(LedElement* e) { leds_.erase(e); }
 void SkinView::unregisterElement(SegDigitElement* e) { digits_.erase(e); }
 void SkinView::registerElement(ActionElement* e) { actions_.insert(e); }
 void SkinView::unregisterElement(ActionElement* e) { actions_.erase(e); }
+void SkinView::registerElement(BendPotElement* e) { pots_.insert(e); }
+void SkinView::unregisterElement(BendPotElement* e) { pots_.erase(e); if (dragPot_ == e) dragPot_ = nullptr; }
+void SkinView::registerElement(BendLedElement* e) { bendLeds_.insert(e); }
+void SkinView::unregisterElement(BendLedElement* e) { bendLeds_.erase(e); }
 
 }  // namespace skin

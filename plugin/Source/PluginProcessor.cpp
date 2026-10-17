@@ -5,7 +5,8 @@
 
 namespace {
 constexpr uint32_t kStateMagic = 0x50324E44;     // "ND2P" (little-endian)
-constexpr uint32_t kStateVersion = 3;            // 2: bank names after the machine; 3: then MIDI out to the host
+constexpr uint32_t kStateVersion = 4;            // 2: bank names after the machine; 3: then MIDI out to the host;
+                                                 // 4: then the six bends (one byte each)
 constexpr int kTimerMs = 100;
 }  // namespace
 
@@ -18,7 +19,21 @@ juce::AudioProcessor::BusesProperties ND2Processor::buses() {
     return b;
 }
 
+const juce::StringArray& ND2Processor::bendNames() {
+    static const juce::StringArray names{"Off", "Crush", "Sample & Hold", "Stuck Bit", "Crackle", "Underclock", "Stretch",
+                                         "Sine Bend", "Noise Bend"};
+    return names;
+}
+
 ND2Processor::ND2Processor() : AudioProcessor(buses()) {
+    static_assert(nd2::kBendCount == skin::kBendSteps && kBendPads == skin::kBendPads, "bend steps and pads agree");
+    for (int k = 0; k < kBendPads; ++k) {
+        auto* p = new juce::AudioParameterChoice(juce::ParameterID("bend" + juce::String(k + 1), 1), "Bend " + juce::String(k + 1),
+                                                 bendNames(), 0);
+        addParameter(p);
+        p->addListener(this);
+        bends_[size_t(k)] = p;
+    }
     events_.reserve(4096);
     port_.owner = this;
     setMidiToHost(true);                             // the OS's MIDI out (panel CCs, pad notes, programs) to the host
@@ -27,7 +42,43 @@ ND2Processor::ND2Processor() : AudioProcessor(buses()) {
     startTimer(kTimerMs);
 }
 
-ND2Processor::~ND2Processor() { stopTimer(); }
+ND2Processor::~ND2Processor() {
+    stopTimer();
+    for (auto* p : bends_) p->removeListener(this);
+}
+
+// A bend parameter changed (the pot, host automation, a project; any thread, the audio thread included): the engine
+// takes it lock-free at its next block. Turning a bend on opens the bent panel, so a bent sound is always visible.
+void ND2Processor::parameterValueChanged(int parameterIndex, float) {
+    for (int k = 0; k < kBendPads; ++k)
+        if (bends_[size_t(k)]->getParameterIndex() == parameterIndex) {
+            const int v = bends_[size_t(k)]->getIndex();
+            engine_.setBend(k, v);
+            if (v != 0) bentView.store(true);
+            bendSerial_.fetch_add(1);
+        }
+}
+
+// The skin's render thread: the engine at once; the parameter (and so the host) on the message thread.
+void ND2Processor::Port::setBend(int pad, int value) {
+    engine.setBend(pad, value);
+    owner->bendSerial_.fetch_add(1);
+    std::weak_ptr<int> a = alive;
+    ND2Processor* p = owner;
+    juce::MessageManager::callAsync([a, p, pad, value] {
+        if (!a.lock()) return;
+        if (auto* prm = p->bendParam(pad); prm && prm->getIndex() != value) *prm = value;
+    });
+}
+
+void ND2Processor::Port::bendGesture(int pad, bool begin) {
+    std::weak_ptr<int> a = alive;
+    ND2Processor* p = owner;
+    juce::MessageManager::callAsync([a, p, pad, begin] {
+        if (!a.lock()) return;
+        if (auto* prm = p->bendParam(pad)) { if (begin) prm->beginChangeGesture(); else prm->endChangeGesture(); }
+    });
+}
 
 // The skin's render thread: handled on the message thread by the editor, if this instance still exists.
 void ND2Processor::Port::action(const std::string& name) {
@@ -188,6 +239,7 @@ void ND2Processor::getStateInformation(juce::MemoryBlock& dest) {
     out.write(packed.getData(), packed.getSize());
     bankfiles::writeRecords(out, banks_.records());
     out.writeByte(midiToHost() ? 1 : 0);
+    for (auto* p : bends_) out.writeByte(char(p->getIndex()));
 }
 
 void ND2Processor::setStateInformation(const void* data, int size) {
@@ -199,20 +251,28 @@ void ND2Processor::setStateInformation(const void* data, int size) {
     editorScale = in.readFloat();
     const juce::int64 rawSize = in.readInt64(), packedSize = in.readInt64();
     if (master >= 0.0f && master <= 1.0f) engine_.setMasterLevel(master);
-    if (rawSize <= 0 || rawSize > (juce::int64(64) << 20) || packedSize <= 0 || packedSize > in.getNumBytesRemaining()) return;
+    // an empty machine (saved before the OS was found): the rest of the state still applies
+    if (rawSize < 0 || rawSize > (juce::int64(64) << 20) || packedSize <= 0 || packedSize > in.getNumBytesRemaining()) return;
     juce::MemoryBlock packed;
     in.readIntoMemoryBlock(packed, packedSize);
-    juce::MemoryInputStream packedIn(packed, false);
-    juce::GZIPDecompressorInputStream gz(packedIn);
     std::vector<uint8_t> machine(static_cast<size_t>(rawSize));
-    if (gz.read(machine.data(), int(rawSize)) != int(rawSize)) return;
+    if (rawSize > 0) {
+        juce::MemoryInputStream packedIn(packed, false);
+        juce::GZIPDecompressorInputStream gz(packedIn);
+        if (gz.read(machine.data(), int(rawSize)) != int(rawSize)) return;
+    }
     bankfiles::BankRecords names{};
     for (auto& b : names) b.crcs.fill(bankfiles::kEmpty);
     if (version >= 2) bankfiles::readRecords(in, names);
     setMidiToHost(version >= 3 && !in.isExhausted() ? in.readByte() != 0 : true);   // older projects: on (as 0.2.1)
+    for (auto* p : bends_) {                         // older projects: no bends
+        const int v = version >= 4 && !in.isExhausted() ? int(in.readByte()) : 0;
+        *p = juce::jlimit(0, skin::kBendSteps - 1, v);
+    }
     banks_.setRecords(names);                        // projects from before 0.1.7: no names (the window finds them)
     projectBanks_ = true;
     std::string err;
+    if (machine.empty()) return;
     if (started_) {
         if (engine_.setState(machine, err)) bootedWithoutFactory_ = false;
     } else {

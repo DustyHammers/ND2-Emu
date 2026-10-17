@@ -69,6 +69,12 @@ public:
     return c >= 0 && c < kPads ? int((midiChannels_.load(std::memory_order_relaxed) >> (5 * (c + 1))) & 31) - 1 : -1; }
   bool trigClip(int pad) const { return pad >= 0 && pad < kPads && clipHold_[pad].load() > 0; }
 
+  // ---- circuit-bent mode (an emulator extension, see bends.h), any thread, lock-free: drum channel 0-5, bend 0 (Off)
+  // ... 8. Applied at the next block; not part of the machine state (the plugin saves it as its parameters).
+  void setBend(int channel, int bend) {
+    if (channel >= 0 && channel < kPads) bend_[channel].store(uint8_t(bend > 0 && bend < kBendCount ? bend : 0), std::memory_order_relaxed); }
+  int bend(int channel) const { return channel >= 0 && channel < kPads ? bend_[channel].load(std::memory_order_relaxed) : 0; }
+
   // ---- audio thread
   // stems: also produce the six channel outputs (stereo pairs, exact shares of the main output; see Board)
   void prepare(double hostRate, int maxBlock, bool trigIn, bool stems = false);
@@ -153,6 +159,7 @@ private:
   std::atomic<bool> masterDirty_{true};
   std::atomic<float> trigGain_[kPads];
   std::atomic<int> clipHold_[kPads];
+  std::atomic<uint8_t> bend_[kPads] = {};
   void applyPanel(Board& b);
   uint64_t downAt_[32] = {};               // when each button went down (machine cycles; under mtx_)
 

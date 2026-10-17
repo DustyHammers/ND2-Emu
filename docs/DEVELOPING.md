@@ -76,6 +76,7 @@ build/nd2render -os os.cab -flash flash.bin -trig pads.wav -o out.wav -bank 0.1,
 | `-note`, `-pgm`, `-bank`, `-midi`, `-press`, `-enc`, `-master` | as for `nd2emu`, times from the start of the render |
 | `-loadstate f` / `-savestate f` | restore / save the whole machine (plugin state format) |
 | `-keeplatency` | do not remove the reported latency from the output |
+| `-bend t,pad,bend` | circuit-bent mode from time t: pad 1-6, bend 0 (Off) - 8 (`docs/BENDS.md`) |
 | `-stems prefix` | also write `prefix_ch1.wav` … `prefix_ch6.wav`: each channel's exact share of the main output (level, pan and master included); the six add up to the main output |
 
 ## Tools
@@ -111,7 +112,9 @@ build/plugin/plugin/plugin_test [--editor [screenshot dir]]
 builds the factory memory, plays MIDI and a piezo hit, checks that the channel outputs add up to the main output,
 and round-trips the state; with the factory memory also the Banks window's work (bank 1 saved as a file, loaded
 into bank 6, the banks checked, the names in the project state). `--editor` opens the panel, clicks a button and the
-encoder, and goes through the ND2 window's tabs (right-click, last tab, closing by the dimmed area and the round button).
+encoder, opens the bent panel (Cmd-click), turns pot 1 and lets automation turn pot 6, and goes through the ND2 window's
+tabs (right-click, last tab, closing by the dimmed area and the round button). It also checks the six bend parameters
+and that they are saved with the project.
 
 Plugin data lives in `~/Documents/ND2/` (`os/`, `cache/`, `skins/`, `Library/`); global settings in
 `~/Library/Application Support/ND2/ND2.settings`.
@@ -153,6 +156,15 @@ out at 1500 x 900 dp, drawn 1300 dp of the skin wide, centred over a dimmed back
 cancelled first); the bottom-right corner stays with the resize grip. Built from the shared window parts in
 `plugin/Source/ui/` (frame, tabs, footer, buttons, switch, segmented, rows), which come from the owner's other plugin
 with ND2's red highlight and the Banks window's font. Skin actions: "banks" opens the BANKS tab.
+
+## Circuit-bent mode
+
+`source/core/nd2/bends.*` (the bends, as CPU hooks installed by `Board::boot`), `Engine::setBend` (lock-free, applied
+at the next block), `CPU::sine_remap` (the sine-table read remap), and on the plugin side the parameters Bend 1-6
+(`ND2Processor`, processor state version 4), the skin elements `<bendpot>` / `<bendled>` and the body class `bent`
+(`plugin/skin/src/skin_elements.*`, `skin_view.cpp`), Cmd-click in `RmlSkinComponent`. `tests/test_bends.cpp` (with
+`ND2_OS`, optionally `ND2_FLASH`) checks that Off leaves no trace and that a bend on one pad leaves the other pads'
+channel outputs byte-identical. Details and the OS addresses: `docs/BENDS.md`.
 
 ## CI
 

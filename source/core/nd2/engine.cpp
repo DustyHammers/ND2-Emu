@@ -199,6 +199,7 @@ void Engine::pressButton(int idx, bool down) {
 }
 
 void Engine::applyPanel(Board& b) {
+  for (int k = 0; k < kPads; k++) b.bends.set(k, bend_[k].load(std::memory_order_relaxed));
   uint64_t* downAt = downAt_;
   for (;;) {
     ButtonCell& c = buttons_[btnDequeue_ & (kButtonRing - 1)];

@@ -3,8 +3,9 @@
 //   nd2render -os <os.cab|Update.exe> [-flash flash.bin] -o out.wav [-t seconds] [-rate 48000] [-block 256]
 //             [-trig six_channel.wav] [-gain pad,g] [-note t,ch,note,vel] [-pgm t,ch,prog] [-bank t,ch,bank]
 //             [-midi "t,hex hex .."] [-press t,idx[,dur]] [-enc t,detents] [-master v]
-//             [-loadstate in.state] [-savestate out.state] [-keeplatency] [-stems prefix]
+//             [-loadstate in.state] [-savestate out.state] [-keeplatency] [-stems prefix] [-bend t,pad,bend]
 // Times are in seconds from the start of the render. The trigger WAV must be at the render rate; channel k feeds pad k+1.
+// -bend t,pad,bend: circuit-bent mode, pad 1-6, bend 0 (off) - 8 (see source/core/nd2/bends.h), from time t.
 // -stems writes prefix_ch1.wav .. prefix_ch6.wav: each channel's exact share of the main output (they add up to it).
 #include "engine.h"
 #include <algorithm>
@@ -80,7 +81,7 @@ void writeWav24(const char* fn, const std::vector<float>& l, const std::vector<f
   fclose(f);
 }
 
-struct Ev { int64_t at; int kind; std::vector<uint8_t> bytes; int a = 0, b = 0; };   // kind 0 MIDI, 1 press, 2 release, 3 encoder
+struct Ev { int64_t at; int kind; std::vector<uint8_t> bytes; int a = 0, b = 0; };   // kind 0 MIDI, 1 press, 2 release, 3 encoder, 4 bend
 
 }  // namespace
 
@@ -120,6 +121,7 @@ int main(int argc, char** argv) {
     else if (arg("-press")) { double t, dur = 0.1; int idx; if (sscanf(argv[++i], "%lf,%d,%lf", &t, &idx, &dur) < 2) continue;
       raw.push_back({t, 1, {}, idx, 0}); raw.push_back({t + dur, 2, {}, idx, 0}); }
     else if (arg("-enc")) { double t; int det; sscanf(argv[++i], "%lf,%d", &t, &det); raw.push_back({t, 3, {}, det, 0}); }
+    else if (arg("-bend")) { double t; int pad, b; if (sscanf(argv[++i], "%lf,%d,%d", &t, &pad, &b) == 3) raw.push_back({t, 4, {}, pad, b}); }
     else { fprintf(stderr, "unknown or incomplete option %s\n", argv[i]); return 1; }
   }
   if (!osPath || !outPath) { fprintf(stderr, "usage: nd2render -os <os.cab|Update.exe> -o out.wav [options] (see source)\n"); return 1; }
@@ -171,6 +173,7 @@ int main(int argc, char** argv) {
       Ev& e = evs[ei];
       if (e.kind == 0) mev.push_back({int(std::max<int64_t>(0, e.at - pos)), e.bytes.data(), int(e.bytes.size())});
       else if (e.kind == 1 || e.kind == 2) eng.pressButton(e.a, e.kind == 1);      // panel input: block resolution, like a UI
+      else if (e.kind == 4) eng.setBend(e.a - 1, e.b);                              // circuit-bent mode: from the next block
       else eng.turnEncoder(e.a);
     }
     const float* tp[Engine::kPads] = {};

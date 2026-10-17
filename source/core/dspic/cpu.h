@@ -53,6 +53,15 @@ public:
   std::vector<uint32_t> prog;   // 24-bit program words, index = pc/2
   Bus* bus = nullptr;
   bool mul_acc_fractional = true;   // MUL.xx Wb,Ws,Acc obeys CORCON.IF (fractional <<1)
+  // Circuit-bent sine (an emulator extension, nd2/bends.h): while set, indexed reads of the board's 2048-word sine
+  // table (data 0x39B8..0x49B7) through [Wn+Wb] or the DSP prefetch [W9+W12] / [W11+W12] read word sine_remap[i]
+  // instead of word i. nullptr (always, unless a bend is on): no effect.
+  const uint16_t* sine_remap = nullptr;
+  static constexpr uint16_t kSineTable = 0x39B8;
+  uint16_t remap_sine(uint16_t a) const {
+    const uint16_t d = uint16_t(a - kSineTable);
+    return d < 4096 ? uint16_t(kSineTable + (sine_remap[d >> 1] << 1) + (d & 1)) : a;
+  }
 
   int64_t accv[2] = {0, 0};    // ACCA/ACCB (40-bit, sign-extended); memory-mapped at 0x22..0x2D
   uint32_t pc = 0;

@@ -148,6 +148,7 @@ void Board::boot() {
   cpu.reset(0x4080);
   if (fast_forward) install_fast_forward();
   install_stem_taps();
+  bends.install(*this);
   last_sync = cpu.cycles; cpu.next_event = 0; cpu.attention();
 }
 

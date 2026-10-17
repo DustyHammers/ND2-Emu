@@ -239,6 +239,13 @@ void RmlSkinComponent::mouseDrag(const juce::MouseEvent& e) {
 
 void RmlSkinComponent::mouseDown(const juce::MouseEvent& e) {
     inputCaptured_ = false;
+    // Cmd-click (Ctrl-click on Windows and Linux, where JUCE also counts it as a popup-menu click): the skin's bent panel
+    if (e.mods.isCommandDown() && e.mods.isLeftButtonDown()) {
+        inputCaptured_ = true;
+        const int x = toPx(e.position.x), y = toPx(e.position.y), m = mods(e.mods);
+        post([this, x, y, m] { if (view_) { view_->mouseMove(x, y, m); view_->mouseDown(0, m | skin::ModMeta); } });
+        return;
+    }
     if (e.mods.isPopupMenu()) { if (onRightClick) onRightClick(e); return; }          // right-click never presses
     if (bannerClick(e.getPosition())) { inputCaptured_ = true; return; }
     if (onCornerResize && e.x >= getWidth() - kCornerSize && e.y >= getHeight() - kCornerSize) {

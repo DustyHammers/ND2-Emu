@@ -211,6 +211,138 @@
   enc_071: 4928px 2240px 448px 448px;
 }
 
+@spritesheet bendpot { src: ND2BendPot.png; resolution: 2x;
+  bend_000: 0px 0px 120px 120px;
+  bend_001: 120px 0px 120px 120px;
+  bend_002: 240px 0px 120px 120px;
+  bend_003: 360px 0px 120px 120px;
+  bend_004: 480px 0px 120px 120px;
+  bend_005: 600px 0px 120px 120px;
+  bend_006: 720px 0px 120px 120px;
+  bend_007: 840px 0px 120px 120px;
+  bend_008: 960px 0px 120px 120px;
+  bend_009: 1080px 0px 120px 120px;
+  bend_010: 1200px 0px 120px 120px;
+  bend_011: 1320px 0px 120px 120px;
+  bend_012: 1440px 0px 120px 120px;
+  bend_013: 1560px 0px 120px 120px;
+  bend_014: 1680px 0px 120px 120px;
+  bend_015: 1800px 0px 120px 120px;
+  bend_016: 0px 120px 120px 120px;
+  bend_017: 120px 120px 120px 120px;
+  bend_018: 240px 120px 120px 120px;
+  bend_019: 360px 120px 120px 120px;
+  bend_020: 480px 120px 120px 120px;
+  bend_021: 600px 120px 120px 120px;
+  bend_022: 720px 120px 120px 120px;
+  bend_023: 840px 120px 120px 120px;
+  bend_024: 960px 120px 120px 120px;
+  bend_025: 1080px 120px 120px 120px;
+  bend_026: 1200px 120px 120px 120px;
+  bend_027: 1320px 120px 120px 120px;
+  bend_028: 1440px 120px 120px 120px;
+  bend_029: 1560px 120px 120px 120px;
+  bend_030: 1680px 120px 120px 120px;
+  bend_031: 1800px 120px 120px 120px;
+  bend_032: 0px 240px 120px 120px;
+  bend_033: 120px 240px 120px 120px;
+  bend_034: 240px 240px 120px 120px;
+  bend_035: 360px 240px 120px 120px;
+  bend_036: 480px 240px 120px 120px;
+  bend_037: 600px 240px 120px 120px;
+  bend_038: 720px 240px 120px 120px;
+  bend_039: 840px 240px 120px 120px;
+  bend_040: 960px 240px 120px 120px;
+  bend_041: 1080px 240px 120px 120px;
+  bend_042: 1200px 240px 120px 120px;
+  bend_043: 1320px 240px 120px 120px;
+  bend_044: 1440px 240px 120px 120px;
+  bend_045: 1560px 240px 120px 120px;
+  bend_046: 1680px 240px 120px 120px;
+  bend_047: 1800px 240px 120px 120px;
+  bend_048: 0px 360px 120px 120px;
+  bend_049: 120px 360px 120px 120px;
+  bend_050: 240px 360px 120px 120px;
+  bend_051: 360px 360px 120px 120px;
+  bend_052: 480px 360px 120px 120px;
+  bend_053: 600px 360px 120px 120px;
+  bend_054: 720px 360px 120px 120px;
+  bend_055: 840px 360px 120px 120px;
+  bend_056: 960px 360px 120px 120px;
+  bend_057: 1080px 360px 120px 120px;
+  bend_058: 1200px 360px 120px 120px;
+  bend_059: 1320px 360px 120px 120px;
+  bend_060: 1440px 360px 120px 120px;
+  bend_061: 1560px 360px 120px 120px;
+  bend_062: 1680px 360px 120px 120px;
+  bend_063: 1800px 360px 120px 120px;
+  bend_064: 0px 480px 120px 120px;
+  bend_065: 120px 480px 120px 120px;
+  bend_066: 240px 480px 120px 120px;
+  bend_067: 360px 480px 120px 120px;
+  bend_068: 480px 480px 120px 120px;
+  bend_069: 600px 480px 120px 120px;
+  bend_070: 720px 480px 120px 120px;
+  bend_071: 840px 480px 120px 120px;
+  bend_072: 960px 480px 120px 120px;
+  bend_073: 1080px 480px 120px 120px;
+  bend_074: 1200px 480px 120px 120px;
+  bend_075: 1320px 480px 120px 120px;
+  bend_076: 1440px 480px 120px 120px;
+  bend_077: 1560px 480px 120px 120px;
+  bend_078: 1680px 480px 120px 120px;
+  bend_079: 1800px 480px 120px 120px;
+  bend_080: 0px 600px 120px 120px;
+  bend_081: 120px 600px 120px 120px;
+  bend_082: 240px 600px 120px 120px;
+  bend_083: 360px 600px 120px 120px;
+  bend_084: 480px 600px 120px 120px;
+  bend_085: 600px 600px 120px 120px;
+  bend_086: 720px 600px 120px 120px;
+  bend_087: 840px 600px 120px 120px;
+  bend_088: 960px 600px 120px 120px;
+  bend_089: 1080px 600px 120px 120px;
+  bend_090: 1200px 600px 120px 120px;
+  bend_091: 1320px 600px 120px 120px;
+  bend_092: 1440px 600px 120px 120px;
+  bend_093: 1560px 600px 120px 120px;
+  bend_094: 1680px 600px 120px 120px;
+  bend_095: 1800px 600px 120px 120px;
+  bend_096: 0px 720px 120px 120px;
+  bend_097: 120px 720px 120px 120px;
+  bend_098: 240px 720px 120px 120px;
+  bend_099: 360px 720px 120px 120px;
+  bend_100: 480px 720px 120px 120px;
+  bend_101: 600px 720px 120px 120px;
+  bend_102: 720px 720px 120px 120px;
+  bend_103: 840px 720px 120px 120px;
+  bend_104: 960px 720px 120px 120px;
+  bend_105: 1080px 720px 120px 120px;
+  bend_106: 1200px 720px 120px 120px;
+  bend_107: 1320px 720px 120px 120px;
+  bend_108: 1440px 720px 120px 120px;
+  bend_109: 1560px 720px 120px 120px;
+  bend_110: 1680px 720px 120px 120px;
+  bend_111: 1800px 720px 120px 120px;
+  bend_112: 0px 840px 120px 120px;
+  bend_113: 120px 840px 120px 120px;
+  bend_114: 240px 840px 120px 120px;
+  bend_115: 360px 840px 120px 120px;
+  bend_116: 480px 840px 120px 120px;
+  bend_117: 600px 840px 120px 120px;
+  bend_118: 720px 840px 120px 120px;
+  bend_119: 840px 840px 120px 120px;
+  bend_120: 960px 840px 120px 120px;
+  bend_121: 1080px 840px 120px 120px;
+  bend_122: 1200px 840px 120px 120px;
+  bend_123: 1320px 840px 120px 120px;
+  bend_124: 1440px 840px 120px 120px;
+  bend_125: 1560px 840px 120px 120px;
+  bend_126: 1680px 840px 120px 120px;
+  bend_127: 1800px 840px 120px 120px;
+}
+@spritesheet bendled { src: ND2BendLed.png; resolution: 2x; bendled_on: 0px 0px 100px 100px; bendled_off: 0px 100px 100px 100px; }
+
 body { width: 1725dp; height: 1035dp; background-color: #2b2b2e; }
 div#background { position: absolute; left: 0dp; top: 0dp; width: 1725dp; height: 1035dp; decorator: image(ND2Background.jpg); }
 
@@ -281,3 +413,19 @@ segdigit seg.a { decorator: image(seg_a); } segdigit seg.b { decorator: image(se
 #d1 { left: 561dp; top: 262dp; width: 71dp; height: 86dp; }
 #d2 { left: 625dp; top: 262dp; width: 71dp; height: 86dp; }
 #d3 { left: 689dp; top: 262dp; width: 71dp; height: 86dp; }
+
+/* Circuit-bent mode (Cmd-click; body class bent): the opened panel over the background and under the controls, a
+   bend pot per pad (Off and bends 1-8 at frames 0, 16, 32, 48, 64, 79, 95, 111, 127) and the indicator LED (lit; it
+   flickers while a pot turns: the runtime sets the lamp's opacity). */
+div#bendpanel { display: none; position: absolute; left: 196dp; top: 37dp; width: 1322dp; height: 166dp; decorator: image(ND2BendPanel.png); }
+bendpot, bendled { display: none; position: absolute; }
+body.bent div#bendpanel, body.bent bendpot, body.bent bendled { display: block; }
+bendpot { top: 88dp; width: 60dp; height: 60dp; frames: 128; spriteprefix: bend_; }
+#bend1 { left: 320dp; }
+#bend2 { left: 525dp; }
+#bend3 { left: 730dp; }
+#bend4 { left: 935dp; }
+#bend5 { left: 1140dp; }
+#bend6 { left: 1345dp; }
+bendled { left: 1427.5dp; top: 77.5dp; width: 50dp; height: 50dp; decorator: image(bendled_off); }
+bendled lamp { display: block; position: absolute; left: 0dp; top: 0dp; width: 50dp; height: 50dp; decorator: image(bendled_on); }

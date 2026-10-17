@@ -102,6 +102,31 @@ int main(int argc, char** argv) {
         CHECK(p.checkBusesLayoutSupported(noIn), "Trigger In off is accepted");
         p.prepareToPlay(48000, 256);
         std::printf("latency %d samples\n", p.getLatencySamples());
+        {   // circuit-bent mode: six host parameters Bend 1-6 (Off + 8 bends), the engine follows, saved with the project
+            const auto& params = p.getParameters();
+            CHECK(params.size() == 6, "six parameters (%d)", params.size());
+            for (int k = 0; k < params.size(); ++k) {
+                auto* c = dynamic_cast<juce::AudioParameterChoice*>(params[k]);
+                CHECK(c && c->paramID == "bend" + juce::String(k + 1) && c->getName(32) == "Bend " + juce::String(k + 1)
+                      && c->choices.size() == 9 && c->choices[0] == "Off" && c->choices[8] == "Noise Bend" && c->getIndex() == 0,
+                      "parameter %d: Bend %d, Off + 8 bends", k, k + 1);
+            }
+            CHECK(!p.bentView.load(), "the bent panel is closed in a new instance");
+            *p.bendParam(2) = 7;
+            *p.bendParam(5) = 1;
+            CHECK(p.engine().bend(2) == 7 && p.engine().bend(5) == 1 && p.engine().bend(0) == 0, "the engine follows the parameters");
+            CHECK(p.bentView.load(), "turning a bend on opens the bent panel");
+            juce::MemoryBlock st;
+            p.getStateInformation(st);
+            ND2Processor q;
+            q.setStateInformation(st.getData(), int(st.getSize()));
+            CHECK(q.bendParam(2)->getIndex() == 7 && q.bendParam(5)->getIndex() == 1 && q.bendParam(0)->getIndex() == 0,
+                  "the bends are saved with the project");
+            CHECK(q.engine().bend(2) == 7 && q.bentView.load(), "a project with bends: the engine bent, the panel open");
+            *p.bendParam(2) = 0;
+            *p.bendParam(5) = 0;
+            p.bentView = false;
+        }
         if (!res.hasOs()) {
             const Run r = play(p, 0.2, -1, -1);
             CHECK(energy(r.main) == 0, "silent without the OS");
@@ -264,6 +289,41 @@ int main(int argc, char** argv) {
                     f(ed.get());
                     return found;
                 };
+                {   // circuit-bent mode: Cmd-click opens the bent panel; pot 1 (centre 350,118 dp) dragged up selects bend 2
+                    const auto src = juce::MouseInputSource::InputSourceType::mouse;
+                    const auto L = juce::ModifierKeys::leftButtonModifier;
+                    const auto C = juce::ModifierKeys::commandModifier;
+                    auto t = juce::Time::currentTimeMillis();
+                    auto cmdClick = [&] {                               // the keyboard part of the modifiers is global in JUCE
+                        juce::ModifierKeys::currentModifiers = juce::ModifierKeys(C);
+                        peer->handleMouseEvent(src, {1600 * k, 950 * k}, juce::ModifierKeys(C), juce::MouseInputSource::defaultPressure, 0, t += 30);
+                        peer->handleMouseEvent(src, {1600 * k, 950 * k}, juce::ModifierKeys(C | L), juce::MouseInputSource::defaultPressure, 0, ++t);
+                        peer->handleMouseEvent(src, {1600 * k, 950 * k}, juce::ModifierKeys(C), juce::MouseInputSource::defaultPressure, 0, ++t);
+                        juce::ModifierKeys::currentModifiers = juce::ModifierKeys();
+                        pump(400);
+                    };
+                    cmdClick();
+                    CHECK(p.bentView.load(), "Cmd-click opens the bent panel");
+                    shot("3a_bent");
+                    peer->handleMouseEvent(src, {350 * k, 118 * k}, {}, juce::MouseInputSource::defaultPressure, 0, t += 30);
+                    peer->handleMouseEvent(src, {350 * k, 118 * k}, L, juce::MouseInputSource::defaultPressure, 0, t += 30);
+                    for (int dy = 4; dy <= 64; dy += 4) {
+                        pump(20);
+                        peer->handleMouseEvent(src, {350 * k, (118 - float(dy)) * k}, L, juce::MouseInputSource::defaultPressure, 0, t += 20);
+                    }
+                    pump(30);
+                    peer->handleMouseEvent(src, {350 * k, 54 * k}, {}, juce::MouseInputSource::defaultPressure, 0, t += 30);
+                    pump(400);
+                    CHECK(p.bendParam(0)->getIndex() == 2 && p.engine().bend(0) == 2, "pot 1 turned to bend 2 (%d, engine %d)",
+                          p.bendParam(0)->getIndex(), p.engine().bend(0));
+                    *p.bendParam(5) = 8;                                // host automation turns pot 6 fully
+                    pump(400);
+                    shot("3b_bent_pots");
+                    *p.bendParam(0) = 0;
+                    *p.bendParam(5) = 0;
+                    cmdClick();
+                    CHECK(!p.bentView.load(), "Cmd-click closes it");
+                }
                 click(900, 520, true);                                  // a right-click opens the ND2 window (first: BANKS)
                 pump(1200);
                 if (ND2Window* win = findWindow()) {

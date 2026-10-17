@@ -15,5 +15,8 @@
 	<segdigit id="d3" pos="3"><seg class="a"/><seg class="d"/></segdigit>
 	<action id="aBanks" name="banks"><lamp/></action>
 	<div id="shown" onshow="shownCount = (shownCount or 0) + 1"/>
+	<bendpot id="pot1" pad="1"/>
+	<bendpot id="pot2" pad="2"/>
+	<bendled id="bled"><lamp/></bendled>
 </body>
 </rml>

@@ -1,6 +1,7 @@
 // ND2 board model: dsPIC33EP512 peripherals as used by the original OS v3.00
 #pragma once
 #include "dspic/cpu.h"
+#include "bends.h"
 #include "util/state_io.h"
 #include <deque>
 #include <vector>
@@ -35,6 +36,9 @@ public:
   std::vector<int32_t> stems;                    // kStems words per frame, same format as `audio`
   bool stems_available() const { return stem_hooks_ok; }
   void install_stem_taps();
+
+  // Circuit-bent mode (an emulator extension, see bends.h): installed by boot(), all channels Off.
+  Bends bends;
 
   // Bus
   uint16_t sfr_read(uint16_t a) override;

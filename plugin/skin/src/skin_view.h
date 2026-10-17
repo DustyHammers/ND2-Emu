@@ -24,6 +24,8 @@ class PButtonElement;
 class LedElement;
 class SegDigitElement;
 class ActionElement;
+class BendPotElement;
+class BendLedElement;
 
 constexpr double kFrameEventHz = 60;          // body onframe at most this often
 constexpr double kLuaTimeoutSeconds = 3;      // longest a single entry into Lua may run
@@ -96,17 +98,23 @@ public:
     void registerElement(LedElement* e);
     void registerElement(SegDigitElement* e);
     void registerElement(ActionElement* e);
+    void registerElement(BendPotElement* e);
+    void registerElement(BendLedElement* e);
     void unregisterElement(KnobElement* e);
     void unregisterElement(EncoderElement* e);
     void unregisterElement(PButtonElement* e);
     void unregisterElement(LedElement* e);
     void unregisterElement(SegDigitElement* e);
     void unregisterElement(ActionElement* e);
+    void unregisterElement(BendPotElement* e);
+    void unregisterElement(BendLedElement* e);
 
     void masterMoved(int raw);                 // the knob moved by the user: send it and tell Lua
     void setMaster(int raw);                   // panel.setMaster: knobs show it, send it, tell Lua
     void encoderTurned(int detents);           // the encoder turned by the user: send it and tell Lua
     void turnEncoder(int detents);             // panel.turn: encoders show it, send it, tell Lua
+    void bendTurned(int pad, int step);        // a bend pot turned by the user (step -1: turned within its step)
+    bool bentView() const { return bent_ == 1; }
     void button(int index, bool down);         // press / release edges (mouse, latching hold, Lua)
     bool isHeld(int index) const { return held_.count(index) != 0; }
     void setHeld(int index, bool held);
@@ -148,6 +156,16 @@ private:
     std::set<LedElement*> leds_;
     std::set<SegDigitElement*> digits_;
     std::set<ActionElement*> actions_;
+    std::set<BendPotElement*> pots_;
+    std::set<BendLedElement*> bendLeds_;
+    BendPotElement* dragPot_ = nullptr;
+    double dragStartFrame_ = 0;
+    int bent_ = -1;                            // the bent panel shown (class bent on the body); -1 not known yet
+    std::array<int, kBendPads> bends_{};
+    double lastPotTurn_ = -1, nextFlicker_ = 0;
+    float flicker_ = 1;
+    uint32_t flickerRng_ = 0x9E3779B9u;
+    bool updateBendLeds();
     KnobElement* dragKnob_ = nullptr;
     EncoderElement* dragEncoder_ = nullptr;
     int dragStartY_ = 0, dragStartRaw_ = 0, dragDetents_ = 0;

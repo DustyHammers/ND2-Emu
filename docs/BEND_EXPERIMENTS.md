@@ -80,3 +80,9 @@ Still to do for a real feature: the tone-model-specific decay words, for every t
 - Crush on the channel signal needs about 8 kept bits (5 is near silence: the channel signals are small).
 - Reel settings (all six pads): crush 8, hold 8, wrap 2.5, fold 3, stuck0 25, crackle 0.002, underclock 1 in 2,
   stretch x3, sine swap, noise mode 1.
+
+## Agreed with the owner (2026-10-17)
+
+Six host-automatable bend knobs, one per pad, 9 steps each: Off, Crush, Sample & Hold, Stuck Bit, Crackle, Underclock,
+Stretch, Sine Bend, Noise Bend, at the settings listed above for the reel. Wrap and fold are out; no random roll; no
+limiter. Cmd-click shows the knobs (design from the owner first). Implementation follows the design.

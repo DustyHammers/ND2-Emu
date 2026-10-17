@@ -1,4 +1,3 @@
-#include "Diag.h"
 #include "RmlSkinComponent.h"
 #include "SkinSettings.h"
 #include <RmlUi/Core/Input.h>
@@ -33,7 +32,7 @@ bool decodeImage(const std::vector<uint8_t>& file, std::vector<uint8_t>& rgba, i
 }
 }  // namespace
 
-RmlSkinComponent::RmlSkinComponent(ND2Processor& p, juce::File logFile) : proc_(p), logFile_(std::move(logFile)) {
+RmlSkinComponent::RmlSkinComponent(ND2Processor& p) : proc_(p) {
     setOpaque(false);
     setWantsKeyboardFocus(true);
     juce::OpenGLPixelFormat pf;
@@ -105,14 +104,7 @@ void RmlSkinComponent::timerCallback() {
         message_.clear();
         repaint();
     }
-    const bool visible = visibleOnScreen();
-    if (int(visible) != visibleLogged_) {          // diagnostics: the window became visible / hidden
-        visibleLogged_ = int(visible);
-        auto* peer = getPeer();
-        nd2diag::log(juce::String("panel ") + (visible ? "visible" : "not visible") + " (showing " + (isShowing() ? "yes" : "no")
-                     + ", window " + (peer != nullptr ? "yes" : "no") + ", " + juce::String(getWidth()) + " x " + juce::String(getHeight()) + ")");
-    }
-    if (!visible) return;
+    if (!visibleOnScreen()) return;
     const uint32_t serial = proc_.panelPort().serial();   // the display, the LEDs and the BANKS label's light
     const double now = juce::Time::getMillisecondCounterHiRes() / 1000.0;
     if (frameWanted_.exchange(false) || serial != lastSerial_ || now >= nextWake_.load()) {
@@ -121,19 +113,9 @@ void RmlSkinComponent::timerCallback() {
     }
 }
 
-// Skin log: ~/Documents/ND2/skin-log.txt (warnings, Lua errors and Log.Message output of the loaded skin), written
-// only while Developer > Write skin log is on; otherwise no file is created.
-void RmlSkinComponent::writeLog(void* self, const std::string& line) {
-    if (!SkinSettings::skinLog()) return;
-    auto* c = static_cast<RmlSkinComponent*>(self);
-    if (c->logFile_.getSize() > (1 << 20)) c->logFile_.replaceWithText({});
-    c->logFile_.appendText(juce::String::fromUTF8(line.c_str()) + "\n", false, false, "\n");
-}
-
 // GL thread: tell the message thread how loading went.
 void RmlSkinComponent::startLoad() {
     if (!view_ || name_.empty()) return;
-    writeLog(this, "--- " + juce::Time::getCurrentTime().toString(true, true).toStdString() + ": loading skin \"" + name_ + "\" from " + folder_);
     {                                                  // decode the skin's images in parallel before the first frame
         std::vector<std::string> images;
         for (const auto& f : juce::File(juce::String::fromUTF8(folder_.c_str())).findChildFiles(juce::File::findFiles, false, "*.png;*.jpg;*.jpeg;*.gif"))
@@ -143,7 +125,6 @@ void RmlSkinComponent::startLoad() {
     }
     std::string err;
     const bool ok = view_->load(folder_, name_, err);
-    writeLog(this, ok ? std::string("loaded") : "not loaded: " + err);
     if (ok && debugger_) view_->setDebuggerVisible(true);
     frameWanted_ = true;                           // draw the loaded skin (nothing else may ask for a frame)
     juce::Component::SafePointer<RmlSkinComponent> self(this);
@@ -155,7 +136,6 @@ void RmlSkinComponent::startLoad() {
 // ------------------------------------------------------------------ GL thread
 
 void RmlSkinComponent::newOpenGLContextCreated() {
-    nd2diag::log("OpenGL context created");
     std::string message;
     juce::String error;
     if (!RmlGLRenderer::loadGL(message)) error = "OpenGL could not be started: " + juce::String(message);
@@ -164,15 +144,12 @@ void RmlSkinComponent::newOpenGLContextCreated() {
         if (!renderer_->ok()) { error = "The OpenGL skin renderer could not be started."; renderer_.reset(); }
     }
     if (error.isNotEmpty()) {
-        nd2diag::log("OpenGL: " + error);
         juce::Component::SafePointer<RmlSkinComponent> self(this);
         juce::MessageManager::callAsync([self, error] { if (self && self->onLoaded) self->onLoaded(false, error); });
         return;
     }
     skin::PluginInfo info{"ND2", "DHammers", JucePlugin_VersionString};
     view_ = std::make_unique<skin::SkinView>(proc_.panelPort(), info, renderer_->rml());
-    view_->onLog = &RmlSkinComponent::writeLog;
-    view_->onLogUser = this;
 }
 
 void RmlSkinComponent::renderOpenGL() {
@@ -200,7 +177,6 @@ void RmlSkinComponent::renderOpenGL() {
     view_->render();
     renderer_->endFrame();
     if (dropPrefetch_) { renderer_->dropPrefetched(); dropPrefetch_ = false; }   // images the skin did not use
-    if (framesDrawn_ == 0) nd2diag::log("first frame drawn " + juce::String(w) + " x " + juce::String(h) + " px");
     ++framesDrawn_;
 }
 

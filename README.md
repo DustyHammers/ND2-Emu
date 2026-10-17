@@ -30,6 +30,10 @@ VST3 and standalone app in one zip, for 64-bit Windows 10 or newer. Installing: 
 
 ## What's new
 
+### 0.2.2
+
+- No more log files (ND2-log.txt, skin-log.txt).
+
 ### 0.2.1
 
 - MIDI out to the host: panel moves (as CCs), pad hits and program changes can be recorded and played back.
@@ -126,11 +130,9 @@ ND2 creates `~/Documents/ND2/` the first time it runs, with four folders:
              factory-<id>.flash        the factory memory new instances start with (built from your bank files,
                                        or the banks chosen with "Use these banks for new instances")
              factory-<id>.banks        the names of those banks
-  skin-log.txt   skin messages, only while right-click > Developer > Write skin log is on
-  ND2-log.txt    a short log of ND2 starting and its panel opening (for problem reports; kept small)
 ```
 
-Settings shared by all instances (chosen skin, window size, skin log on/off) are in
+Settings shared by all instances (chosen skin, window size) are in
 `~/Library/Application Support/ND2/ND2.settings`. Each project stores its own complete machine, including presets
 saved on the panel, so projects don't depend on these folders except for the OS.
 

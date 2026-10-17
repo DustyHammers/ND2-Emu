@@ -1,8 +1,7 @@
 ND2 for Windows (64-bit, Windows 10 or later): installing
 =========================================================
 
-The Windows version is new and less tested than the macOS one. Please report problems on GitHub (Issues),
-together with the file Documents\ND2\ND2-log.txt.
+The Windows version is new and less tested than the macOS one. Please report problems on GitHub (Issues).
 
 1. Quit your DAW.
 
@@ -43,7 +42,6 @@ together with the file Documents\ND2\ND2-log.txt.
      Documents\ND2\Library\          bank files (the Banks window); Library\Factory: the factory banks
      Documents\ND2\cache\            the factory memory built from your bank files
      Documents\ND2\skins\<name>\     your own skins: a folder <name> containing <name>.rml (plus its files)
-     Documents\ND2\ND2-log.txt       what ND2 did at start-up (for bug reports)
    Right-click the plugin window for Skin, Reload skin (F5), Zoom, Banks, OS update file, Factory banks and
    Developer.
 

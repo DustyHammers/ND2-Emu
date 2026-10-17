@@ -1,5 +1,4 @@
 #include "ProgramEntry.h"
-#include "Diag.h"
 
 namespace {
 constexpr int kTickMs = 125, kBlinkTicks = 2;    // blink at 4 Hz
@@ -55,7 +54,6 @@ bool ProgramEntry::keyPressed(const juce::KeyPress& k) {
         const int program = program_.getIntValue();
         if (bank_ > 0 && program >= 1 && program <= 50) {
             proc_.engine().selectProgram((bank_ - 1) * 50 + program - 1);
-            nd2diag::log("program typed on the display: P" + juce::String(bank_) + "." + juce::String(program));
             cancel();
         }
         return true;                               // incomplete: nothing happens, the entry stays

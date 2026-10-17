@@ -31,7 +31,7 @@ The plugins are ad-hoc signed (not notarised by Apple). That is why step 3 is ne
        updater app inside it, the Windows .zip or .exe, or os.cab. ND2 keeps a copy of the OS part only.
      - Then click "Load factory banks..." and choose the factory bank download (.zip, a folder, or the bank files).
        ND2 stores them into its memory once (a few seconds) and keeps the result for all later instances.
-       "Not now" starts with empty memory; the right-click menu has Factory banks... for later.
+       "Not now" starts with empty memory; right-click the panel, SYSTEM tab, Factory banks for later.
 
 7. Inputs and outputs:
      Main            stereo, as the original hardware's output
@@ -44,8 +44,8 @@ The plugins are ad-hoc signed (not notarised by Apple). That is why step 3 is ne
      ~/Documents/ND2/os/               the OS (os.cab, copied from the update file you chose)
      ~/Documents/ND2/cache/            the factory memory built from your bank files, the unpacked default skin
      ~/Documents/ND2/skins/<name>/     your own skins: a folder <name> containing <name>.rml (plus its files)
-   Right-click the plugin window for Banks, MIDI, Skin, Reload skin (F5), Zoom, OS update file, Factory banks and
-   Developer.
+   Right-click the panel for the ND2 window: SYSTEM (OS update file, factory banks, data folder), BANKS, SKIN
+   (skins, Reload skin (F5), zoom) and MIDI.
 
 Third-party software in ND2: JUCE, RmlUi, Lua and FreeType (see THIRD_PARTY_NOTICES.md in the repository).
 Portions of this software are copyright (c) 2026 The FreeType Project (www.freetype.org). All rights reserved.

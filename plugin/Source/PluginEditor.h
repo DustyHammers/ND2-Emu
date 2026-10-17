@@ -1,7 +1,7 @@
 // The plugin window: the chosen skin (the Default skin built into the plugin, or one from ~/Documents/ND2/skins/)
-// at the chosen size, the message banners (OS update file, factory presets) and the right-click menu
-// (Banks, MIDI, Skin, Reload skin, Zoom, OS update file, Factory banks, Developer; in the window's menu look), the ND2
-// window (BANKS and MIDI tabs, ND2Window) and typed program entry on the display (ProgramEntry). Approved mockups.
+// at the chosen size, the message banners (OS update file, factory presets), the ND2 window that a right-click opens
+// (SYSTEM, BANKS, SKIN and MIDI tabs: everything the old right-click menu had; ND2Window) and typed program entry on
+// the display (ProgramEntry). Approved mockups.
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <memory>
@@ -41,10 +41,9 @@ private:
     void showFallback(const juce::String& reason);
     void applyScale(float scale);
     void cornerResize(int phase, juce::Point<int> offset);
-    void showMenu();
     void chooseOs();
     void chooseBanks();
-    void toggleWindow(int tab);                      // the ND2 window on a tab (the skin's BANKS label, the menu)
+    void openWindow(int tab);                        // the ND2 window on a tab (a right-click: the tab used last)
     void closeWindow();
     void placeWindow();
     void message(const juce::String& text);          // a message for a few seconds (in whatever view is shown)
@@ -55,7 +54,6 @@ private:
     std::unique_ptr<RmlSkinComponent> rml_;
     std::unique_ptr<FallbackView> fallback_;
     ui::Theme theme_;                                // the ND2 window's and the menu's look
-    ui::MenuLookAndFeel menuLook_{theme_};
     std::unique_ptr<ND2Window> window_;
     std::unique_ptr<ProgramEntry> entry_;
     std::unique_ptr<juce::FileChooser> chooser_;

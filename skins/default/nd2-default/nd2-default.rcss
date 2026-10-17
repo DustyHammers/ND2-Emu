@@ -223,10 +223,6 @@ led { width: 22dp; height: 22dp; }
 led lamp { display: block; position: absolute; left: -3dp; top: -3dp; width: 28dp; height: 28dp; opacity: 0; }
 led.red { decorator: image(led_red_off); }      led.red lamp { decorator: image(led_red_on); }
 led.green { decorator: image(led_green_off); }  led.green lamp { decorator: image(led_green_on); }
-/* plugin actions: BANKS opens the Banks window; the green outline shows while it is open */
-action lamp { display: block; position: absolute; left: -12dp; top: -12dp; width: 116dp; height: 58dp; decorator: image(ND2BanksLit.png); visibility: hidden; }
-action.lit lamp { visibility: visible; }
-action#a_banks { decorator: image(ND2BanksLabel.png); }   /* the lettering (not in the baked background) */
 knob#master { frames: 128; spriteprefix: master_; }
 encoder#value { frames: 72; detents: 24; spriteprefix: enc_; }
 /* display digit: unlit segments as the background, one child per segment, shown with class lit */
@@ -285,4 +281,3 @@ segdigit seg.a { decorator: image(seg_a); } segdigit seg.b { decorator: image(se
 #d1 { left: 561dp; top: 262dp; width: 71dp; height: 86dp; }
 #d2 { left: 625dp; top: 262dp; width: 71dp; height: 86dp; }
 #d3 { left: 689dp; top: 262dp; width: 71dp; height: 86dp; }
-#a_banks { left: 134dp; top: 15dp; width: 92dp; height: 34dp; }

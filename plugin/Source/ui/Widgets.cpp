@@ -293,7 +293,7 @@ Frame::Frame(const Theme& theme, const juce::String& title, const juce::StringAr
     close_.setMouseCursor(juce::MouseCursor::PointingHandCursor);
 }
 
-juce::Rectangle<float> Frame::windowBounds() const { return getLocalBounds().toFloat().reduced(dp::inset); }
+juce::Rectangle<float> Frame::windowBounds() const { return getLocalBounds().toFloat(); }
 
 juce::Rectangle<int> Frame::bodyBounds() const {
     auto w = windowBounds();
@@ -314,7 +314,6 @@ void Frame::resized() {
 }
 
 void Frame::paint(juce::Graphics& g) {
-    g.fillAll(colours::overlay);
     const auto w = windowBounds();
     g.setColour(colours::window);
     g.fillRoundedRectangle(w, dp::radius);
@@ -324,6 +323,28 @@ void Frame::paint(juce::Graphics& g) {
     g.drawHorizontalLine(int(w.getBottom() - dp::footer), w.getX(), w.getRight());
     const juce::Font tf = theme_.font(dp::titleText, true);   // as wide as resized() leaves it before the tabs
     drawText(g, title_, tf, {w.getX() + dp::padX, w.getY(), textWidth(tf, title_) + 2, dp::header}, colours::text);
+}
+
+// ------------------------------------------------------------------ placement and backdrop
+
+Placement placeCentred(juce::Rectangle<int> area, float pointsPerDp, juce::Point<float> layout, float drawnWidth, float margin) {
+    Placement p;
+    const float u = pointsPerDp > 0 ? pointsPerDp : 1.0f;
+    const float full = drawnWidth / layout.x * u;                       // points per layout dp at the full size
+    const float roomW = float(area.getWidth()) - 2 * margin * u, roomH = float(area.getHeight()) - 2 * margin * u;
+    p.fit = juce::jlimit(0.01f, 1.0f, std::min(roomW / (layout.x * full), roomH / (layout.y * full)));
+    p.scale = full * p.fit;
+    const float w = layout.x * p.scale, h = layout.y * p.scale;
+    p.bounds = {float(area.getX()) + std::round((float(area.getWidth()) - w) / 2), float(area.getY()) + std::round((float(area.getHeight()) - h) / 2), w, h};
+    return p;
+}
+
+void drawBackdrop(juce::Graphics& g, juce::Rectangle<float> area, juce::Rectangle<float> window, float pointsPerDp) {
+    g.setColour(colours::dim);
+    g.fillRect(area);
+    const juce::DropShadow shadow(colours::shadow, std::max(1, juce::roundToInt(dp::shadowBlur * pointsPerDp)),
+                                  {juce::roundToInt(dp::shadowX * pointsPerDp), juce::roundToInt(dp::shadowY * pointsPerDp)});
+    shadow.drawForRectangle(g, window.toNearestInt());
 }
 
 // ------------------------------------------------------------------ MenuLookAndFeel

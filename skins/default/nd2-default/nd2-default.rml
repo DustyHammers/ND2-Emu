@@ -56,6 +56,5 @@
 	<segdigit id="d1" pos="1"><seg class="a"/><seg class="b"/><seg class="c"/><seg class="d"/><seg class="e"/><seg class="f"/><seg class="g"/><seg class="dp"/></segdigit>
 	<segdigit id="d2" pos="2"><seg class="a"/><seg class="b"/><seg class="c"/><seg class="d"/><seg class="e"/><seg class="f"/><seg class="g"/><seg class="dp"/></segdigit>
 	<segdigit id="d3" pos="3"><seg class="a"/><seg class="b"/><seg class="c"/><seg class="d"/><seg class="e"/><seg class="f"/><seg class="g"/><seg class="dp"/></segdigit>
-	<action id="a_banks" name="banks"><lamp/></action>
 </body>
 </rml>

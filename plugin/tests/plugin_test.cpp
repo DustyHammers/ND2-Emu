@@ -8,8 +8,8 @@
 //                               With the factory memory: the Banks window's work (save bank 1 as a file, load it
 //                               into bank 6, check the banks, the names in the project state).
 //   plugin_test --editor DIR    also opens the editor (needs a display) and, with DIR, saves screenshots there
-//                               (ImageMagick `import`, X11 only): the panel, after clicking PROGRAM, the menu, the
-//                               Banks window (opened with the BANKS label).
+//                               (ImageMagick `import`, X11 only): the panel, after clicking FILTER, the ND2 window
+//                               (opened with a right-click) on each tab, a bank file dragged onto bank 5.
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <atomic>
@@ -253,11 +253,41 @@ int main(int argc, char** argv) {
                 const auto seg2 = p.engine().panel().seg;
                 if (res.hasOs()) CHECK(seg2 != seg1, "dragging the encoder changes the value");
                 shot("3_after_encoder");
-                click(900, 520, true);                                  // the menu
+                auto findWindow = [&]() -> ND2Window* {
+                    ND2Window* found = nullptr;
+                    std::function<void(juce::Component*)> f = [&](juce::Component* c) {
+                        if (auto* x = dynamic_cast<ND2Window*>(c)) found = x;
+                        for (auto* ch : c->getChildren()) f(ch);
+                    };
+                    f(ed.get());
+                    return found;
+                };
+                click(900, 520, true);                                  // a right-click opens the ND2 window (first: BANKS)
                 pump(1200);
-                shot("4_menu");
-                juce::PopupMenu::dismissAllActiveMenus();
+                if (ND2Window* win = findWindow()) {
+                    CHECK(win->tab() == ND2Window::kBanks, "the window opens on BANKS the first time (%d)", win->tab());
+                    const auto wb = win->windowBounds();
+                    std::printf("window %.0f,%.0f %.0f x %.0f points in %d x %d\n", wb.getX(), wb.getY(), wb.getWidth(), wb.getHeight(), ed->getWidth(), ed->getHeight());
+                    CHECK(std::abs(wb.getCentreX() - ed->getWidth() / 2.0f) < 1.5f && std::abs(wb.getCentreY() - ed->getHeight() / 2.0f) < 1.5f,
+                          "the window is centred");
+                    CHECK(std::abs(wb.getWidth() - 1300.0f * k) < 2.0f, "the window is 1300 dp of the skin wide");
+                    shot("4_window");
+                    win->frame().tabs().choose(ND2Window::kSystem);
+                    pump(400);
+                    std::printf("SYSTEM: %s", win->systemText().toRawUTF8());
+                    if (res.hasOs()) CHECK(win->systemText().contains("OS: found"), "SYSTEM shows the OS");
+                    shot("4a_system");
+                    win->frame().tabs().choose(ND2Window::kSkin);
+                    pump(400);
+                    CHECK(win->skinItems().size() >= 1 && win->skinItems()[0] == "* Default", "SKIN lists the Default skin, chosen");
+                    CHECK(win->zoom().selected() == 2, "SKIN: Zoom 100 %% (%d)", win->zoom().selected());
+                    shot("4b_skin");
+                } else {
+                    CHECK(false, "a right-click opens the ND2 window");
+                }
+                click(60, 60, false);                                   // a click on the dimmed area closes it
                 pump(400);
+                CHECK(findWindow() == nullptr, "a click on the dimmed area closes the window");
                 if (res.hasOs()) {                                      // typed program entry on the display
                     click(620, 300, false);
                     pump(400);
@@ -275,9 +305,19 @@ int main(int argc, char** argv) {
                     pump(800);
                     shot("4c_typed");
                 }
-                if (res.hasOs()) {                                      // (without the OS a banner covers the label)
-                click(180, 32, false);                                  // the BANKS label opens the Banks window
-                CHECK(pumpUntil([&] { return p.banksOpen.load(); }, 3000), "BANKS opens the Banks window");
+                if (res.hasOs()) {
+                click(900, 520, true);                                  // again: on the tab used last (SKIN), then BANKS
+                pump(800);
+                ND2Window* bw = findWindow();
+                CHECK(bw != nullptr && bw->tab() == ND2Window::kSkin, "the window opens on the tab used last");
+                if (bw != nullptr) bw->frame().tabs().choose(ND2Window::kBanks);
+                CHECK(pumpUntil([&] { return p.banksOpen.load(); }, 3000), "the BANKS tab");
+                // a point of the window's layout (dp of the window) as dp of the skin, for click()
+                auto at = [&](float lx, float ly) {
+                    const auto wb = bw->windowBounds();
+                    const float kl = wb.getWidth() / ND2Window::kLayoutW;
+                    return juce::Point<float>((wb.getX() + lx * kl) / k, (wb.getY() + ly * kl) / k);
+                };
                 if (res.hasFactory()) {                                 // the banks are checked (and Library/Factory made)
                     pump(500);
                     pumpUntil([&] {
@@ -294,7 +334,8 @@ int main(int argc, char** argv) {
                     const auto src = juce::MouseInputSource::InputSourceType::mouse;
                     const auto L = juce::ModifierKeys::leftButtonModifier;
                     auto t = juce::Time::currentTimeMillis();
-                    const juce::Point<float> from(300 * k, 182 * k), to(900 * k, 524 * k);   // window body at 34, 96 dp
+                    // the first bank file (body at 20, 82 of the window; list from 64; rows 45) onto bank 5 (rows 72 + 8)
+                    const juce::Point<float> from = at(20 + 250, 82 + 64 + 22) * k, to = at(20 + 900, 82 + 64 + 4 * 80 + 36) * k;
                     peer->handleMouseEvent(src, from, {}, juce::MouseInputSource::defaultPressure, 0, t);
                     peer->handleMouseEvent(src, from, L, juce::MouseInputSource::defaultPressure, 0, ++t);
                     for (int i = 1; i <= 20; ++i) {
@@ -312,12 +353,7 @@ int main(int argc, char** argv) {
                     CHECK(p.banks().status(4).count == 50 && p.banks().status(4).crcs == p.banks().status(0).crcs, "bank 5 holds the dropped file");
                     shot("5c_loaded");
                 }
-                ND2Window* win = nullptr;                               // the MIDI tab
-                std::function<void(juce::Component*)> find = [&](juce::Component* c) {
-                    if (auto* x = dynamic_cast<ND2Window*>(c)) win = x;
-                    for (auto* ch : c->getChildren()) find(ch);
-                };
-                find(ed.get());
+                ND2Window* win = findWindow();                          // the MIDI tab
                 CHECK(win != nullptr, "the ND2 window is open");
                 if (win != nullptr) {
                     win->frame().tabs().choose(ND2Window::kMidi);
@@ -332,8 +368,11 @@ int main(int argc, char** argv) {
                     win->midiSwitch().toggle();
                     CHECK(p.midiToHost(), "and on again");
                 }
-                click(1674, 46, false);                                 // the round close button
-                CHECK(pumpUntil([&] { return !p.banksOpen.load() && win != nullptr; }, 3000), "the round button closes the window");
+                {
+                    const auto c = at(ND2Window::kLayoutW - 20 - 17, 32);  // the round close button
+                    click(c.x, c.y, false);
+                }
+                CHECK(pumpUntil([&] { return findWindow() == nullptr; }, 3000), "the round button closes the window");
                 pump(600);
                 shot("6_banks_closed");
                 }

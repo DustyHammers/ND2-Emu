@@ -33,8 +33,8 @@ VST3 and standalone app in one zip, for 64-bit Windows 10 or newer. Installing: 
 ### 0.2.3
 
 - New default skin, rendered from a 3D model.
-- One window for Banks and MIDI (right-click > Banks... or MIDI...): MIDI out to the host on or off, the MIDI
-  channels, the CC chart.
+- Everything in one window: right-click the panel for SYSTEM (OS, factory banks, data folder), BANKS, SKIN (skins,
+  zoom) and MIDI (MIDI out to the host on or off, the MIDI channels, the CC chart). The BANKS label is gone.
 
 ### 0.2.2
 
@@ -118,9 +118,9 @@ On first start, choose the OS update file and then the factory bank files.
 - Encoder and MASTER LEVEL: drag up or down, or use the scroll wheel; hold Shift for fine steps.
 - Display: click it and type a program, bank first (`p312`, `P3.12` or `3 12` for bank 3, program 12), then Return.
   Esc or a click elsewhere cancels.
-- **BANKS** (top left) opens the ND2 window on its BANKS tab; the round button or Esc closes it.
-- Right-click the panel for Banks... and MIDI... (the window's two tabs), skins, zoom, the OS update file and the
-  factory banks.
+- Right-click the panel for the ND2 window: SYSTEM (the OS update file, the factory banks, the data folder), BANKS,
+  SKIN (skins, Reload skin, zoom) and MIDI. It opens on the tab used last; the round button, Esc or a click on the
+  dimmed area closes it.
 - MIDI: every sound setting has a MIDI CC ([chart](docs/MIDI_CC.md), also on the MIDI tab); MIDI channels 1-6 address
   drum channels 1-6. The MIDI tab turns ND2's MIDI out to the host on or off (saved with the project).
 
@@ -131,8 +131,8 @@ ND2 creates `~/Documents/ND2/` the first time it runs, with four folders:
 ```
 ~/Documents/ND2/
   os/        your firmware/OS
-  skins/     your own skins: a folder <name> containing <name>.rml and its files; listed under right-click > Skin
-  Library/   bank files (.nd2_bank) for the Banks window; saved banks go here ("Bank 5 (11 Oct).nd2_bank")
+  skins/     your own skins: a folder <name> containing <name>.rml and its files; listed on the SKIN tab
+  Library/   bank files (.nd2_bank) for the BANKS tab; saved banks go here ("Bank 5 (11 Oct).nd2_bank")
     Factory/   the factory banks, if they aren't in Library/ already (copies of your own factory bank files)
   cache/     made by ND2, safe to delete:
              factory-<id>.flash        the factory memory new instances start with (built from your bank files,

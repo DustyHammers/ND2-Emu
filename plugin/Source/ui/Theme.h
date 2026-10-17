@@ -18,11 +18,13 @@ inline const juce::Colour text{0xffe8e8ea}, muted{0xff8a8a92}, heading{0xff9a9aa
 inline const juce::Colour selection{0xff4a2226}, selectionEdge{0xffc8343a};
 inline const juce::Colour info{0xff9db7e8};
 inline const juce::Colour led{0xffff3b2f};
-inline const juce::Colour overlay{0xa0000000};       // over what the window covers
+inline const juce::Colour dim{0x73000000};           // black at 45 %: over what the window covers
+inline const juce::Colour shadow{0xa6000000};        // black at 65 %: the window's shadow
 }  // namespace colours
 
 namespace dp {
-constexpr float inset = 14, radius = 12;             // the window inside the plugin area
+constexpr float inset = 14, radius = 12;             // the margin around a window (dp of what it covers); its corners
+constexpr float shadowBlur = 28, shadowX = 5, shadowY = 12;   // the window's shadow (dp of what it covers)
 constexpr float header = 64, footer = 84;
 constexpr float padY = 18, padX = 20;                // the body
 constexpr float titleText = 24;                      // the window's title (bold)

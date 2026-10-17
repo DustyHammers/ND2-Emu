@@ -8,7 +8,7 @@
 #include "skin_view.h"
 
 namespace {
-const juce::String kFolderNote = " (from " + bankfiles::shownFolder("skins") + ")";
+int lastTab = -1;                                    // the ND2 window's tab used last (all instances)
 }
 
 // ================================================================== fallback view
@@ -21,7 +21,7 @@ void FallbackView::paint(juce::Graphics& g) {
     area.removeFromTop(banner::height(banners_.size()));
     g.drawFittedText("ND2", area.removeFromTop(40), juce::Justification::centredLeft, 1);
     g.setFont(banner::font(13.0f, false));
-    g.drawFittedText(reason_ + "\n\nRight-click for the menu.", area, juce::Justification::topLeft, 8);
+    g.drawFittedText(reason_ + "\n\nRight-click for the ND2 window (skins, OS, banks).", area, juce::Justification::topLeft, 8);
     hits_ = banner::draw(g, getLocalBounds(), banners_);
 }
 
@@ -44,7 +44,7 @@ ND2Editor::ND2Editor(ND2Processor& p) : AudioProcessorEditor(&p), proc(p) {
     applying_ = false;
     entry_ = std::make_unique<ProgramEntry>(proc);
     proc.onSkinAction = [this](const juce::String& name) {
-        if (name == "banks") toggleWindow(ND2Window::kBanks);
+        if (name == "banks") openWindow(ND2Window::kBanks);   // a skin with a BANKS label (the Default skin has none)
         else if (name == "program_entry" && !window_ && proc.engine().state() == nd2::Engine::State::Running) entry_->start();
     };
     showSkin(SkinSettings::skin());
@@ -85,7 +85,7 @@ void ND2Editor::showSkin(const juce::String& name, const juce::String& notice) {
     fallback_.reset();
     if (!rml_) {
         rml_ = std::make_unique<RmlSkinComponent>(proc);
-        rml_->onRightClick = [this](const juce::MouseEvent&) { showMenu(); };
+        rml_->onRightClick = [this](const juce::MouseEvent&) { openWindow(lastTab); };
         rml_->onCornerResize = [this](int phase, juce::Point<int> d) { cornerResize(phase, d); };
         rml_->onLeftClick = [this] { if (entry_) entry_->cancel(); };   // a click elsewhere ends it (on the display: again)
         rml_->onKey = [this](const juce::KeyPress& k) { return entry_ && entry_->keyPressed(k); };
@@ -117,7 +117,7 @@ void ND2Editor::showFallback(const juce::String& reason) {
     rml_.reset();
     if (!fallback_) {
         fallback_ = std::make_unique<FallbackView>();
-        fallback_->onRightClick = [this](const juce::MouseEvent&) { showMenu(); };
+        fallback_->onRightClick = [this](const juce::MouseEvent&) { openWindow(lastTab); };
         addAndMakeVisible(*fallback_);
     }
     current_.clear();
@@ -196,26 +196,53 @@ void ND2Editor::chooseBanks() {
                           });
 }
 
-// Opens the window on `tab`; on that tab already: closes it.
-void ND2Editor::toggleWindow(int tab) {
+// Opens the window on `tab` (-1: BANKS); already open: shows that tab.
+void ND2Editor::openWindow(int tab) {
     if (entry_) entry_->cancel();
-    if (window_ && window_->tab() == tab) { closeWindow(); return; }
-    if (!Resources::get().hasOs()) { message("This needs the OS update file (right-click > OS update file...)."); return; }
+    if (tab < 0) tab = ND2Window::kBanks;
     if (!window_) {
-        window_ = std::make_unique<ND2Window>(proc, theme_);
-        window_->onClose = [this] { juce::MessageManager::callAsync([sp = juce::Component::SafePointer<ND2Editor>(this)] { if (sp) sp->closeWindow(); }); };
+        ND2Window::Host h;
+        auto self = [this] { return juce::Component::SafePointer<ND2Editor>(this); };
+        h.close = [self] { juce::MessageManager::callAsync([sp = self()] { if (sp) sp->closeWindow(); }); };
+        h.chooseOs = [this] { chooseOs(); };
+        h.chooseBanks = [this] { chooseBanks(); };
+        h.reloadSkin = [this] { if (rml_) rml_->reload(); };
+        h.skinNames = [this] { return skinNames(); };
+        h.currentSkin = [this] { return current_; };
+        h.chooseSkin = [self](const juce::String& n) {
+            juce::MessageManager::callAsync([sp = self(), n] {
+                if (!sp) return;
+                SkinSettings::setSkin(n);
+                sp->showSkin(n);
+                if (sp->window_) sp->window_->refresh();
+            });
+        };
+        h.scale = [this] { return scale_; };
+        h.maxScale = [this] { return maxScale(); };
+        h.setScale = [this](float s) {
+            applyScale(s);
+            scaleDirty_ = false;
+            SkinSettings::setScale(scale_);
+            if (window_) window_->refresh();
+        };
+        h.debuggerAvailable = [this] { return rml_ != nullptr; };
+        h.debuggerOn = [this] { return debugger_; };
+        h.setDebugger = [this](bool on) { debugger_ = on; if (rml_) rml_->setDebugger(on); };
+        window_ = std::make_unique<ND2Window>(proc, theme_, std::move(h));
     }
     window_->showTab(tab);
+    lastTab = window_->tab();
     placeWindow();
     window_->grabKeyboardFocus();
 }
 
 void ND2Editor::closeWindow() {
+    if (window_) lastTab = window_->tab();
     window_.reset();
     proc.banksOpen = false;
 }
 
-// Over whichever view is shown (the skin or the fallback), over the whole plugin area.
+// Over whichever view is shown (the skin or the fallback): the whole plugin area, the window centred in it.
 void ND2Editor::placeWindow() {
     if (!window_) return;
     juce::Component* parent = rml_ ? static_cast<juce::Component*>(rml_.get()) : fallback_.get();
@@ -223,46 +250,6 @@ void ND2Editor::placeWindow() {
     if (window_->getParentComponent() != parent) parent->addAndMakeVisible(*window_);
     window_->place(parent->getLocalBounds(), float(getWidth()) / skin::kBodyWidthDp);
     window_->toFront(false);
-}
-
-void ND2Editor::showMenu() {
-    const juce::StringArray names = skinNames();
-    juce::PopupMenu skins, zoom, dev, menu;
-    menuLook_.setScale(1.5f * float(getWidth()) / skin::kBodyWidthDp);   // the menu's text follows the window's size
-    for (juce::PopupMenu* m : {&menu, &skins, &zoom, &dev}) m->setLookAndFeel(&menuLook_);   // before they are added
-    skins.addItem(SkinSettings::kDefault, true, current_ == SkinSettings::kDefault, [this] {
-        SkinSettings::setSkin(SkinSettings::kDefault);
-        showSkin(SkinSettings::kDefault);
-    });
-    if (!names.isEmpty()) skins.addSeparator();
-    for (const juce::String& n : names)
-        skins.addItem(n + kFolderNote, true, current_ == n, [this, n] { SkinSettings::setSkin(n); showSkin(n); });
-    skins.addSeparator();
-    skins.addItem("Open skins folder", [] { Resources::get().skinsFolder().startAsProcess(); });
-    const float limit = maxScale();                  // sizes that would not fit the screen are greyed out
-    for (int z : winscale::kSteps)
-        zoom.addItem(juce::String(winscale::stepLabel(z, true)), winscale::stepFits(z, limit), winscale::isStep(scale_, z), [this, z] {
-            applyScale(winscale::stepScale(z));
-            scaleDirty_ = false;
-            SkinSettings::setScale(scale_);
-        });
-    dev.addItem("RmlUi debugger", rml_ != nullptr, rml_ && debugger_, [this] {
-        debugger_ = !debugger_;
-        if (rml_) rml_->setDebugger(debugger_);
-    });
-    const bool os = Resources::get().hasOs();
-    menu.addItem("Banks...", os, window_ && window_->tab() == ND2Window::kBanks, [this] { toggleWindow(ND2Window::kBanks); });
-    menu.addItem("MIDI...", os, window_ && window_->tab() == ND2Window::kMidi, [this] { toggleWindow(ND2Window::kMidi); });
-    menu.addSeparator();
-    menu.addSubMenu("Skin", skins);
-    menu.addItem("Reload skin    F5", rml_ != nullptr, false, [this] { if (rml_) rml_->reload(); });
-    menu.addSubMenu("Zoom", zoom);
-    menu.addSeparator();
-    menu.addItem("OS update file...", !Resources::get().locating(), false, [this] { chooseOs(); });
-    menu.addItem("Factory banks...", Resources::get().hasOs() && !Resources::get().building(), false, [this] { chooseBanks(); });
-    menu.addSeparator();
-    menu.addSubMenu("Developer", dev);
-    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this).withMousePosition());
 }
 
 // ------------------------------------------------------------------ size

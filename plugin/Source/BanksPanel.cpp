@@ -6,7 +6,7 @@ namespace {
 const juce::Colour kText = ui::colours::text, kMuted = ui::colours::muted, kHeading = ui::colours::heading, kLine = ui::colours::line,
                    kRed(0xffe3262d), kRedEdge(0xfff2555b), kBtn = ui::colours::button, kBtnEdge = ui::colours::buttonEdge,
                    kRow = ui::colours::row, kRowEdge = ui::colours::rowEdge, kSel = ui::colours::selection, kSelEdge = ui::colours::selectionEdge;
-constexpr int kHint = 34, kLibW = 520, kFileRowH = 45, kBankRowH = 72, kBankGap = 10;
+constexpr int kHint = 34, kLibW = 520, kFileRowH = 45, kBankRowH = 72, kBankGap = 8;
 
 juce::Font font(float size, bool bold = false) { return banner::font(size, bold); }
 juce::String bankName(int b) { return "Bank " + juce::String(b + 1); }

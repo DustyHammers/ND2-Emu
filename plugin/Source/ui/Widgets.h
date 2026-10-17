@@ -144,8 +144,9 @@ private:
     juce::Rectangle<float> textArea_;                // text alone: where it wraps
 };
 
-// The window: an overlay over the whole plugin area, the window inset by dp::inset with its header (title, tabs,
-// round close button), body and footer. The owner puts its page in bodyBounds().
+// The window: its header (title, tabs, round close button), body and footer, filling the frame's bounds. The owner
+// lays it out in dp, places and scales it as a whole (placeCentred), draws what is around it (drawBackdrop) and puts
+// its page in bodyBounds().
 class Frame : public juce::Component {
 public:
     Frame(const Theme& theme, const juce::String& title, const juce::StringArray& tabs);
@@ -165,6 +166,20 @@ private:
     CloseButton close_;
     Footer footer_;
 };
+
+// Where a window laid out at `layout` dp goes in `area` (points; `pointsPerDp` points per dp of what it covers): drawn
+// `drawnWidth` dp of the area wide (its layout scaled uniformly), centred to the point; scaled down uniformly when the
+// area less `margin` dp on each side is too small, never larger.
+struct Placement {
+    float scale = 1;                                 // points per layout dp
+    float fit = 1;                                   // 1, or less when scaled down to fit
+    juce::Rectangle<float> bounds;                   // the window in the area's coordinates
+};
+Placement placeCentred(juce::Rectangle<int> area, float pointsPerDp, juce::Point<float> layout, float drawnWidth, float margin);
+
+// Around a window: the area dimmed (colours::dim) and the window's soft shadow (dp::shadow*, `pointsPerDp` points per dp
+// of what it covers).
+void drawBackdrop(juce::Graphics& g, juce::Rectangle<float> area, juce::Rectangle<float> window, float pointsPerDp);
 
 // The popup menus' look: rows on the row colour with the button edge, the accent behind the highlighted item (white
 // text), section headers in the heading colour, arrows and ticks drawn as paths. scale: points per dp of the window

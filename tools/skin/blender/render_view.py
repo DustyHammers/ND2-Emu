@@ -189,6 +189,9 @@ def main():
         unit.backdrop(scene.collection('Studio'))
     elif a.view == 'tilt' and os.environ.get('FLOOR_SHADOW'):
         shadow_floor(sc)
+    # straight down and orthographic: reflections as if seen from a camera 1 m above the centre (the sheen
+    # gradient a real camera would see, with every control exactly where the skin layout puts it)
+    materials.PAINT['virtual_perspective'] = a.view == 'top'
     mats = materials.assign_all(sc, os.path.abspath(a.maps), None, emission)
     V = lighting.setup(sc, a.light, a.hdr)
     sc.render.engine = 'CYCLES'

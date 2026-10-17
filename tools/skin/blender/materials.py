@@ -6,23 +6,29 @@ import bpy
 import dims as D
 
 # linear albedo guesses (from the art's sRGB); calibration replaces them
-INK_ALBEDO = {                      # calibrated to the owner's photo (lighting C, Standard view, +0.72 EV)
-    'red': (0.319, 0.008, 0.015),
+INK_ALBEDO = {                      # red: matched to the owner's straight-on photo under the studio HDR
+    'red': (0.54, 0.003, 0.016),
     'black': (0.009, 0.009, 0.010),
-    'tag': (0.319, 0.008, 0.015),     # the body paint (label windows show it through the black print)
+    'tag': (0.54, 0.003, 0.016),      # the body paint (label windows show it through the black print)
     'white': (0.873, 0.841, 0.838),
 }
 PAINT = dict(
     rough_red=0.45, rough_ink=0.55,        # base layer (mostly diffuse)
-    spec_level=0.12,                        # base layer specular (the coat carries most of the sheen)
+    spec_level=0.05,                        # base layer specular (the coat carries most of the sheen)
     # coat weight on the red body and on the printed inks: run 1 (1.0 everywhere) left the black print 48-130
     # against the photo's 38 at zero albedo, so the gloss is cut to what the calibration can reach
     # the reference photos show a satin finish with only a faint sheen
     # owner: a very fine orange peel with a slight shine that sparkles in places
-    coat_red=0.38, coat_ink=0.28, coat_rough_red=0.42, coat_rough_ink=0.48, coat_ior=1.5,   # satin
+    coat_red=0.16, coat_ink=0.20, coat_rough_red=0.42, coat_rough_ink=0.48, coat_ior=1.5,   # satin
     peel_wavelength=0.30 * D.MM,            # orange peel cell size (very fine)
     peel_distance=0.20,                     # bump distance (px): a visible fine stipple, like the photos
     mottle=0.035,                           # powder-coat mottle: +/- share of the paint colour
+    # powder-coat grain in the colour itself (owner's straight-on photo: dense fine speckle on red and black)
+    grain_size=0.12 * D.MM,                 # particle spacing
+    grain_var=0.10,                         # every particle's brightness varies by up to +/- this share
+    grain_bright=0.06,                      # share of particles that are clearly lighter (sparse flecks)
+    grain_lift_red=(0.16, 0.035, 0.045),    # a light fleck on the red (light red, linear)
+    grain_lift_black=(0.022, 0.022, 0.024), # a light fleck on the black print (grey)
     # sparkle: a small share of the coat's grains sit tilted and catch the light as tiny glints
     sparkle_size=0.09 * D.MM,               # grain spacing
     sparkle_density=0.08,                   # share of grains that are tilted
@@ -230,6 +236,35 @@ def paint(maps_dir, peel_strips=None):
     f.inputs[2].default_value = 1.0 - P['mottle']
     _link(nt, _vm(nt, 'SCALE', base_in, None, (-950, -3300)).outputs[0], bsdf.inputs['Base Color'])
     _link(nt, f.outputs[0], nt.nodes[-1].inputs['Scale'])
+    mottled = bsdf.inputs['Base Color'].links[0].from_socket
+    # grain: one random value per particle (Voronoi cells); a brightness variation on all, a lift on a few
+    gv = nt.nodes.new('ShaderNodeTexVoronoi')
+    gv.name = gv.label = 'grain'
+    gv.voronoi_dimensions = '3D'
+    gv.location = (-1400, -3700)
+    _link(nt, geo.outputs['Position'], gv.inputs['Vector'])
+    gv.inputs['Scale'].default_value = 1.0 / P['grain_size']
+    gsep = nt.nodes.new('ShaderNodeSeparateColor')
+    gsep.location = (-1200, -3700)
+    _link(nt, gv.outputs['Color'], gsep.inputs[0])
+    var = _m(nt, 'MULTIPLY_ADD', gsep.outputs[1], 2 * P['grain_var'], (-1000, -3700))
+    var.inputs[2].default_value = 1.0 - P['grain_var']
+    scaled = _vm(nt, 'SCALE', mottled, None, (-800, -3700))
+    var_ink = _m(nt, 'MULTIPLY_ADD', masks['white'], -1.0, (-900, -3600))         # 1 - white
+    var_ink.inputs[2].default_value = 1.0
+    var_w = _m(nt, 'MULTIPLY_ADD', _m(nt, 'SUBTRACT', var.outputs[0], 1.0, (-850, -3550)), var_ink, (-750, -3550))
+    var_w.inputs[2].default_value = 1.0
+    _link(nt, var_w.outputs[0], scaled.inputs['Scale'])
+    light = _m(nt, 'GREATER_THAN', gsep.outputs[0], 1.0 - P['grain_bright'], (-1000, -3900))
+    # the fleck's colour follows the ink: light red on the paint and labels, grey on the black, none on white
+    paint_share = _m(nt, 'ADD', masks['red'], masks['tag'], (-1200, -4100))
+    lr = _vm(nt, 'SCALE', P['grain_lift_red'], None, (-1000, -4100))
+    _link(nt, paint_share.outputs[0], lr.inputs['Scale'])
+    lb = _vm(nt, 'SCALE', P['grain_lift_black'], None, (-1000, -4250))
+    _link(nt, masks['black'], lb.inputs['Scale'])
+    lift = _vm(nt, 'SCALE', _vm(nt, 'ADD', lr.outputs[0], lb.outputs[0], (-850, -4150)).outputs[0], None, (-700, -3900))
+    _link(nt, light.outputs[0], lift.inputs['Scale'])
+    _link(nt, _vm(nt, 'ADD', scaled.outputs[0], lift.outputs[0], (-600, -3800)).outputs[0], bsdf.inputs['Base Color'])
     return m
 
 
@@ -308,10 +343,11 @@ def assign_all(scene, maps_dir, peel_strips=None, emission_png=None):
         'interior': simple('Interior', (0.012, 0.012, 0.013), 0.8, 0.3),
         'lens': lens,
         'board': emissive_board('DisplayBoard', emission_png) if emission_png else simple('DisplayBoard', (0.006, 0.004, 0.004), 0.7, 0.2),
-        'grey': simple('ButtonGrey', (0.42, 0.42, 0.44), 0.55, 0.5),
+        'grey': simple('ButtonGrey', (0.56, 0.58, 0.64), 0.55, 0.5),      # light cool grey (photo)
         'black_plastic': simple('BlackPlastic', (0.022, 0.022, 0.024), 0.5, 0.5),
-        'led_red': simple('LedRed', (0.30, 0.06, 0.05), 0.12, 0.5, transmission=0.3),
-        'led_green': simple('LedGreen', (0.10, 0.20, 0.08), 0.12, 0.5, transmission=0.3),
+        # unlit LED lenses look grey-olive in the photo (red and green alike)
+        'led_red': simple('LedRed', (0.20, 0.19, 0.15), 0.12, 0.5, transmission=0.3),
+        'led_green': simple('LedGreen', (0.18, 0.19, 0.15), 0.12, 0.5, transmission=0.3),
         'pointer': simple('Pointer', (0.80, 0.80, 0.80), 0.4, 0.5),
         'knob': knob_with_pointer('MasterKnob'),
         'base': simple('BasePlate', (0.02, 0.02, 0.022), 0.5, 0.4),

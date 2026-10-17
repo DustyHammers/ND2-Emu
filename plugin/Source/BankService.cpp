@@ -1,5 +1,4 @@
 #include "BankService.h"
-#include "Diag.h"
 #include "Resources.h"
 #include <functional>
 #include <string>
@@ -130,7 +129,6 @@ void BankService::check() {
                 std::string err;
                 const auto r = m.readProgram(bank, p, prog, err);
                 if (r == nd2::BankMachine::Read::Failed) {
-                    nd2diag::log("bank check: bank " + juce::String(bank + 1) + " program " + juce::String(p + 1) + ": " + juce::String(err));
                     checkBank_ = -1; checking_ = false; return;
                 }
                 if (r == nd2::BankMachine::Read::Stored) { s.crcs[size_t(p)] = nd2::programCrc(prog); ++s.count; }
@@ -197,7 +195,6 @@ void BankService::load(int bank, const bankfiles::BankFile& file) {
             juce::String msg = file.name + " loaded into " + bankName(bank) + " (" + juce::String(written) + " programs)";
             if (file.count < nd2::kBankPrograms) msg << "; the file has " << file.count << ", the other programs of " << bankName(bank) << " stay as they were";
             setMessage(msg + ".", false);
-            nd2diag::log("bank loaded: " + msg);
         });
     }});
 }
@@ -339,7 +336,6 @@ void BankService::makeFactoryFiles() {
         }
         marker.replaceWithText("done\n");
         factoryFilesRunning = false;
-        nd2diag::log("factory bank files: " + juce::String(made) + " made, " + juce::String(present) + " already in the Library");
         done([this] { ++serial_; });
     }});
 }

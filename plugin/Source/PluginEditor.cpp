@@ -1,4 +1,3 @@
-#include "Diag.h"
 #include "PluginEditor.h"
 #include "BanksPanel.h"
 #include "ProgramEntry.h"
@@ -36,7 +35,6 @@ void FallbackView::mouseDown(const juce::MouseEvent& e) {
 // ================================================================== editor
 
 ND2Editor::ND2Editor(ND2Processor& p) : AudioProcessorEditor(&p), proc(p) {
-    logFile_ = Resources::get().dataFolder().getChildFile("skin-log.txt");
     setConstrainer(&constrainer_);
     setResizable(true, false);                      // our own corner drag (JUCE's corner would sit under the OpenGL view)
     const float projectScale = proc.editorScale.load();
@@ -51,11 +49,9 @@ ND2Editor::ND2Editor(ND2Processor& p) : AudioProcessorEditor(&p), proc(p) {
     };
     showSkin(SkinSettings::skin());
     startTimer(250);
-    nd2diag::log("editor constructed " + juce::String(getWidth()) + " x " + juce::String(getHeight()) + ", skin \"" + SkinSettings::skin() + "\"");
 }
 
 ND2Editor::~ND2Editor() {
-    nd2diag::log("editor closed");
     stopTimer();
     if (scaleDirty_) SkinSettings::setScale(scale_);
     proc.onSkinAction = nullptr;
@@ -88,7 +84,7 @@ void ND2Editor::showSkin(const juce::String& name, const juce::String& notice) {
     }
     fallback_.reset();
     if (!rml_) {
-        rml_ = std::make_unique<RmlSkinComponent>(proc, logFile_);
+        rml_ = std::make_unique<RmlSkinComponent>(proc);
         rml_->onRightClick = [this](const juce::MouseEvent&) { showMenu(); };
         rml_->onCornerResize = [this](int phase, juce::Point<int> d) { cornerResize(phase, d); };
         rml_->onLeftClick = [this] { if (entry_) entry_->cancel(); };   // a click elsewhere ends it (on the display: again)
@@ -97,7 +93,6 @@ void ND2Editor::showSkin(const juce::String& name, const juce::String& notice) {
     }
     current_ = name;
     rml_->onLoaded = [this, name, notice](bool ok, const juce::String& error) {
-        nd2diag::log("skin \"" + name + "\" " + (ok ? juce::String("loaded") : "failed: " + error));
         if (!ok) { skinFailed(name, error); return; }
         if (notice.isNotEmpty() && rml_) rml_->showMessage(notice);
     };
@@ -119,7 +114,6 @@ void ND2Editor::skinFailed(const juce::String& name, const juce::String& reason)
 }
 
 void ND2Editor::showFallback(const juce::String& reason) {
-    nd2diag::log("fallback panel: " + reason);
     rml_.reset();
     if (!fallback_) {
         fallback_ = std::make_unique<FallbackView>();
@@ -211,7 +205,6 @@ void ND2Editor::toggleBanks() {
     proc.banksOpen = true;
     placeBanks();
     banks_->grabKeyboardFocus();
-    nd2diag::log("Banks window opened");
 }
 
 void ND2Editor::closeBanks() {
@@ -252,7 +245,6 @@ void ND2Editor::showMenu() {
         debugger_ = !debugger_;
         if (rml_) rml_->setDebugger(debugger_);
     });
-    dev.addItem("Write skin log", true, SkinSettings::skinLog(), [] { SkinSettings::setSkinLog(!SkinSettings::skinLog()); });
     menu.addItem("Banks...", Resources::get().hasOs(), banks_ != nullptr, [this] { toggleBanks(); });
     menu.addSeparator();
     menu.addSubMenu("Skin", skins);

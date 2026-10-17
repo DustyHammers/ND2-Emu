@@ -19,7 +19,7 @@ namespace skin { class SkinView; }
 
 class RmlSkinComponent : public juce::Component, private juce::OpenGLRenderer, private juce::Timer {
 public:
-    RmlSkinComponent(ND2Processor& p, juce::File logFile);
+    explicit RmlSkinComponent(ND2Processor& p);
     ~RmlSkinComponent() override;
 
     // Loads <folder>/<name>.rml (asynchronously). onLoaded(ok, error) follows on the message thread.
@@ -66,10 +66,8 @@ private:
     int toPx(float v) const;
     bool bannerClick(juce::Point<int> p);
     static int mods(const juce::ModifierKeys& m);
-    static void writeLog(void* self, const std::string& line);
 
     ND2Processor& proc_;
-    juce::File logFile_;
     juce::OpenGLContext gl_;
     std::unique_ptr<RmlGLRenderer> renderer_;
     std::unique_ptr<skin::SkinView> view_;
@@ -95,7 +93,6 @@ private:
     std::atomic<bool> frameWanted_{true};
     std::atomic<double> nextWake_{0};
     uint32_t lastSerial_ = 0;
-    int visibleLogged_ = -1;                           // message thread: last visibility written to the diagnostic log
     bool dropPrefetch_ = false;                        // GL thread: free unused prefetched images after the first frame
     std::atomic<uint64_t> framesDrawn_{0};
 };

@@ -113,7 +113,7 @@ and round-trips the state; with the factory memory also the Banks window's work 
 into bank 6, the banks checked, the names in the project state). `--editor` opens the window, clicks a button, the
 encoder and the BANKS label.
 
-Plugin data lives in `~/Documents/ND2/` (`os/`, `cache/`, `skins/`, `Library/`, `skin-log.txt`); global settings in
+Plugin data lives in `~/Documents/ND2/` (`os/`, `cache/`, `skins/`, `Library/`); global settings in
 `~/Library/Application Support/ND2/ND2.settings`.
 
 ## Memory checks

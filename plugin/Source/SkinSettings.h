@@ -2,7 +2,6 @@
 // skin and the window size. Stored in ~/Library/Application Support/ND2/ND2.settings.
 #pragma once
 #include <juce_data_structures/juce_data_structures.h>
-#include <atomic>
 #include "WindowScale.h"
 
 namespace SkinSettings {
@@ -36,15 +35,5 @@ inline float scale() {
     return v >= winscale::kMin && v <= winscale::kMax ? v : 1.0f;
 }
 inline void setScale(float v) { set("windowScale", juce::String(v, 4)); }
-
-// Developer > Write skin log (default off): ~/Documents/ND2/skin-log.txt is written only while this is on. Kept in
-// memory after the first read (the log is written from the GL thread), shared by all instances in the process.
-inline std::atomic<int> skinLogCache{-1};
-inline bool skinLog() {
-    int v = skinLogCache.load();
-    if (v < 0) { v = get("skinLog").getIntValue() != 0 || std::getenv("ND2_SKIN_LOG") != nullptr ? 1 : 0; skinLogCache = v; }
-    return v != 0;
-}
-inline void setSkinLog(bool on) { skinLogCache = on ? 1 : 0; set("skinLog", on ? 1 : 0); }
 
 }  // namespace SkinSettings

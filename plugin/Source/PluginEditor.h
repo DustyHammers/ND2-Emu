@@ -61,5 +61,4 @@ private:
     bool applying_ = false, scaleDirty_ = false, debugger_ = false;
     juce::ComponentBoundsConstrainer constrainer_;
     juce::Rectangle<int> dragStartBounds_;
-    juce::File logFile_;
 };

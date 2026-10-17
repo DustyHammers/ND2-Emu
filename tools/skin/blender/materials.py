@@ -330,12 +330,21 @@ def knob_with_pointer(name):
     return m
 
 
-def knob_plastic(name, rgb=(0.016, 0.016, 0.017), rough=0.62, grain_mm=0.06, grain_bump=0.25):
-    """Near-black satin plastic with a fine sandblasted grain (the encoder and the MASTER knob in the photos)."""
+def knob_plastic(name, rgb=(0.016, 0.016, 0.017), rough=0.62, grain_mm=0.06, grain_bump=0.25, side_rough=0.40):
+    """Near-black plastic: a sandblasted matte top with fine grain, and smoother, glossier sides that pick up the
+    red of the panel (the encoder in the owner's straight-on photo)."""
     m = simple(name, rgb, rough, 0.4)
     nt = m.node_tree
     b = nt.nodes.get('Principled BSDF')
     tc = nt.nodes.new('ShaderNodeTexCoord')
+    geo = nt.nodes.new('ShaderNodeNewGeometry')
+    nsep = nt.nodes.new('ShaderNodeSeparateXYZ')
+    nt.links.new(geo.outputs['Normal'], nsep.inputs[0])
+    top = nt.nodes.new('ShaderNodeMapRange')
+    top.inputs['From Min'].default_value, top.inputs['From Max'].default_value = 0.80, 0.95
+    top.inputs['To Min'].default_value, top.inputs['To Max'].default_value = side_rough, rough
+    nt.links.new(nsep.outputs['Z'], top.inputs['Value'])
+    nt.links.new(top.outputs['Result'], b.inputs['Roughness'])
     nz = nt.nodes.new('ShaderNodeTexNoise')
     nt.links.new(tc.outputs['Object'], nz.inputs['Vector'])
     nz.inputs['Scale'].default_value = 1.0 / (grain_mm * D.MM)
@@ -424,7 +433,7 @@ def assign_all(scene, maps_dir, peel_strips=None, emission_png=None):
             k = 'black_plastic'
         elif n == 'Backdrop':
             k = 'backdrop'
-        elif n == 'Encoder':
+        elif n in ('Encoder', 'EncoderCap'):
             k = 'encoder'
         elif 'Buttons grey' in users:
             k = 'grey'

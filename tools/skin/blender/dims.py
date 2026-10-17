@@ -62,9 +62,13 @@ MASTER = dict(
 ENCODER = dict(
     r_base=168.0,            # straight-on photo: about 21.6 mm across at the panel (a black gap to the ring)
     r_top=141.0,             # straight-on photo: the flat top (inside the chamfer) about 17 mm across
-    chamfer=8.0,             # rounded chamfer from the side to the flat top
+    chamfer=7.0,             # flat 45-degree bevel from the side to the flat top (photo)
     height=18.0 * MM,        # close-up photo: nearly as tall as it is wide
-    facets=18, groove=0.16, groove_depth=4.0,
+    # the side: 10 rounded segments between narrow flat-bottomed notches, each notch about 10 degrees wide
+    # (owner's straight-on photo: notches about 7 degrees wide)
+    facets=10, groove=0.22, groove_depth=9.0, phase_deg=3.0,
+    # a thin round cap sits on the flat top, just inside its edge (owner: the two lines at the top)
+    cap_inset=4.0, cap_h=0.35 * MM, cap_edge=2.6,
     hole_r=60.0,
     frames=72,
 )

@@ -223,7 +223,7 @@ def main():
         sc.render.resolution_percentage = a.res
     else:
         sc.render.film_transparent = True
-        sc.render.resolution_percentage = 50          # 1x: 1725 x 1035
+        sc.render.resolution_percentage = a.res       # 50 = 1x (1725 x 1035), 100 = the skin's 2x
     if a.border:
         r = sc.render
         r.use_border, r.use_crop_to_border = True, True

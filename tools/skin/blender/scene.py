@@ -490,21 +490,25 @@ def master_knob(cx, cy, col, frame=64):
 
 
 def encoder(cx, cy, col, frame=0):
+    """Round, tapered body split into F rounded segments by narrow flat-bottomed notches (the photo shows 10)."""
     E = D.ENCODER
-    F, n_per = E['facets'], 16
-    phi = 2 * math.pi * frame / E['frames']
+    F, n_per = E['facets'], 36
+    phi = 2 * math.pi * frame / E['frames'] + math.radians(E.get('phase_deg', 0.0))
     def outline(r_corner, groove_depth):
         pts = []
         seg = 2 * math.pi / F
+        half = E['groove'] / 2                       # notch half-width as a share of one segment
+        wall = 0.35                                  # share of the notch taken by each sloping wall
         for f in range(F):
             for j in range(n_per):
-                t = (j / n_per - 0.5) * seg       # angle from the facet centre
-                rr = r_corner * math.cos(seg / 2) / math.cos(t)
-                g = abs(t) / (seg / 2)               # 1 at the facet corner
-                if g > 1 - E['groove']:
-                    q = (g - (1 - E['groove'])) / E['groove']
-                    rr -= groove_depth * math.sin(q * math.pi / 2)
-                a = f * seg + t + phi
+                u = j / n_per                        # 0..1 across one segment; the notch is centred on 0
+                d = min(u, 1 - u)                    # distance from the notch centre (share of a segment)
+                rr = r_corner
+                if d < half:
+                    w = (half - d) / (half * wall)   # 0 at the notch edge, 1 once past the wall
+                    w = min(w, 1.0)
+                    rr -= groove_depth * (0.5 - 0.5 * math.cos(math.pi * w))
+                a = (f + u) * seg + phi
                 pts.append((cx + rr * math.cos(a), cy + rr * math.sin(a)))
         return pts
     H, ch = E['height'], E['chamfer']
@@ -513,12 +517,23 @@ def encoder(cx, cy, col, frame=0):
         t = i / 6
         rings.append((outline(E['r_base'] + (E['r_top'] - E['r_base']) * t, E['groove_depth']), (H - ch) * t))
     rings.append((outline(E['r_top'], E['groove_depth']), H - ch))
-    for i in range(1, 5):                            # rounded chamfer; the grooves run out on it
-        th = (math.pi / 2) * i / 4
-        rings.append((outline(E['r_top'] - ch * (1 - math.cos(th)), E['groove_depth'] * (1 - i / 4)), H - ch + ch * math.sin(th)))
+    # a flat 45-degree bevel at the top edge (two crisp lines in the photo); the grooves stop at the bevel
+    rings.append((outline(E['r_top'], 0.0), H - ch + 0.6))
+    rings.append((outline(E['r_top'] - ch, 0.0), H))
     bm = bmesh.new()
     loft(bm, rings)
-    return new_object('Encoder', bm, col)
+    body = new_object('Encoder', bm, col)
+    # the thin cap on top: a disc with a small rounded edge
+    rc = E['r_top'] - ch - E['cap_inset']
+    hc, ec = E['cap_h'], E['cap_edge']
+    caprings = [(circle(cx, cy, rc, 160), H - 0.5)]
+    for i in range(1, 7):
+        th = (math.pi / 2) * i / 6
+        caprings.append((circle(cx, cy, rc - ec * (1 - math.cos(th)), 160), H + hc - ec + ec * math.sin(th)))
+    bm = bmesh.new()
+    loft(bm, caprings)
+    new_object('EncoderCap', bm, col)
+    return body
 
 
 # ---- scene --------------------------------------------------------------------------------------------------

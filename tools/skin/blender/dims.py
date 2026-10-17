@@ -43,8 +43,11 @@ LED = dict(
 
 DISPLAY = dict(
     x0=994.0, x1=1506.0, y0=509.0, y1=706.0, r=8.0,   # the art's window opening
-    lens_z=-1.6 * MM,        # smoked lens just under the plate (estimate)
-    board_z=-4.0 * MM,
+    # the screen sits in a recess (owner's photo: a dark band along the top of the window, the recess's back
+    # wall); a black bezel runs from under the panel down to the smoked lens (depths are estimates)
+    lens_z=-2.6 * MM,
+    board_z=-4.6 * MM,       # above the dark interior floor (floor_z)
+    filter_tint=(0.95, 0.27, 0.45),   # smoked red filter, per face: a dark, slightly purple red window (photo)
     # four digit packages behind the red filter (the plugin draws the segments). Measured on the straight-on
     # photo and scaled into this window: digits about 6 mm wide and 8.5 mm tall on an 8.2 mm pitch, so each
     # sprite cell is 142 x 172 px (71 x 86 dp) at a 128 px (64 dp) pitch, the first cell's left edge at 994 px.

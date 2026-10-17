@@ -61,7 +61,9 @@ img += wall[..., None] * np.array([1.0, 0.99, 0.97])
 # lights (radiance in linear units): broad, soft-edged boxes only (thin strips streak across a glossy panel)
 # (the first four were placed before the azimuth was corrected, so their y is mirrored: they stay where the
 # approved renders had them)
-img += panel(unit(-0.10, -0.35, 1.0), 30, 22, 6.0, soft=0.55)                         # overhead box, a bit forward
+# overhead box a little behind the unit and shallow front to back, so the display's recess casts a narrow
+# shadow band along the top of the window (owner's photo); the same light as before in total
+img += panel(unit(-0.10, 0.25, 1.0), 30, 8, 15.3, soft=0.55)
 img += panel(unit(-0.75, 0.65, 0.65), 18, 24, 12.0, soft=0.50, rgb=(1.0, 0.98, 0.95))  # key, back left
 img += panel(unit(0.85, -0.45, 0.45), 12, 22, 3.0, soft=0.60)                          # rim box, front right
 img += panel(unit(0.80, 0.55, 0.30), 20, 20, 1.6, soft=0.60, rgb=(0.97, 0.98, 1.0))    # fill card, back right

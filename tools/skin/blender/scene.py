@@ -477,6 +477,20 @@ def display(col):
     bm = bmesh.new()
     prism(bm, rounded_rect(cx, cy, d['x1'] - d['x0'] + 40, d['y1'] - d['y0'] + 40, d['r']), d['board_z'] - 3, d['board_z'])
     new_object('DisplayBoard', bm, col, smooth=False)
+    # black bezel: the window's walls from under the panel down to the lens, so the screen sits in a real recess
+    # (lit from behind, its back wall shades the top of the window, as on the owner's photo)
+    inner = rounded_rect(cx, cy, d['x1'] - d['x0'], d['y1'] - d['y0'], d['r'])
+    outer = rounded_rect(cx, cy, d['x1'] - d['x0'] + 40, d['y1'] - d['y0'] + 40, d['r'] + 20)
+    bm = bmesh.new()
+    z0, z1 = d['lens_z'], -D.PLATE['thickness'] + 0.5
+    rings = [[bm.verts.new((x, -y, z)) for x, y in pts] for pts, z in ((inner, z1), (inner, z0), (outer, z0), (outer, z1))]
+    n = len(inner)
+    for r0, r1 in zip(rings, rings[1:] + rings[:1]):
+        for i in range(n):
+            j = (i + 1) % n
+            bm.faces.new((r0[i], r0[j], r1[j], r1[i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    new_object('DisplayBezel', bm, col, smooth=False)
     return lens
 
 

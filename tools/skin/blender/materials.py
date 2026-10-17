@@ -440,7 +440,7 @@ def digit_board(name):
     mix = nt.nodes.new('ShaderNodeMix')
     mix.data_type = 'RGBA'
     _link(nt, gap.outputs[0], mix.inputs['Factor'])
-    mix.inputs['A'].default_value = (0.009, 0.009, 0.009, 1)     # package face: dark behind the smoked filter (photo)
+    mix.inputs['A'].default_value = (0.012, 0.012, 0.012, 1)     # package face: dark behind the smoked filter (photo)
     mix.inputs['B'].default_value = (0.004, 0.004, 0.004, 1)     # gap: a darker line between packages (photo)
     _link(nt, mix.outputs['Result'], b.inputs['Base Color'])
     # most of what shows through the filter is the faces' sheen, so keep them nearly matte (the photo's window
@@ -456,10 +456,31 @@ def metal(name, rgb, rough):
     return m
 
 
+def filter_lens(name, tint, gloss_rough=0.08):
+    """A thin tinted filter: light passes straight through it, tinted, at each face (so the board behind is lit
+    through it and the bezel's shadows land on the board), with a faint glossy reflection on top."""
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    nt.nodes.clear()
+    out = nt.nodes.new('ShaderNodeOutputMaterial')
+    tr = nt.nodes.new('ShaderNodeBsdfTransparent')
+    tr.inputs['Color'].default_value = (*tint, 1)
+    gl = nt.nodes.new('ShaderNodeBsdfGlossy')
+    gl.inputs['Roughness'].default_value = gloss_rough
+    lw = nt.nodes.new('ShaderNodeLayerWeight')
+    lw.inputs['Blend'].default_value = 0.08
+    mix = nt.nodes.new('ShaderNodeMixShader')
+    nt.links.new(lw.outputs['Fresnel'], mix.inputs['Fac'])
+    nt.links.new(tr.outputs[0], mix.inputs[1])
+    nt.links.new(gl.outputs[0], mix.inputs[2])
+    nt.links.new(mix.outputs[0], out.inputs['Surface'])
+    return m
+
+
 def assign_all(scene, maps_dir, peel_strips=None, emission_png=None):
     # smoked red filter: the photo's window is a dark, slightly purple red, a little darker than the black panel
-    lens = simple('DisplayLens', (0.95, 0.24, 0.37), 0.08, 0.08, transmission=1.0)
-    lens.node_tree.nodes.get('Principled BSDF').inputs['IOR'].default_value = 1.05     # anti-glare filter
+    lens = filter_lens('DisplayLens', D.DISPLAY['filter_tint'])
     mats = {
         'paint': paint(maps_dir, peel_strips),
         'interior': simple('Interior', (0.012, 0.012, 0.013), 0.8, 0.3),
@@ -494,6 +515,8 @@ def assign_all(scene, maps_dir, peel_strips=None, emission_png=None):
             k = 'lens'
         elif n == 'DisplayBoard':
             k = 'board'
+        elif n == 'DisplayBezel':
+            k = 'black_plastic'
         elif n == 'MasterPointer':
             k = 'pointer'
         elif n == 'MasterKnob':

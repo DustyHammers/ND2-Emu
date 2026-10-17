@@ -27,7 +27,9 @@ MOD = dict(
     board=(380.0, 40.0, 3050.0, 520.0),    # board area modelled (art px)
     pots_x=(700.0, 1110.0, 1520.0, 1930.0, 2340.0, 2750.0),
     pot_y=236.0,
-    pot_angles=(-120.0, -40.0, 0.0, 60.0, 150.0, -150.0),   # demo positions (degrees, clockwise from up)
+    # each pot picks one of 8 bends (or off): turned smoothly from 7 o'clock (off) to 5 o'clock, 300 degrees
+    pot_sweep=300.0,
+    pot_angles=(-150.0, -150.0, 37.5, -150.0, 112.5, -75.0),  # demo positions (degrees, clockwise from up)
     led=(2905.0, 205.0),
     seed=7,
 )
@@ -106,6 +108,7 @@ def mats():
     tin.node_tree.nodes['Principled BSDF'].inputs['Metallic'].default_value = 1.0
     M['tin'] = tin
     M['pot_body'] = materials.simple('PotBody', (0.02, 0.02, 0.022), 0.5, 0.5)
+    M['paint_mark'] = materials.simple('PaintPen', (0.80, 0.79, 0.74), 0.55, 0.5)
     M['chip'] = materials.simple('ChipEpoxy', (0.018, 0.018, 0.02), 0.45, 0.5)
     M['res'] = materials.simple('SmdResistor', (0.015, 0.015, 0.016), 0.55, 0.5)
     M['cap'] = materials.simple('SmdCap', (0.38, 0.28, 0.17), 0.5, 0.5)
@@ -327,18 +330,23 @@ def build_pot(col, M, i, cx, cy, zb, angle_deg):
     bm = bmesh.new()
     scene.prism(bm, star, zb + 11.4 * MM, zb + 23.4 * MM)
     shaft = obj(f'Pot{i}_shaft', bm, col, M['nickel'])
-    cut = bmesh.new()
-    box(cut, cx - r_o - 5, cy - 0.45 * MM, cx + r_o + 5, cy + 0.45 * MM, zb + 18.4 * MM, zb + 24 * MM)
+    cut = bmesh.new()                          # the split runs across the pointer
+    box(cut, cx - 0.45 * MM, cy - r_o - 5, cx + 0.45 * MM, cy + r_o + 5, zb + 18.4 * MM, zb + 24 * MM)
     cutter = scene.new_object(f'Pot{i}_slitcut', cut, col, smooth=False)
     m = shaft.modifiers.new('slit', 'BOOLEAN')
     m.operation, m.object, m.solver = 'DIFFERENCE', cutter, 'EXACT'
     bpy.context.view_layer.objects.active = shaft
     bpy.ops.object.modifier_apply(modifier=m.name)
     bpy.data.objects.remove(cutter)
-    # turn the shaft about its axis (the slit points along the pointer direction)
-    shaft.data.transform(Matrix.Translation((-cx, cy, 0)))
-    shaft.location = (cx, -cy, 0)
-    shaft.rotation_euler = (0, 0, math.radians(90 - angle_deg))
+    # a white paint-pen stripe on the pointer half of the shaft's top, from the split to the rim
+    bm = bmesh.new()
+    box(bm, cx + 0.75 * MM, cy - 0.55 * MM, cx + r_i - 0.25 * MM, cy + 0.55 * MM, zb + 23.4 * MM, zb + 23.48 * MM)
+    mark = obj(f'Pot{i}_mark', bm, col, M['paint_mark'])
+    # turn the shaft (and its mark) about its axis: the mark points along the pot's position
+    for ob in (shaft, mark):
+        ob.data.transform(Matrix.Translation((-cx, cy, 0)))
+        ob.location = (cx, -cy, 0)
+        ob.rotation_euler = (0, 0, math.radians(90 - angle_deg))
     # three solder lugs on the right-hand side, bent down to the board
     bm = bmesh.new()
     for k in (-1, 0, 1):
@@ -453,6 +461,8 @@ def add(tmp_dir):
     targets.append((u7[1] - 40, u7[2] + u7[4] / 2 + 10))                       # pot 4 -> U7
     targets.append((u7[1] + 50, u7[2] + u7[4] / 2 + 10))                       # pot 5 -> U7
     for i, (lugs, (tx, ty)) in enumerate(zip(lugs_all, targets)):
+        if i == 5:
+            continue                                    # the last pot's wiper wire crossed its own pot: none
         lx, ly = lugs[1]
         up = rnd.uniform(0.5, 3.5) * MM                 # a loose loop that rises above the panel now and then
         mid = ((lx + tx) / 2 + rnd.uniform(-30, 30), min(ly, ty) - rnd.uniform(20, 60))

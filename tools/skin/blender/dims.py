@@ -60,8 +60,8 @@ MASTER = dict(
 )
 
 ENCODER = dict(
-    r_base=165.0,            # photo: about 21.2 mm across at the panel
-    r_top=140.0,             # top of the faceted side (same ratio as render_encoder2.py: 0.845)
+    r_base=168.0,            # straight-on photo: about 21.6 mm across at the panel (a black gap to the ring)
+    r_top=141.0,             # straight-on photo: the flat top (inside the chamfer) about 17 mm across
     chamfer=8.0,             # rounded chamfer from the side to the flat top
     height=18.0 * MM,        # close-up photo: nearly as tall as it is wide
     facets=18, groove=0.16, groove_depth=4.0,

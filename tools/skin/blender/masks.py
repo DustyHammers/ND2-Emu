@@ -97,6 +97,44 @@ _band = (_yy > H - 40) | (_xx < 20) | (_xx > W - 21) | (_yy < 20)
 inks[_band] = (1.0, 0.0, 0.0, 0.0)
 del _yy, _xx, _cx, _cy, _band
 
+# 2a) the value encoder's print, redrawn with the circles at the owner's straight-on photo's sizes (the art
+#     draws them too big): a black disc (r 272) with a red ring (r 197-209), the main panel's bottom edge notched
+#     around it (r 301, red between). The straight edges (main panel, the red stripe, the LOWER PARAM band) are
+#     read from the art itself, so they stay exactly where the art has them. Within r 340 only; the art's own
+#     notch is inside that, so everything meets the untouched art at the boundary.
+_rects0, _kinds0 = read_rcss_plain()
+_ecx, _ecy = _rects0['value'][:2]
+ENC = dict(ring_in=197.0, ring_out=209.0, disc=272.0, notch=301.0, region=340.0)
+
+
+def _edges_left(x):
+    """Rows (relative to the centre) where the art's column x changes ink: main panel / stripe / band / body."""
+    col = p[int(_ecy) - 520:int(_ecy) + 420, int(x)]
+    red = (col[:, 0] - np.maximum(col[:, 1], col[:, 2])) > 60
+    ch = np.where(np.diff(red.astype(int)) != 0)[0] + 1 - 520
+    return ch
+
+
+_ch = _edges_left(_ecx - 450)      # red stripe starts, band starts, body starts
+_y_main, _y_band_top, _y_band_bot = float(_ch[0]), float(_ch[1]), float(_ch[2])
+_R = int(ENC['region']) + 2
+_y0, _y1, _x0, _x1 = int(_ecy - _R), int(_ecy + _R) + 1, int(_ecx - _R), int(_ecx + _R) + 1
+_ss = 4                                                            # supersampling for clean edges
+_yy, _xx = np.mgrid[0:(_y1 - _y0) * _ss, 0:(_x1 - _x0) * _ss].astype(np.float32)
+_dx = _x0 + (_xx + 0.5) / _ss - _ecx
+_dy = _y0 + (_yy + 0.5) / _ss - _ecy
+_r = np.hypot(_dx, _dy)
+_black = (_dy < _y_main) & (_r > ENC['notch'])                       # main panel, notched around the disc
+_black |= (_dy >= _y_band_top) & (_dy < _y_band_bot) & (_dx < 0)     # the LOWER PARAM band, running into the disc
+_black |= _r < ENC['disc']                                           # the disc
+_ring = (_r >= ENC['ring_in']) & (_r < ENC['ring_out'])
+_black &= ~_ring
+_blk = _black.reshape(_y1 - _y0, _ss, _x1 - _x0, _ss).mean((1, 3))
+_inside = np.hypot(np.arange(_x0, _x1)[None, :] + 0.5 - _ecx, np.arange(_y0, _y1)[:, None] + 0.5 - _ecy) < ENC['region']
+_loc = inks[_y0:_y1, _x0:_x1]
+_loc[_inside] = np.stack([1 - _blk, _blk, np.zeros_like(_blk), np.zeros_like(_blk)], -1)[_inside]
+print(f'encoder print redrawn: main panel edge {_y_main:+.0f}, band {_y_band_top:+.0f} to {_y_band_bot:+.0f} (rows from the centre)')
+
 # 2b) keep lettering and label windows clear of the LED holes and their rounded edges: a group (a line of
 #     lettering, or a label window with its letters) that reaches into a hole's keep-out circle is narrowed
 #     horizontally, anchored on its far side, until it ends just outside it. In the art, DYN FILTER runs into the

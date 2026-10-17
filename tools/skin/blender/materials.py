@@ -330,6 +330,40 @@ def knob_with_pointer(name):
     return m
 
 
+def knob_plastic(name, rgb=(0.016, 0.016, 0.017), rough=0.62, grain_mm=0.06, grain_bump=0.25):
+    """Near-black satin plastic with a fine sandblasted grain (the encoder and the MASTER knob in the photos)."""
+    m = simple(name, rgb, rough, 0.4)
+    nt = m.node_tree
+    b = nt.nodes.get('Principled BSDF')
+    tc = nt.nodes.new('ShaderNodeTexCoord')
+    nz = nt.nodes.new('ShaderNodeTexNoise')
+    nt.links.new(tc.outputs['Object'], nz.inputs['Vector'])
+    nz.inputs['Scale'].default_value = 1.0 / (grain_mm * D.MM)
+    nz.inputs['Detail'].default_value = 2
+    bump = nt.nodes.new('ShaderNodeBump')
+    bump.inputs['Distance'].default_value = grain_bump
+    nt.links.new(nz.outputs['Fac'], bump.inputs['Height'])
+    nt.links.new(bump.outputs['Normal'], b.inputs['Normal'])
+    # sandblasted speckle: sparse lighter grains in the colour
+    vo = nt.nodes.new('ShaderNodeTexVoronoi')
+    vo.voronoi_dimensions = '3D'
+    nt.links.new(tc.outputs['Object'], vo.inputs['Vector'])
+    vo.inputs['Scale'].default_value = 1.0 / (0.10 * D.MM)
+    sp = nt.nodes.new('ShaderNodeSeparateColor')
+    nt.links.new(vo.outputs['Color'], sp.inputs[0])
+    gt = nt.nodes.new('ShaderNodeMath')
+    gt.operation = 'GREATER_THAN'
+    gt.inputs[1].default_value = 0.90
+    nt.links.new(sp.outputs[0], gt.inputs[0])
+    mix = nt.nodes.new('ShaderNodeMix')
+    mix.data_type = 'RGBA'
+    nt.links.new(gt.outputs[0], mix.inputs['Factor'])
+    mix.inputs['A'].default_value = (*rgb, 1)
+    mix.inputs['B'].default_value = (rgb[0] * 3.2, rgb[1] * 3.2, rgb[2] * 3.2, 1)
+    nt.links.new(mix.outputs['Result'], b.inputs['Base Color'])
+    return m
+
+
 def metal(name, rgb, rough):
     m = simple(name, rgb, rough, 0.5)
     m.node_tree.nodes.get('Principled BSDF').inputs['Metallic'].default_value = 1.0
@@ -345,6 +379,7 @@ def assign_all(scene, maps_dir, peel_strips=None, emission_png=None):
         'board': emissive_board('DisplayBoard', emission_png) if emission_png else simple('DisplayBoard', (0.006, 0.004, 0.004), 0.7, 0.2),
         'grey': simple('ButtonGrey', (0.56, 0.58, 0.64), 0.55, 0.5),      # light cool grey (photo)
         'black_plastic': simple('BlackPlastic', (0.022, 0.022, 0.024), 0.5, 0.5),
+        'encoder': knob_plastic('EncoderPlastic'),
         # unlit LED lenses look grey-olive in the photo (red and green alike)
         'led_red': simple('LedRed', (0.20, 0.19, 0.15), 0.12, 0.5, transmission=0.3),
         'led_green': simple('LedGreen', (0.18, 0.19, 0.15), 0.12, 0.5, transmission=0.3),
@@ -389,6 +424,8 @@ def assign_all(scene, maps_dir, peel_strips=None, emission_png=None):
             k = 'black_plastic'
         elif n == 'Backdrop':
             k = 'backdrop'
+        elif n == 'Encoder':
+            k = 'encoder'
         elif 'Buttons grey' in users:
             k = 'grey'
         elif 'LEDs' in users:

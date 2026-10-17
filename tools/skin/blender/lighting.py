@@ -18,7 +18,7 @@ CENTRE = Vector((D.CANVAS_W / 2, -D.CANVAS_H / 2, 0))
 
 VARIANTS = {
     # H: the studio HDR environment alone (make_hdr.py): softboxes, strips and walls light and reflect in it
-    'H': dict(hdr_only=True, exposure_ev=-1.3, world=1.0, world_rot=0),
+    'H': dict(hdr_only=True, exposure_ev=-1.0, world=1.0, world_rot=0),
     # P: matched to the owner's front three-quarter product photo: a large, high soft key from the front left,
     # a broad fill from the right, short soft shadows, little sheen
     'P': dict(exposure_ev=0.0, key_az=125, key_el=62, key_size_mm=1400, key_dist_mm=1500, key_E=2.0, twin=0.2,

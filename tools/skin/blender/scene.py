@@ -272,14 +272,24 @@ def build_plate(rects, kinds, col):
     bmesh.ops.dissolve_degenerate(bm, edges=bm.edges[:], dist=0.05)
     bm.normal_update()
     bw0 = bm.edges.layers.float.get('bevel_weight_edge') or bm.edges.layers.float.new('bevel_weight_edge')
+    W = D.CANVAS_W
     for e in bm.edges:
-        if any(abs(v.co.z) > 0.01 for v in e.verts) or len(e.link_faces) != 2:
+        if len(e.link_faces) != 2:
+            continue
+        on_side = all(v.co.x < 0.01 for v in e.verts) or all(v.co.x > W - 0.01 for v in e.verts)
+        if on_side:
+            # the side's outer edge all the way round: over the top, the front bend and down the lip
+            other = [f for f in e.link_faces if abs(f.normal.x) < 0.9]
+            if other and (other[0].normal.z > 0.1 or other[0].normal.y < -0.1):
+                e[bw0] = 1.0
+            continue
+        if any(abs(v.co.z) > 0.01 for v in e.verts):
             continue
         if all(abs(f.normal.z) > 0.99 for f in e.link_faces):
             continue
-        if -max(v.co.y for v in e.verts) > D.CANVAS_H - 300:      # leave the front bend alone
+        if -max(v.co.y for v in e.verts) > D.CANVAS_H - 300:      # the front bend is in the section
             continue
-        e[bw0] = 1.0
+        e[bw0] = 1.0                                             # back edge and back corners
     bm.to_mesh(plate.data)
     bm.free()
     roll = plate.modifiers.new('roll', 'BEVEL')
@@ -370,8 +380,11 @@ def build_plate(rects, kinds, col):
         me.auto_smooth_angle = math.radians(35)
     # normals weighted by face area: the big flat top keeps exactly flat normals, so long triangles between a
     # hole and a rounded edge don't pick up the edge's tilt (it showed as streaks across the paint)
+    vg = plate.vertex_groups.new(name='flat_top')     # the flat top only: the bend must keep smooth shading
+    vg.add([v.index for v in plate.data.vertices if v.co.z > -0.01 and -v.co.y < D.CANVAS_H - 80
+            and D.CASE['corner_back_r'] < v.co.x < D.CANVAS_W - D.CASE['corner_back_r']], 1.0, 'REPLACE')
     wn = plate.modifiers.new('flat_top', 'WEIGHTED_NORMAL')
-    wn.mode, wn.weight, wn.keep_sharp = 'FACE_AREA', 100, True
+    wn.mode, wn.weight, wn.keep_sharp, wn.vertex_group = 'FACE_AREA', 100, True, 'flat_top'
     return plate
 
 

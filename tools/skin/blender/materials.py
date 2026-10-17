@@ -19,7 +19,7 @@ PAINT = dict(
     # against the photo's 38 at zero albedo, so the gloss is cut to what the calibration can reach
     # the reference photos show a satin finish with only a faint sheen
     # owner: a very fine orange peel with a slight shine that sparkles in places
-    coat_red=0.38, coat_ink=0.28, coat_rough_red=0.26, coat_rough_ink=0.34, coat_ior=1.5,
+    coat_red=0.38, coat_ink=0.28, coat_rough_red=0.42, coat_rough_ink=0.48, coat_ior=1.5,   # satin
     peel_wavelength=0.30 * D.MM,            # orange peel cell size (very fine)
     peel_distance=0.20,                     # bump distance (px): a visible fine stipple, like the photos
     mottle=0.035,                           # powder-coat mottle: +/- share of the paint colour
@@ -28,7 +28,7 @@ PAINT = dict(
     sparkle_density=0.08,                   # share of grains that are tilted
     sparkle_dot=0.40,                       # glint size within its grain (share of the spacing)
     sparkle_tilt=0.75,                      # how far a tilted grain leans (about 35 degrees at most)
-    sparkle_smooth=0.20,                    # tilted grains are this much glossier, so their glints are crisp
+    sparkle_smooth=0.30,                    # tilted grains are this much glossier, so their glints are crisp
     virtual_perspective=False,              # only for an orthographic skin camera
     ink_distance=0.12,                      # printed relief (px)
     lip_distance=0.35,                      # build-up lip (px)

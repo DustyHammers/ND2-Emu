@@ -51,17 +51,18 @@ def panel(centre, half_w_deg, half_h_deg, radiance, soft=0.25, rgb=(1.0, 1.0, 1.
 
 
 img = np.zeros((H, W, 3), np.float64)
-# room: grey walls brightest just above the horizon, darker ceiling, dark floor
-el = TH
-wall = 0.10 + 0.06 * np.exp(-(np.degrees(el) - 10) ** 2 / 400.0)
-wall = np.where(el > 0, wall - 0.04 * np.sin(el), 0.025 + 0.015 * np.cos(el) ** 8)
+# room: grey walls brightest just above the horizon, darker ceiling, dark floor; the horizon is a soft blend
+el = np.degrees(TH)
+wall_up = 0.10 + 0.06 * np.exp(-(el - 10) ** 2 / 400.0) - 0.04 * np.sin(np.radians(np.clip(el, 0, 90)))
+floor = 0.03 + 0.012 * np.cos(np.radians(el)) ** 8
+blend = 1.0 / (1.0 + np.exp(-el / 6.0))          # about 20 degrees wide
+wall = floor + (wall_up - floor) * blend
 img += wall[..., None] * np.array([1.0, 0.99, 0.97])
-# lights (radiance in linear units)
-img += panel(unit(-0.10, 0.35, 1.0), 26, 18, 7.0, soft=0.30)                          # overhead box, a bit back
-img += panel(unit(-0.75, -0.65, 0.65), 16, 22, 14.0, soft=0.25, rgb=(1.0, 0.98, 0.95))  # key, front left
-img += panel(unit(0.85, 0.45, 0.45), 3.0, 24, 10.0, soft=0.35, roll=0.0)              # rim strip, back right
-img += panel(unit(0.80, -0.55, 0.30), 18, 18, 1.6, soft=0.5, rgb=(0.97, 0.98, 1.0))   # fill card, front right
-img += panel(unit(-0.95, 0.20, 0.30), 2.5, 18, 6.0, soft=0.35)                       # kicker strip, left
+# lights (radiance in linear units): broad, soft-edged boxes only (thin strips streak across a glossy panel)
+img += panel(unit(-0.10, 0.35, 1.0), 30, 22, 6.0, soft=0.55)                          # overhead box, a bit back
+img += panel(unit(-0.75, -0.65, 0.65), 18, 24, 12.0, soft=0.50, rgb=(1.0, 0.98, 0.95))  # key, front left
+img += panel(unit(0.85, 0.45, 0.45), 12, 22, 3.0, soft=0.60)                           # rim box, back right
+img += panel(unit(0.80, -0.55, 0.30), 20, 20, 1.6, soft=0.60, rgb=(0.97, 0.98, 1.0))   # fill card, front right
 img = img.astype(np.float32)
 OpenEXR.File({'compression': OpenEXR.ZIP_COMPRESSION, 'type': OpenEXR.scanlineimage},
              {'RGB': np.ascontiguousarray(img)}).write(OUT)

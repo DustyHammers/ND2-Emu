@@ -34,6 +34,7 @@ static void write_wav(const char* fn, const std::vector<int32_t>& s, double fs, 
   fclose(f);
 }
 
+static uint32_t brng = 12345;
 struct BVox { int ch = 1; std::string mode; double amt = 0; int32_t hold = 0; int count = 0; };
 static std::vector<BVox> bvox;
 static int bskip[6] = {0, 0, 0, 0, 0, 0}; static int bskip_n[6] = {0, 0, 0, 0, 0, 0};
@@ -46,6 +47,7 @@ static void vox_hook(dspic::CPU& c, void*) {
     else if (v.mode == "wrap") { x = (int32_t)(uint32_t)((int64_t)x * (int64_t)v.amt); }
     else if (v.mode == "fold") { double y = x / 2147483648.0 * v.amt; while (y > 1 || y < -1) y = y > 1 ? 2 - y : -2 - y; x = (int32_t)(y * 2147483647.0); }
     else if (v.mode == "flip") { x ^= (int32_t)(1u << (int)v.amt); }
+    else if (v.mode == "crackle") { brng = brng * 1664525u + 1013904223u; if ((brng >> 8) / 16777216.0 < v.amt) { brng = brng * 1664525u + 1013904223u; x ^= (int32_t)(1u << (26 + (brng >> 29))); } }
     c.st16(a, (uint16_t)((uint32_t)x >> 16)); c.st16(a + 2, (uint16_t)x);
   }
 }
@@ -53,6 +55,20 @@ static void skip_hook(dspic::CPU& c, void* ctx) {
   const int ch = (int)(intptr_t)ctx;
   if (bskip[ch] > 1 && (bskip_n[ch]++ % bskip[ch]) != 0) c.st16(0, (uint16_t)(0x3F00 + 4 * ch));   // skip the engine this sample
 }
+// time stretch / freeze: the control scheduler (inc 0x116C at 0x1ACBC) is skipped on some samples
+static int bstretch = 1; static double bjitter = 0; static std::vector<std::pair<double, double>> bfreeze;
+static uint64_t bsched_n = 0;
+static void sched_hook(dspic::CPU& c, void*) {
+  const double t = c.cycles / nd2::FCY;
+  bool skip = bstretch > 1 && (bsched_n % (uint64_t)bstretch) != 0;
+  for (auto& w : bfreeze) if (t >= w.first && t < w.second) skip = true;
+  if (bjitter > 0) { static double p = bjitter * 0.5; brng = brng * 1664525u + 1013904223u; p += ((brng >> 8) / 16777216.0 - 0.5) * 0.004; p = std::max(0.0, std::min(bjitter, p));
+    brng = brng * 1664525u + 1013904223u; if ((brng >> 8) / 16777216.0 < p) skip = true; }
+  bsched_n++;
+  c.bend_setz(skip);
+}
+// brownouts: CPU starve in short random bursts; crackle: sparse bit hits per voice
+static double bbrown = 0; static uint64_t bbrown_until = 0;
 struct FeedBack : nd2::Board::AdcSource {
   nd2::Board* b; double g; unsigned mask;
   void next_block(double* add) override {
@@ -96,6 +112,10 @@ int main(int argc, char** argv) {
     else if (arg("-bdac")) bdac = atoi(argv[++i]);
     else if (!strcmp(argv[i], "-bfind")) bfind = true;
     else if (!strcmp(argv[i], "-bint")) bint = true;
+    else if (arg("-bstretch")) bstretch = atoi(argv[++i]);
+    else if (arg("-bjitter")) bjitter = atof(argv[++i]);
+    else if (arg("-bfreeze")) { double a, b; sscanf(argv[++i], "%lf,%lf", &a, &b); bfreeze.push_back({a, b}); }
+    else if (arg("-bbrown")) bbrown = atof(argv[++i]);
     else if (arg("-bfb")) { sscanf(argv[++i], "%lf,%x", &bfb, &bfbmask); }
     else if (arg("-bfill")) { unsigned a, n, v; sscanf(argv[++i], "%x,%u,%x", &a, &n, &v); for (unsigned k = 0; k < n; k++) bram.push_back({a + 2 * k, v}); }
     else if (arg("-bvox")) { BVox v; char m[16]; sscanf(argv[++i], "%d,%15[^,],%lf", &v.ch, m, &v.amt); v.mode = m; bvox.push_back(v); }
@@ -163,6 +183,17 @@ int main(int argc, char** argv) {
   if (bfind) for (uint32_t a = 0x1000; a < 0xE000; a += 2) { uint16_t v = C.ram[a] | (C.ram[a+1] << 8); if (v == 0x8435 || v == 0x0BB3 || v == 0x636B || v == 0x3619) printf("ram %04x = %04x\n", a, v); }
   for (auto& p : bpatch) { printf("patch %06x: %06x -> %06x\n", p.first, C.prog[p.first / 2], p.second); C.prog[p.first / 2] = p.second; C.invalidate(p.first); }
   for (auto& p : bram) { printf("ram %04x: %04x -> %04x\n", p.first, C.ram[p.first] | (C.ram[p.first+1] << 8), p.second); C.ram[p.first] = p.second & 0xFF; C.ram[p.first+1] = p.second >> 8; }
+  if (bstretch > 1 || bjitter > 0 || !bfreeze.empty()) {   // trampoline at 0x3F40 around the scheduler
+    const uint32_t T = 0x3F40; auto P = [&](uint32_t a, uint32_t w) { C.prog[a / 2] = w; C.invalidate(a); };
+    const uint32_t inc = C.prog[0x1ACBC / 2], bt0 = C.prog[0x1ACBE / 2], g1 = C.prog[0x1ACC0 / 2], g2 = C.prog[0x1ACC2 / 2];
+    P(T + 0, 0x320006);                       // bra z, T+14
+    P(T + 2, inc); P(T + 4, bt0); P(T + 6, g1); P(T + 8, g2);
+    P(T + 10, 0x040000 | (0x1ACC4 & 0xFFFE)); P(T + 12, 0x1ACC4 >> 16);
+    P(T + 14, 0x040000 | (0x343E0 & 0xFFFE)); P(T + 16, 0x343E0 >> 16);
+    P(0x1ACBC, 0x040000 | T); P(0x1ACBE, 0);
+    for (uint32_t a = T; a <= T + 16; a += 2) printf("  %06x %s\n", a, C.disasm_at(a).c_str());
+    C.add_hook(T, sched_hook, nullptr);
+    printf("bend: stretch %d, jitter %.2f, %zu freezes\n", bstretch, bjitter, bfreeze.size()); }
   if (bint) { C.bend_int = true; C.update_ipl(); printf("bend: fractional/integer swapped\n"); }
   if (!bvox.empty()) { C.add_hook(0x1A9EE, vox_hook, nullptr); printf("bend: %zu voice bends\n", bvox.size()); }
   for (int k = 0; k < 6; k++) { uint32_t t = 0x1A68E + 0x90 * k, a = 0x3F00 + 4 * k;   // trampolines back to the dispatch
@@ -190,7 +221,7 @@ int main(int argc, char** argv) {
   if (pcprof) pcc.assign(0x40000, 0);
   if (!bps.empty() || tr_hi || pcprof) C.trace = [&](uint32_t pc, const dspic::Insn&) {
     if (pcprof) pcc[pc >> 1]++;
-    if (pc >= tr_lo && pc < tr_hi && C.cycles / FCY >= tr_t && tr_n < 400) { tr_n++;
+    if (pc >= tr_lo && pc < tr_hi && C.cycles / FCY >= tr_t && tr_n < 40000) { tr_n++;
       printf("  %06x %-36s W0=%04x W1=%04x W2=%04x W3=%04x W4=%04x W5=%04x W6=%04x W7=%04x W8=%04x W9=%04x SR=%04x\n", pc, C.disasm_at(pc).c_str(),
         C.W(0), C.W(1), C.W(2), C.W(3), C.W(4), C.W(5), C.W(6), C.W(7), C.W(8), C.W(9), C.sr()); }
     for (auto b : bps) if (pc == b && bphits[b]++ < 4)
@@ -237,6 +268,9 @@ int main(int argc, char** argv) {
     if (mi < midi.size()) stop = std::min<uint64_t>(stop, std::max<uint64_t>(C.cycles + 1, (uint64_t)std::ceil(midi[mi].first * FCY)));
     if (ui < uis.size()) stop = std::min<uint64_t>(stop, std::max<uint64_t>(C.cycles + 1, (uint64_t)std::ceil(uis[ui].t * FCY)));
     if (hi < hits.size()) stop = std::min<uint64_t>(stop, std::max<uint64_t>(C.cycles + 1, (uint64_t)std::ceil(hits[hi].t * FCY)));
+    if (bbrown > 0) { brng = brng * 1664525u + 1013904223u;
+      if (C.cycles >= bbrown_until && (brng >> 8) / 16777216.0 < bbrown) { bbrown_until = C.cycles + (uint64_t)(FCY * (0.02 + 0.08 * ((brng >> 4) & 255) / 255.0)); }
+      B.frame_cycles = C.cycles < bbrown_until ? 700 : 2048; }
     C.run_cycles(stop - C.cycles);
   }
   double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();

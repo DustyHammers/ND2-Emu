@@ -15,3 +15,13 @@ plugin; with no option given, the output is unchanged.
 | `-bfb gain,padmask` | feedback: the output added to the trigger inputs (pads by bit mask) |
 | `-bvox ch,mode,amount` | per voice, on the channel's signal at 0x1E8E + 4(ch-1) (high word first) before the mix: `crush` bits, `hold` samples, `wrap` gain, `fold` gain, `flip` bit |
 | `-bskip ch,N` | per voice underclock: the channel's tone engine runs 1 sample in N (dispatch `goto W0` at 0x1A68C + 0x90(ch-1), skipped through trampolines at 0x3F00 + 4(ch-1)); 1 in 2 is an octave down plus a buzz near Nyquist |
+
+## Time and glitch bends
+
+| Option | Bend |
+|--|--|
+| `-bstretch N` | time stretch: the OS's control scheduler (`inc.w 0x116C` at 0x1ACBC, then one rate group per sample by the counter's lowest set bit; every task ends with `goto 0x343E0`) runs on 1 sample in N. Envelopes, decays and pitch bends get N times longer; pitch is unchanged (measured: decay 0.19 / 0.37 / 0.75 s at x1 / x2 / x4, 193 Hz throughout). Done with a trampoline at 0x3F40 (`bra z` set by a hook, the two replaced instructions, gotos back). |
+| `-bfreeze t0,t1` | the scheduler stops between t0 and t1 (CPU seconds): sounds stop evolving and hold, then carry on |
+| `-bjitter p` | the scheduler is skipped at random with a slowly wandering probability up to p (subtle) |
+| `-bbrown p` | brownouts: random bursts (20-100 ms) of CPU starve (700 cycles per frame) |
+| `-bvox ch,crackle,p` | per voice: a random high bit flipped with probability p per sample |

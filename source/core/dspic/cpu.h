@@ -53,7 +53,8 @@ public:
   std::vector<uint32_t> prog;   // 24-bit program words, index = pc/2
   Bus* bus = nullptr;
   bool mul_acc_fractional = true;
-  bool bend_nosat = false, bend_int = false;          // BEND experiment   // MUL.xx Wb,Ws,Acc obeys CORCON.IF (fractional <<1)
+  bool bend_nosat = false, bend_int = false;
+  void bend_setz(bool on) { setflag(SR_Z, on); }          // BEND experiment   // MUL.xx Wb,Ws,Acc obeys CORCON.IF (fractional <<1)
 
   int64_t accv[2] = {0, 0};    // ACCA/ACCB (40-bit, sign-extended); memory-mapped at 0x22..0x2D
   uint32_t pc = 0;

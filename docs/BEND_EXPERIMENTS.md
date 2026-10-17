@@ -46,3 +46,21 @@ stretch, wrap or clipping off). Nothing is processed after the chip.
 Fuzz, 240 seeds: no crash or hang; back to normal after every reset (worst 1.0 dB). Bent median RMS -25.2 dB against
 -24.2 dB normal; loudest roll -16.0 dB (+8 dB); level between hits at most -20.7 dB (normal -34 dB), so no roar;
 11 rolls more than 6 dB louder than normal.
+
+## Per-voice stretch
+
+The scheduler's per-channel handler calls (Fs/16 group: `goto W0` at 0x192FC + 4ch, returning to +2; Fs/256 group:
+0x1A2AA + 4ch) are not where the audible decays are: skipping them changes nothing audible.
+
+What works (`BVMAP=<any> BVENV=docs/bend_maps/stretch_env_words.txt nd2emu ... -bvstretch ch,N`): each channel's
+envelope words, held back on N-1 of N passes (at the T5 loop head 0x343E0) when they only took a small step
+(|delta| <= 0x400), so note starts (big jumps) always go through:
+- 0xD090 + 8ch: the main loudness envelope (steps down every 2 passes, Fs/4 group). Alone, it gives exactly the
+  whole-drum stretch on pads 1, 4, 5 of bank 1 program 5 (decay 1.19 -> 2.89, 0.19 -> 0.75, 0.35 -> 1.39 s at x4).
+- 0x1D28 + 6ch and 0x1D2A + 6ch (the Fs/2 group's envelope, 32-bit): adds pad 6 (0.29 -> 1.23 s; whole drum 1.15) and
+  part of pad 2 (0.12 -> 0.33 s; whole drum 0.46).
+- Pad 3 of that program (hi-hat model) is not stretched yet: its decay is in its tone model's own state.
+- A pad whose stretch is off is byte-identical to normal while another pad is stretched (all six checked).
+Map tools: `BMAP=t0,t1,file` (bytes the scheduler changes), `BCHG=t0,t1,file` (words changed by anything),
+`BLOG=a,b,...` (log words per pass), `-bsched` (goto sites), `BDUMP=pc` (one task in full).
+Still to do for a real feature: the tone-model-specific decay words, for every tone model in every channel.

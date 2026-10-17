@@ -58,9 +58,11 @@ static void skip_hook(dspic::CPU& c, void* ctx) {
 // time stretch / freeze: the control scheduler (inc 0x116C at 0x1ACBC) is skipped on some samples
 static int bstretch = 1; static double bjitter = 0; static std::vector<std::pair<double, double>> bfreeze;
 static uint64_t bsched_n = 0;
+static uint32_t bgroups = 0xFFFFFFFF; static uint64_t bgrp_n[32] = {};
 static void sched_hook(dspic::CPU& c, void*) {
   const double t = c.cycles / nd2::FCY;
-  bool skip = bstretch > 1 && (bsched_n % (uint64_t)bstretch) != 0;
+  const uint16_t nxt = (uint16_t)(c.ld16(0x116C) + 1); const int grp = nxt ? __builtin_ctz(nxt) : 16;
+  bool skip = bstretch > 1 && ((bgroups >> grp) & 1) && (bgrp_n[grp]++ % (uint64_t)bstretch) != 0;
   for (auto& w : bfreeze) if (t >= w.first && t < w.second) skip = true;
   if (bjitter > 0) { static double p = bjitter * 0.5; brng = brng * 1664525u + 1013904223u; p += ((brng >> 8) / 16777216.0 - 0.5) * 0.004; p = std::max(0.0, std::min(bjitter, p));
     brng = brng * 1664525u + 1013904223u; if ((brng >> 8) / 16777216.0 < p) skip = true; }
@@ -68,6 +70,17 @@ static void sched_hook(dspic::CPU& c, void*) {
   c.bend_setz(skip);
 }
 // brownouts: CPU starve in short random bursts; crackle: sparse bit hits per voice
+static bool bsched_an = false, bvs_any = false;
+// per-voice stretch: the scheduler's per-channel handler calls (Fs/16 group at 0x192FC + 4ch, Fs/256 group at
+// 0x1A2AA + 4ch) are skipped on N-1 of N calls for the stretched channels, through trampolines at 0x3F80 + 4i
+static int bvstretch[6] = {1, 1, 1, 1, 1, 1}; static uint64_t bvs_diff[6] = {}, bvs_calls = 0; static uint64_t bvs_n[12] = {};
+struct VSite { uint32_t pc; int ch; int idx; };
+static VSite vsites[12];
+static void vstretch_hook(dspic::CPU& c, void* ctx) {
+  const VSite* v = static_cast<const VSite*>(ctx);
+  const int n = bvstretch[v->ch];
+  if (n > 1 && (bvs_n[v->idx]++ % (uint64_t)n) != 0) c.st16(0, (uint16_t)(0x3F80 + 4 * v->idx));
+}
 static double bbrown = 0; static uint64_t bbrown_until = 0;
 // random roll: a random set of bends; undone at broll_reset (all bends are reversible)
 static uint32_t broll_seed = 0; static double broll_at = 1.5, broll_reset = 0; static std::string broll_desc;
@@ -119,9 +132,12 @@ int main(int argc, char** argv) {
     else if (!strcmp(argv[i], "-bfind")) bfind = true;
     else if (!strcmp(argv[i], "-bint")) bint = true;
     else if (arg("-bstretch")) bstretch = atoi(argv[++i]);
+    else if (arg("-bgroups")) bgroups = strtoul(argv[++i], nullptr, 16);
     else if (arg("-bjitter")) bjitter = atof(argv[++i]);
     else if (arg("-bfreeze")) { double a, b; sscanf(argv[++i], "%lf,%lf", &a, &b); bfreeze.push_back({a, b}); }
     else if (arg("-bbrown")) bbrown = atof(argv[++i]);
+    else if (!strcmp(argv[i], "-bsched")) bsched_an = true;
+    else if (arg("-bvstretch")) { int ch, n; sscanf(argv[++i], "%d,%d", &ch, &n); bvstretch[ch - 1] = n; bvs_any = true; }
     else if (arg("-broll")) { sscanf(argv[++i], "%u,%lf,%lf", &broll_seed, &broll_at, &broll_reset); }
     else if (arg("-bfb")) { sscanf(argv[++i], "%lf,%x", &bfb, &bfbmask); }
     else if (arg("-bfill")) { unsigned a, n, v; sscanf(argv[++i], "%x,%u,%x", &a, &n, &v); for (unsigned k = 0; k < n; k++) bram.push_back({a + 2 * k, v}); }
@@ -224,7 +240,105 @@ int main(int argc, char** argv) {
     for (int i = 0; i < 2048; i++) { C.ram[0x39B8 + 2 * i] = o[i] & 0xFF; C.ram[0x39B9 + 2 * i] = o[i] >> 8; }
     printf("bend: sine table %s\n", bsine); }
 
-  // debug hooks
+  if (bvs_any && getenv("BVMAP")) {   // per-voice stretch v2: hold the channel's scheduler-owned bytes on skipped samples
+    static std::vector<uint16_t> own[6]; static uint8_t keep[6][512]; static bool skip_now[6]; static uint64_t vn[6];
+    FILE* f = fopen(getenv("BVMAP"), "r"); unsigned a, k; while (f && fscanf(f, "%x %u", &a, &k) == 2) if (k >= 1 && k <= 6) own[k - 1].push_back((uint16_t)a); if (f) fclose(f);
+    if (getenv("BVENV")) {   // per-voice stretch v5: the channel's envelope words, held back on skipped passes when they only took a small step
+      static std::vector<uint16_t> ew[6]; static uint16_t ek[6][64]; static int thr = getenv("BVTHR") ? (int)strtol(getenv("BVTHR"), nullptr, 16) : 0x400;
+      FILE* g = fopen(getenv("BVENV"), "r"); unsigned a2, k2; while (g && fscanf(g, "%x %u", &a2, &k2) == 2) if (k2 >= 1 && k2 <= 6) ew[k2 - 1].push_back((uint16_t)a2); if (g) fclose(g);
+      C.add_hook(0x343E0, [](dspic::CPU& c, void*) {
+        bvs_calls++;
+        for (int k = 0; k < 6; k++) {
+          if (skip_now[k]) for (size_t i = 0; i < ew[k].size(); i++) { const int d = (int16_t)(c.ld16(ew[k][i]) - ek[k][i]);
+            if (d != 0 && d >= -thr && d <= thr) { c.st16(ew[k][i], ek[k][i]); bvs_diff[k]++; } }
+          skip_now[k] = bvstretch[k] > 1 && (vn[k]++ % (uint64_t)bvstretch[k]) != 0;
+          for (size_t i = 0; i < ew[k].size(); i++) ek[k][i] = c.ld16(ew[k][i]);
+        } }, nullptr);
+    } else if (getenv("BVTIME")) {   // per-voice stretch v4: the channel's envelope time = hi word 0x1F1C+0x18k : lo word 0xD090+8k, held back on skipped passes when it moved forward
+      C.add_hook(0x343E0, [](dspic::CPU& c, void*) {
+        static uint32_t tk[6];
+        bvs_calls++;
+        for (int k = 0; k < 6; k++) {
+          const uint16_t ah = (uint16_t)(0x1F1C + 0x18 * k), al = (uint16_t)(0xD090 + 8 * k);
+          const uint32_t now = ((uint32_t)c.ld16(ah) << 16) | c.ld16(al);
+          if (skip_now[k] && now > tk[k] && now - tk[k] < 0x40000u) { c.st16(ah, (uint16_t)(tk[k] >> 16)); c.st16(al, (uint16_t)tk[k]); bvs_diff[k]++; }
+          skip_now[k] = bvstretch[k] > 1 && (vn[k]++ % (uint64_t)bvstretch[k]) != 0;
+          tk[k] = ((uint32_t)c.ld16(ah) << 16) | c.ld16(al);
+        } }, nullptr);
+    } else if (getenv("BVCTR")) {   // per-voice stretch v3: hold back the channel's envelope time counters (16-bit words) when they step up
+      static std::vector<uint16_t> ctr[6]; static uint16_t ckeep[6][64];
+      FILE* g = fopen(getenv("BVCTR"), "r"); unsigned a2, k2; while (g && fscanf(g, "%x %u", &a2, &k2) == 2) if (k2 >= 1 && k2 <= 6) ctr[k2 - 1].push_back((uint16_t)a2); if (g) fclose(g);
+      C.add_hook(0x343E0, [](dspic::CPU& c, void*) {
+        bvs_calls++;
+        for (int k = 0; k < 6; k++) {
+          for (size_t i = 0; i < ctr[k].size(); i++) { const uint16_t now = c.ld16(ctr[k][i]);
+            if (skip_now[k] && now > ckeep[k][i] && now - ckeep[k][i] <= 4) { c.st16(ctr[k][i], ckeep[k][i]); bvs_diff[k]++; } }
+          skip_now[k] = bvstretch[k] > 1 && (vn[k]++ % (uint64_t)bvstretch[k]) != 0;
+          for (size_t i = 0; i < ctr[k].size(); i++) ckeep[k][i] = c.ld16(ctr[k][i]);
+        } }, nullptr);
+    } else if (getenv("BVPASS")) {   // hold across the whole pass (render + scheduler): restore at the loop head what the previous loop head saw
+      C.add_hook(0x343E0, [](dspic::CPU& c, void*) {
+        bvs_calls++;
+        for (int k = 0; k < 6; k++) {
+          if (skip_now[k]) { for (size_t i = 0; i < own[k].size(); i++) { bvs_diff[k] += c.ram[own[k][i]] != keep[k][i]; c.ram[own[k][i]] = keep[k][i]; } }
+          skip_now[k] = bvstretch[k] > 1 && (vn[k]++ % (uint64_t)bvstretch[k]) != 0;
+          for (size_t i = 0; i < own[k].size(); i++) keep[k][i] = c.ram[own[k][i]];
+        } }, nullptr);
+    } else {
+    C.add_hook(0x1ACBC, [](dspic::CPU& c, void*) {
+      for (int k = 0; k < 6; k++) { skip_now[k] = bvstretch[k] > 1 && (vn[k]++ % (uint64_t)bvstretch[k]) != 0;
+        if (skip_now[k]) for (size_t i = 0; i < own[k].size(); i++) keep[k][i] = c.ram[own[k][i]]; } }, nullptr);
+    C.add_hook(0x343E0, [](dspic::CPU& c, void*) {
+      bvs_calls++;
+      for (int k = 0; k < 6; k++) if (skip_now[k]) { skip_now[k] = false; for (size_t i = 0; i < own[k].size(); i++) { bvs_diff[k] += c.ram[own[k][i]] != keep[k][i]; c.ram[own[k][i]] = keep[k][i]; } } }, nullptr);
+    }
+    printf("bend: per-voice stretch v2 (%zu %zu %zu %zu %zu %zu bytes)\n", own[0].size(), own[1].size(), own[2].size(), own[3].size(), own[4].size(), own[5].size());
+  } else if (bvs_any) {
+    for (int i = 0; i < 12; i++) {
+      const uint32_t pc = (i < 6 ? 0x192FC : 0x1A2AA) + 4 * (i % 6), ret = pc + 2, a = 0x3F80 + 4 * i;
+      vsites[i] = {pc, i % 6, i};
+      C.prog[a / 2] = 0x040000 | (ret & 0xFFFE); C.prog[a / 2 + 1] = (ret >> 16) & 0x7F; C.invalidate(a); C.invalidate(a + 2);
+      C.add_hook(pc, vstretch_hook, &vsites[i]);
+    }
+    for (uint32_t pc : {0x192FAu, 0x192FCu, 0x192FEu, 0x1A2A8u, 0x1A2AAu, 0x1A2ACu, 0x1A2BCu, 0x1A2BEu, 0x1A2C0u}) printf("  %06x %s\n", pc, C.disasm_at(pc).c_str());
+    printf("bend: per-voice stretch %d %d %d %d %d %d\n", bvstretch[0], bvstretch[1], bvstretch[2], bvstretch[3], bvstretch[4], bvstretch[5]);
+  }
+  // scheduler write map: RAM bytes changed by scheduler tasks between t0 and t1 (BMAP=t0,t1,outfile)
+  static std::vector<uint8_t> snap(0x10000); static std::vector<uint32_t> wcount(0x10000); static bool in_t = false;
+  static double map_t0 = 0, map_t1 = 0; static std::string map_out;
+  if (const char* bm = getenv("BMAP")) { char f[256]; sscanf(bm, "%lf,%lf,%255s", &map_t0, &map_t1, f); map_out = f;
+    C.trace = [&](uint32_t pc, const dspic::Insn&) {
+      const double t = C.cycles / FCY; if (t < map_t0 || t > map_t1) return;
+      if (pc == 0x1ACBC) { memcpy(snap.data() + 0x1000, C.ram + 0x1000, 0xE000 - 0x1000); in_t = true; }
+      else if (pc == 0x343E0 && in_t) { in_t = false; for (uint32_t a = 0x1000; a < 0xE000; a++) if (C.ram[a] != snap[a]) wcount[a]++; }
+    }; }
+  static std::vector<uint8_t> chg0(0x10000); static double chg_t0 = -1, chg_t1 = -1; static std::string chg_out; static bool chg_taken = false;
+  if (const char* bc = getenv("BCHG")) { char f[256]; sscanf(bc, "%lf,%lf,%255s", &chg_t0, &chg_t1, f); chg_out = f; }
+  static std::vector<uint16_t> blog; static uint16_t blast[16]; static uint64_t bpass = 0;
+  if (const char* bl = getenv("BLOG")) { std::string t = bl; size_t p0 = 0; while (p0 < t.size()) { size_t q = t.find(',', p0); if (q == std::string::npos) q = t.size(); blog.push_back((uint16_t)strtoul(t.substr(p0, q - p0).c_str(), nullptr, 16)); p0 = q + 1; }
+    C.add_hook(0x343E0, [](dspic::CPU& c, void*) { bpass++; double t = c.cycles / nd2::FCY; if (t < 1.599 || t > 1.75) return;
+      bool ch = false; for (size_t i = 0; i < blog.size(); i++) { uint16_t v = c.ld16(blog[i]); if (v != blast[i]) ch = true; blast[i] = v; }
+      if (ch) { printf("%.5f %llu:", t, (unsigned long long)bpass); for (size_t i = 0; i < blog.size(); i++) printf(" %04x", blast[i]); printf("\n"); } }, nullptr); }
+  // scheduler analysis: goto Wn sites executed between the scheduler entry (0x1ACBC) and the T5 loop (0x343E0)
+  struct GS { uint64_t n = 0; std::map<uint32_t, uint64_t> targets; uint32_t grp_mask = 0; };
+  static std::map<uint32_t, GS> gsites; static bool in_s = false; static uint32_t last_goto = 0;
+  static int dump_left = getenv("BDUMP") ? 1 : 0; static bool dumping = false; static FILE* df = nullptr;
+  if (bsched_an && dump_left) C.trace = [&](uint32_t pc, const dspic::Insn&) {
+    if (C.cycles / FCY < 2.0) return;
+    if (!dumping && pc == (uint32_t)strtoul(getenv("BDUMP"), nullptr, 16)) { dumping = true; df = fopen("sched_dump.txt", "w"); }
+    if (dumping) { fprintf(df, "%06x %s | W0=%04x W1=%04x W2=%04x W8=%04x W9=%04x W10=%04x W11=%04x W12=%04x W13=%04x\n", pc, C.disasm_at(pc).c_str(), C.W(0), C.W(1), C.W(2), C.W(8), C.W(9), C.W(10), C.W(11), C.W(12), C.W(13));
+      if (pc == 0x343E0) { dumping = false; fclose(df); dump_left = 0; } }
+  };
+  else if (bsched_an) C.trace = [&](uint32_t pc, const dspic::Insn&) {
+    if (C.cycles / FCY < 2.0) return;
+    if (pc == 0x1ACBC) in_s = true;
+    else if (pc == 0x343E0) in_s = false;
+    if (!in_s) return;
+    std::string d = C.disasm_at(pc);
+    if (d.rfind("goto W", 0) == 0) { int r = d[6] - '0'; auto& g = gsites[pc]; g.n++; g.targets[C.W(r)]++;
+      uint16_t cnt = C.ld16(0x116C); int grp = cnt ? __builtin_ctz(cnt) : 16; g.grp_mask |= 1u << std::min(grp, 31); }
+  };
+
   std::map<uint32_t, int> bphits;
   std::vector<uint32_t> pcc;
   if (pcprof) pcc.assign(0x40000, 0);
@@ -324,8 +438,15 @@ int main(int argc, char** argv) {
     if (bbrown > 0) { brng = brng * 1664525u + 1013904223u;
       if (C.cycles >= bbrown_until && (brng >> 8) / 16777216.0 < bbrown) { bbrown_until = C.cycles + (uint64_t)(FCY * (0.02 + 0.08 * ((brng >> 4) & 255) / 255.0)); }
       B.frame_cycles = C.cycles < bbrown_until ? 700 : 2048; }
+    if (chg_t0 >= 0) { if (!chg_taken && now >= chg_t0) { memcpy(chg0.data(), C.ram, 0x10000); chg_taken = true; }
+      if (chg_taken && now >= chg_t1) { FILE* f = fopen(chg_out.c_str(), "w"); for (uint32_t a = 0x1000; a < 0xE000; a += 2) if (C.ram[a] != chg0[a] || C.ram[a+1] != chg0[a+1]) fprintf(f, "%04x\n", a); fclose(f); chg_t0 = -1; } }
     C.run_cycles(stop - C.cycles);
   }
+  if (bsched_an) for (auto& [pc, g] : gsites) { printf("site %06x n=%llu groups=%x targets:", pc, (unsigned long long)g.n, g.grp_mask);
+    int k = 0; for (auto& [t, c] : g.targets) { if (k++ < 6) printf(" %04x(%llu)", t, (unsigned long long)c); } printf("%s\n", g.targets.size() > 6 ? " ..." : ""); }
+  if (bvs_any) printf("vstretch: %llu loop-head calls, restored-changed bytes per ch: %llu %llu %llu %llu %llu %llu\n", (unsigned long long)bvs_calls,
+    (unsigned long long)bvs_diff[0], (unsigned long long)bvs_diff[1], (unsigned long long)bvs_diff[2], (unsigned long long)bvs_diff[3], (unsigned long long)bvs_diff[4], (unsigned long long)bvs_diff[5]);
+  if (!map_out.empty()) { FILE* f = fopen(map_out.c_str(), "w"); for (uint32_t a = 0x1000; a < 0xE000; a++) if (wcount[a]) fprintf(f, "%04x %u\n", a, wcount[a]); fclose(f); }
   double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
   double emu = (C.cycles - c0) / FCY;
   printf("ran %.3f s in %.2f s wall (%.2fx real time, %.1f MIPS)\n", emu, wall, emu / wall, (C.instret - i0) / wall / 1e6);

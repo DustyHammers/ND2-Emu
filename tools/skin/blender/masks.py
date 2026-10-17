@@ -1,5 +1,7 @@
 # Paint and ink maps for the panel material, made from the skin's background art (2x, 3450 x 2070).
-#   python3 masks.py OUT_DIR
+#   python3 masks.py OUT_DIR [ART.jpg]
+# ART defaults to the skin's background. Once the background is replaced by the 3D render, pass the original flat
+# art instead (git show ec1ba0b:skins/default/nd2-default/ND2Background.jpg): the maps are made from the art.
 # Writes (never committed; CI makes them on every run):
 #   inks.png       RGBA, 8 bit, Non-Color: R = red body paint, G = black print, B = red tag print, A = white print.
 #                  Edges are unmixed between the two inks that meet there; glyph cores are 100 % ink.
@@ -23,7 +25,7 @@ from layout import SKIN, read_rcss_plain
 OUT = sys.argv[1]
 os.makedirs(OUT, exist_ok=True)
 
-art = Image.open(os.path.join(SKIN, 'ND2Background.jpg')).convert('RGB')
+art = Image.open(sys.argv[2] if len(sys.argv) > 2 else os.path.join(SKIN, 'ND2Background.jpg')).convert('RGB')
 W, H = art.size
 # the art carries a fine grain; a 5 px median removes it and keeps the glyph edges
 p = np.asarray(art.filter(ImageFilter.MedianFilter(5))).astype(np.float32)

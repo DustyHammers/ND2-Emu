@@ -147,7 +147,7 @@ int main() {
         CHECK(last(port) == "bend 3 256", "stepped: no send within a position: %s", last(port).c_str());
         v.mouseUp(0, 0);
         CHECK(pot2 && pot2->shownSprite() == "image(bend_032)", "stepped: settles on position 2's frame: %s", pot2 ? pot2->shownSprite().c_str() : "?");
-        v.mouseWheel(-1.0f, 0);                                          // one notch up: position 3
+        v.mouseMove(130, 630, 0); v.mouseWheel(-1.0f, 0);                // one notch up: position 3
         CHECK(port.bends[3] == 384, "stepped wheel: %d", port.bends[3]);
         v.mouseMove(30, 630, 0); const int w0 = port.bends[0]; v.mouseWheel(-1.0f, 0);
         CHECK(port.bends[0] == w0 + 64, "smooth wheel: a sixteenth of the travel (%d -> %d)", w0, port.bends[0]);

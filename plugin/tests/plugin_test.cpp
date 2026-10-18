@@ -102,6 +102,51 @@ int main(int argc, char** argv) {
         CHECK(p.checkBusesLayoutSupported(noIn), "Trigger In off is accepted");
         p.prepareToPlay(48000, 256);
         std::printf("latency %d samples\n", p.getLatencySamples());
+        {   // circuit-bent mode: six host parameters (the kit bends), the engine follows, saved with the project;
+            // Cmd-click hides them (all Off, remembered) and shows them again (the remembered amounts)
+            const auto& params = p.getParameters();
+            CHECK(params.size() == 6, "six parameters (%d)", params.size());
+            static const char* const ids[6] = {"starve", "brownouts", "time", "sinebit", "crystal", "dacbits"};
+            static const char* const names[6] = {"CPU Starve", "Brownouts", "Time", "Sine Stuck Bit", "Crystal", "DAC Bits"};
+            for (int k = 0; k < params.size() && k < 6; ++k) {
+                auto* r = dynamic_cast<juce::RangedAudioParameter*>(params[k]);
+                auto* c = dynamic_cast<juce::AudioParameterChoice*>(params[k]);
+                const bool stepped = k == 3 || k == 5;
+                CHECK(r && r->paramID == ids[k] && r->getName(32) == names[k] && r->getValue() == 0.0f && (c != nullptr) == stepped
+                      && (!c || (c->choices.size() == 9 && c->choices[0] == "Off")) && r->getText(0.0f, 32) == "Off",
+                      "parameter %d: %s", k, names[k]);
+            }
+            CHECK(p.bendParam(2)->getText(0.4f, 32) == "x4.0" && p.bendParam(2)->getText(1.0f, 32) == "Freeze"
+                  && p.bendParam(4)->getText(1.0f, 32) == "-50 %" && p.bendParam(5)->getText(1.0f, 32) == "4 bits",
+                  "parameter texts: %s, %s", p.bendParam(2)->getText(0.4f, 32).toRawUTF8(), p.bendParam(4)->getText(1.0f, 32).toRawUTF8());
+            CHECK(!p.bentView.load(), "the bent panel is closed in a new instance");
+            p.bendParam(2)->setValueNotifyingHost(0.4f);
+            p.bendParam(5)->setValueNotifyingHost(3.0f / 8.0f);
+            CHECK(std::abs(p.engine().kitBend(2) - 0.4f) < 1e-6f && p.engine().kitBend(5) == 0.375f && p.engine().kitBend(0) == 0.0f,
+                  "the engine follows the parameters");
+            CHECK(p.bentView.load(), "turning a bend on opens the bent panel");
+            juce::MemoryBlock st;
+            p.getStateInformation(st);
+            {
+                ND2Processor q;
+                q.setStateInformation(st.getData(), int(st.getSize()));
+                CHECK(std::abs(q.bendParam(2)->getValue() - 0.4f) < 1e-6f && q.bendParam(5)->getValue() == 0.375f && q.bendParam(0)->getValue() == 0.0f,
+                      "the bends are saved with the project");
+                CHECK(std::abs(q.engine().kitBend(2) - 0.4f) < 1e-6f && q.bentView.load(), "a project with bends: the engine bent, the panel open");
+            }
+            p.setBends(false);                                  // Cmd-click: hidden
+            CHECK(p.engine().kitBend(2) == 0.0f && p.engine().kitBend(5) == 0.0f && !p.bentView.load(), "hidden: every bend Off at once");
+            pump(100);
+            CHECK(p.bendParam(2)->getValue() == 0.0f && p.bendParam(5)->getValue() == 0.0f && !p.bentView.load(),
+                  "hidden: the parameters Off too, the panel stays closed");
+            p.setBends(true);                                   // Cmd-click again: the amounts come back
+            pump(100);
+            CHECK(std::abs(p.bendParam(2)->getValue() - 0.4f) < 1e-6f && p.bendParam(5)->getValue() == 0.375f
+                  && std::abs(p.engine().kitBend(2) - 0.4f) < 1e-6f && p.bentView.load(), "shown again: the remembered amounts");
+            p.setBends(false);
+            pump(100);
+            p.bentView = false;
+        }
         if (!res.hasOs()) {
             const Run r = play(p, 0.2, -1, -1);
             CHECK(energy(r.main) == 0, "silent without the OS");
@@ -264,6 +309,48 @@ int main(int argc, char** argv) {
                     f(ed.get());
                     return found;
                 };
+                {   // circuit-bent mode: Cmd-click opens the bent panel; pot 1 (CPU Starve, centre 350,118 dp) dragged up
+                    // 64 dp turns it a quarter; host automation turns pot 6 (DAC Bits); Cmd-click closes it, all Off
+                    const auto src = juce::MouseInputSource::InputSourceType::mouse;
+                    const auto L = juce::ModifierKeys::leftButtonModifier;
+                    const auto C = juce::ModifierKeys::commandModifier;
+                    auto t = juce::Time::currentTimeMillis();
+                    auto cmdClick = [&] {                               // the keyboard part of the modifiers is global in JUCE
+                        juce::ModifierKeys::currentModifiers = juce::ModifierKeys(C);
+                        peer->handleMouseEvent(src, {1600 * k, 950 * k}, juce::ModifierKeys(C), juce::MouseInputSource::defaultPressure, 0, t += 30);
+                        peer->handleMouseEvent(src, {1600 * k, 950 * k}, juce::ModifierKeys(C | L), juce::MouseInputSource::defaultPressure, 0, ++t);
+                        peer->handleMouseEvent(src, {1600 * k, 950 * k}, juce::ModifierKeys(C), juce::MouseInputSource::defaultPressure, 0, ++t);
+                        juce::ModifierKeys::currentModifiers = juce::ModifierKeys();
+                        pump(400);
+                    };
+                    cmdClick();
+                    CHECK(p.bentView.load(), "Cmd-click opens the bent panel");
+                    shot("3a_bent");
+                    peer->handleMouseEvent(src, {350 * k, 118 * k}, {}, juce::MouseInputSource::defaultPressure, 0, t += 30);
+                    peer->handleMouseEvent(src, {350 * k, 118 * k}, L, juce::MouseInputSource::defaultPressure, 0, t += 30);
+                    for (int dy = 4; dy <= 64; dy += 4) {
+                        pump(20);
+                        peer->handleMouseEvent(src, {350 * k, (118 - float(dy)) * k}, L, juce::MouseInputSource::defaultPressure, 0, t += 20);
+                    }
+                    pump(30);
+                    peer->handleMouseEvent(src, {350 * k, 54 * k}, {}, juce::MouseInputSource::defaultPressure, 0, t += 30);
+                    pump(400);
+                    const float a0 = p.bendParam(0)->getValue();
+                    CHECK(a0 > 0.2f && a0 < 0.3f && std::abs(p.engine().kitBend(0) - a0) < 1e-3f, "pot 1 turned a quarter (%.3f, engine %.3f)",
+                          double(a0), double(p.engine().kitBend(0)));
+                    p.bendParam(5)->setValueNotifyingHost(1.0f);        // host automation turns pot 6 fully
+                    p.bendParam(2)->setValueNotifyingHost(0.5f);        // and pot 3 half way
+                    pump(400);
+                    shot("3b_bent_pots");
+                    cmdClick();
+                    CHECK(!p.bentView.load() && p.bendParam(0)->getValue() == 0.0f && p.engine().kitBend(5) == 0.0f,
+                          "Cmd-click closes it, every bend Off");
+                    cmdClick();
+                    CHECK(p.bentView.load() && std::abs(p.bendParam(0)->getValue() - a0) < 1e-6f && p.bendParam(5)->getValue() == 1.0f,
+                          "Cmd-click again: the pots as they were");
+                    cmdClick();
+                    CHECK(!p.bentView.load(), "and closed again");
+                }
                 click(900, 520, true);                                  // a right-click opens the ND2 window (first: BANKS)
                 pump(1200);
                 if (ND2Window* win = findWindow()) {

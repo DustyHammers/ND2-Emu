@@ -7,7 +7,7 @@ if(APPLE AND NOT CMAKE_OSX_ARCHITECTURES)
   set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Target architectures")
 endif()
 
-project(ND2Emu VERSION 0.2.3 LANGUAGES C CXX)
+project(ND2Emu VERSION 0.3.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -31,6 +31,7 @@ add_library(nd2core STATIC
   source/core/dspic/decode.cpp
   source/core/dspic/cpu.cpp
   source/core/nd2/board.cpp
+  source/core/nd2/bends.cpp
   source/core/nd2/rom.cpp
   source/core/nd2/device.cpp
   source/core/nd2/engine.cpp
@@ -79,6 +80,9 @@ if(ND2_BUILD_TESTS)
   add_executable(nd2devicetest tests/test_device.cpp)
   target_link_libraries(nd2devicetest PRIVATE nd2core)
   add_test(NAME device COMMAND nd2devicetest)   # needs ND2_OS in the environment, otherwise skipped
+  add_executable(nd2bendstest tests/test_bends.cpp)
+  target_link_libraries(nd2bendstest PRIVATE nd2core)
+  add_test(NAME bends COMMAND nd2bendstest)     # setting checks always; the sound checks need ND2_OS (ND2_FLASH optional)
 endif()
 
 if(ND2_BUILD_PLUGIN)

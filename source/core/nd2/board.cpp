@@ -26,6 +26,8 @@ Board::Board() {
   timers = { {0x100, 0x102, 0x104, IRQ_T1}, {0x106, 0x10C, 0x110, IRQ_T2}, {0x10A, 0x10E, 0x112, IRQ_T3},
              {0x114, 0x11A, 0x11E, IRQ_T4}, {0x118, 0x11C, 0x120, IRQ_T5}, {0x122, 0x128, 0x12C, IRQ_T6},
              {0x126, 0x12A, 0x12E, IRQ_T7} };
+  for (const auto& t : timers) sfr_moves[t.a_tmr >> 1] = true;
+  for (uint16_t a = IFS0; a < IEC0; a += 2) sfr_moves[a >> 1] = true;
   for (auto& v : ivt) v = 0x4010;   // default handler slot
   ivt[IRQ_T1] = 0x4030; ivt[IRQ_DMA0] = 0x4054; ivt[IRQ_T3] = 0x4038; ivt[IRQ_CN] = 0x406C; ivt[IRQ_T4] = 0x403C;
   ivt[IRQ_T5] = 0x4040; ivt[IRQ_U2RX] = 0x4070; ivt[IRQ_T6] = 0x4044; ivt[IRQ_T7] = 0x4048;
@@ -148,6 +150,7 @@ void Board::boot() {
   cpu.reset(0x4080);
   if (fast_forward) install_fast_forward();
   install_stem_taps();
+  bends.install(*this);
   last_sync = cpu.cycles; cpu.next_event = 0; cpu.attention();
 }
 
@@ -167,9 +170,13 @@ void Board::recompute_irq() {
   cpu.irq_prio = best_prio; cpu.irq_vec = best_vec; cpu.attention();
 }
 // ---------------------------------------------------------------- SFR access
+// A read needs the peripherals brought up to date (sync) only if their state can have changed since the last sync in
+// a way the read sees. Between two syncs, before the next planned event, advancing them only moves counters
+// (advance is additive), and the only SFRs that can change are the timers' counts and the interrupt flags of timers
+// without an interrupt enabled. Other reads skip the sync; the next one catches up, with the same result.
 uint16_t Board::sfr_read(uint16_t a) {
   sfr_rd_count[a>>1]++;
-  sync();
+  if (cpu.cycles >= cpu.next_event || irq_dirty || sfr_moves[a >> 1]) sync();
   switch (a) {
   case OSCCON: return (R(a) & ~0x7021) | 0x3020;
   case U2STA: {
@@ -209,7 +216,7 @@ void Board::sfr_write(uint16_t a, uint16_t v, uint16_t mask) {
   sync();
   sfr_write_inner(a, v, mask);
   if (irq_dirty) recompute_irq();
-  cpu.next_event = cpu.cycles; cpu.attention();   // re-plan events after any SFR change
+  plan(cpu.cycles);                               // re-plan events after any SFR change
 }
 void Board::sfr_write_inner(uint16_t a, uint16_t v, uint16_t mask) {
   uint16_t old = R(a);
@@ -282,7 +289,12 @@ void Board::sync() {
   uint64_t now = cpu.cycles;
   if (now > last_sync) { advance((uint32_t)(now - last_sync)); last_sync = now; }
   if (irq_dirty) recompute_irq();
-  // plan next event
+  plan(now);
+}
+
+// The next event (a timer interrupt, a converter frame, a MIDI byte, an ADC block), from the state at `now`
+// (= last_sync).
+void Board::plan(uint64_t now) {
   static const uint32_t ps[4] = {1, 8, 64, 256};
   uint64_t nxt = 1 << 20;
   for (auto& t : timers) {
@@ -292,7 +304,7 @@ void Board::sync() {
     uint64_t rem = ((uint64_t)R(t.a_pr) - R(t.a_tmr) + 1) * p - t.pacc;
     if (rem < nxt) nxt = rem;
   }
-  if ((R(DCICON1) & 0x8000) && (R(DMA1CON) & 0x8000)) nxt = std::min<uint64_t>(nxt, FRAME_CYCLES - frame_acc);
+  if ((R(DCICON1) & 0x8000) && (R(DMA1CON) & 0x8000)) nxt = std::min<uint64_t>(nxt, frame_acc < frame_cycles ? frame_cycles - frame_acc : 1);
   if (!rxq.empty()) nxt = std::min<uint64_t>(nxt, rxq.front().first > now ? rxq.front().first - now : 1);
   if (adc_running()) { uint32_t p = adc_block_cycles(); nxt = std::min<uint64_t>(nxt, adc_acc < p ? p - adc_acc : 1); }
   if (nxt < 1) nxt = 1;
@@ -334,8 +346,8 @@ void Board::advance(uint32_t n) {
   // DCI + DMA1: one stereo frame (4 words) every 2048 cycles
   if ((R(DCICON1) & 0x8000) && (R(DMA1CON) & 0x8000)) {
     frame_acc += n;
-    while (frame_acc >= FRAME_CYCLES) {
-      frame_acc -= FRAME_CYCLES;
+    while (frame_acc >= frame_cycles) {
+      frame_acc -= frame_cycles;
       uint32_t cnt = R(DMA1CNT) + 1, base = R(DMA1STAL);
       uint16_t w[4];
       const uint32_t slot = ((base + 2 * dma1_pos - 0xDF00u) >> 3) & 15u;

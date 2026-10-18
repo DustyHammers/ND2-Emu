@@ -10,6 +10,9 @@ namespace skin {
 constexpr int kButtons = 32;        // panel button index = row * 8 + bit (see source/core/nd2/panel_map.h)
 constexpr int kLeds = 32;           // LED index (column - 4) * 8 + bit
 constexpr int kMasterMax = 1023;    // MASTER LEVEL knob position, 0 ... 1023
+constexpr int kBendPots = 6;        // circuit-bent mode: six bend pots (0-5), one per bend of the whole kit ...
+constexpr int kBendMax = 1023;      // ... each at 0 (Off) ... kBendMax
+constexpr int kBendSteps = 9;       // a stepped pot's positions (Off + 8)
 
 class PanelPort {
 public:
@@ -23,12 +26,23 @@ public:
     // Bits 0-7 = segments a (top), b (upper right), c (lower right), d (bottom), e (lower left), f (upper left),
     // g (middle), dp.
     virtual std::array<uint8_t, 4> segments() = 0;
-    virtual uint32_t serial() { return 0; }                   // changes when the display, an LED or an action's light changed
+    virtual uint32_t serial() { return 0; }                   // changes when the display, an LED, an action's light, a bend or
+                                                              // the bent panel's visibility changed
     // Actions of the plugin itself (not the instrument's panel), clicked on the skin: <action name="banks"> opens the
     // Banks window; a click on the display (<segdigit>) is "program_entry" (type a program). actionLit: the action's
     // window is open (the element gets class lit).
     virtual void action(const std::string& name) {}
     virtual bool actionLit(const std::string& name) { return false; }
+    // Circuit-bent mode (an emulator extension): the six bend pots (pot 0-5, value 0 = Off ... kBendMax; bendSteps: 0 =
+    // the pot turns smoothly, else it has that many positions, value = position x kBendMax / (steps - 1)) and whether
+    // the bent panel is shown (Cmd-click toggles it). setBend and bendGesture come while the user turns a pot (begin
+    // before the first setBend, end after the last). The skin's render thread calls these.
+    virtual int bend(int pot) { return 0; }
+    virtual int bendSteps(int pot) { return 0; }
+    virtual void setBend(int pot, int value) {}
+    virtual void bendGesture(int pot, bool begin) {}
+    virtual bool bentView() { return false; }
+    virtual void setBentView(bool on) {}
 };
 
 struct PluginInfo {

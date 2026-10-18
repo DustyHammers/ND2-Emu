@@ -39,6 +39,8 @@ void registerElements() {
     add<LedElement>("led");
     add<SegDigitElement>("segdigit");
     add<ActionElement>("action");
+    add<BendPotElement>("bendpot");
+    add<BendLedElement>("bendled");
 }
 
 // ------------------------------------------------------------------ sprites
@@ -232,6 +234,104 @@ bool ActionElement::setLit(bool lit) {
     if (int(lit) == lit_) return false;
     lit_ = int(lit);
     SetClass("lit", lit);
+    return true;
+}
+
+// ------------------------------------------------------------------ circuit-bent mode
+
+BendPotElement::BendPotElement(const Rml::String& tag) : SpriteElement(tag), view_(SkinView::current()) {
+    if (view_) view_->registerElement(this);
+}
+BendPotElement::~BendPotElement() { if (view_) view_->unregisterElement(this); }
+
+void BendPotElement::OnAttributeChange(const Rml::ElementAttributes& changed) {
+    SpriteElement::OnAttributeChange(changed);
+    if (changed.count("pot") || changed.count("pad")) {   // pad: the name in the first test builds
+        const std::string a = HasAttribute("pot") ? attr(*this, "pot") : attr(*this, "pad");
+        const int p = parseInt(a, 0);
+        pot_ = p >= 1 && p <= kBendPots ? p - 1 : -1;
+        if (view_ && pot_ >= 0) show(view_->port().bend(pot_));
+    }
+}
+
+void BendPotElement::OnUpdate() {
+    SpriteElement::OnUpdate();
+    showSprite(int(std::lround(frame_)));
+}
+
+int BendPotElement::steps() {
+    const int s = view_ && pot_ >= 0 ? view_->port().bendSteps(pot_) : 0;
+    return s >= 2 ? s : 0;
+}
+
+void BendPotElement::show(int value) {
+    if (dragging_) return;
+    value_ = std::clamp(value, 0, kBendMax);
+    frame_ = frameOf(value_);
+    showSprite(int(std::lround(frame_)));
+}
+
+void BendPotElement::beginDrag() {
+    dragging_ = true;
+    if (view_ && pot_ >= 0) view_->port().bendGesture(pot_, true);
+}
+
+void BendPotElement::send(int value) {
+    const bool changed = value != value_;
+    value_ = value;
+    if (view_) view_->bendTurned(pot_, changed ? value : -1);
+}
+
+void BendPotElement::dragTo(double frame) {
+    frame = std::clamp(frame, 0.0, travel());
+    if (frame == frame_) return;
+    frame_ = frame;
+    showSprite(int(std::lround(frame_)));
+    const int s = steps();
+    if (s) {
+        const int pos = int(std::lround(frame_ * double(s - 1) / travel()));
+        send(int(std::lround(double(pos) * kBendMax / double(s - 1))));
+    } else {
+        send(int(std::lround(frame_ * kBendMax / travel())));
+    }
+}
+
+void BendPotElement::endDrag() {
+    if (!dragging_) return;
+    dragging_ = false;
+    if (steps()) { frame_ = frameOf(value_); showSprite(int(std::lround(frame_))); }   // settles on its position
+    if (view_ && pot_ >= 0) view_->port().bendGesture(pot_, false);
+}
+
+void BendPotElement::wheel(int notches) {
+    const int s = steps();
+    int v;
+    if (s) {
+        const int pos = std::clamp(int(std::lround(double(value_) * double(s - 1) / kBendMax)) + notches, 0, s - 1);
+        v = int(std::lround(double(pos) * kBendMax / double(s - 1)));
+    } else {
+        v = std::clamp(value_ + notches * ((kBendMax + 1) / 16), 0, kBendMax);
+    }
+    if (v == value_) return;
+    if (view_ && pot_ >= 0) view_->port().bendGesture(pot_, true);
+    frame_ = frameOf(v);
+    showSprite(int(std::lround(frame_)));
+    send(v);
+    if (view_ && pot_ >= 0) view_->port().bendGesture(pot_, false);
+}
+
+BendLedElement::BendLedElement(const Rml::String& tag) : Rml::Element(tag), view_(SkinView::current()) {
+    if (view_) view_->registerElement(this);
+}
+BendLedElement::~BendLedElement() { if (view_) view_->unregisterElement(this); }
+
+bool BendLedElement::setOpacity(float opacity) {
+    if (opacity == opacity_) return false;
+    opacity_ = opacity;
+    char v[16];
+    std::snprintf(v, sizeof v, "%.3f", double(opacity));
+    for (int i = 0; i < GetNumChildren(); ++i)
+        if (Rml::Element* c = GetChild(i); c->GetTagName() == "lamp") c->SetProperty("opacity", v);
     return true;
 }
 

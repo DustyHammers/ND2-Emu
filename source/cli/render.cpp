@@ -3,8 +3,10 @@
 //   nd2render -os <os.cab|Update.exe> [-flash flash.bin] -o out.wav [-t seconds] [-rate 48000] [-block 256]
 //             [-trig six_channel.wav] [-gain pad,g] [-note t,ch,note,vel] [-pgm t,ch,prog] [-bank t,ch,bank]
 //             [-midi "t,hex hex .."] [-press t,idx[,dur]] [-enc t,detents] [-master v]
-//             [-loadstate in.state] [-savestate out.state] [-keeplatency] [-stems prefix]
+//             [-loadstate in.state] [-savestate out.state] [-keeplatency] [-stems prefix] [-bend t,bend,amount]
 // Times are in seconds from the start of the render. The trigger WAV must be at the render rate; channel k feeds pad k+1.
+// -bend t,bend,amount: circuit-bent mode from time t: bend 1-6 = CPU Starve, Brownouts, Time, Sine Stuck Bit, Crystal,
+//   DAC Bits; amount 0 (Off) ... 1 (see source/core/nd2/bends.h).
 // -stems writes prefix_ch1.wav .. prefix_ch6.wav: each channel's exact share of the main output (they add up to it).
 #include "engine.h"
 #include <algorithm>
@@ -80,7 +82,7 @@ void writeWav24(const char* fn, const std::vector<float>& l, const std::vector<f
   fclose(f);
 }
 
-struct Ev { int64_t at; int kind; std::vector<uint8_t> bytes; int a = 0, b = 0; };   // kind 0 MIDI, 1 press, 2 release, 3 encoder
+struct Ev { int64_t at; int kind; std::vector<uint8_t> bytes; int a = 0, b = 0; };   // kind 0 MIDI, 1 press, 2 release, 3 encoder, 4 bend
 
 }  // namespace
 
@@ -120,6 +122,7 @@ int main(int argc, char** argv) {
     else if (arg("-press")) { double t, dur = 0.1; int idx; if (sscanf(argv[++i], "%lf,%d,%lf", &t, &idx, &dur) < 2) continue;
       raw.push_back({t, 1, {}, idx, 0}); raw.push_back({t + dur, 2, {}, idx, 0}); }
     else if (arg("-enc")) { double t; int det; sscanf(argv[++i], "%lf,%d", &t, &det); raw.push_back({t, 3, {}, det, 0}); }
+    else if (arg("-bend")) { double t, a; int bend; if (sscanf(argv[++i], "%lf,%d,%lf", &t, &bend, &a) == 3) raw.push_back({t, 4, {}, bend, int(std::lround(a * 1e6))}); }
     else { fprintf(stderr, "unknown or incomplete option %s\n", argv[i]); return 1; }
   }
   if (!osPath || !outPath) { fprintf(stderr, "usage: nd2render -os <os.cab|Update.exe> -o out.wav [options] (see source)\n"); return 1; }
@@ -171,6 +174,7 @@ int main(int argc, char** argv) {
       Ev& e = evs[ei];
       if (e.kind == 0) mev.push_back({int(std::max<int64_t>(0, e.at - pos)), e.bytes.data(), int(e.bytes.size())});
       else if (e.kind == 1 || e.kind == 2) eng.pressButton(e.a, e.kind == 1);      // panel input: block resolution, like a UI
+      else if (e.kind == 4) eng.setKitBend(e.a - 1, float(e.b * 1e-6));               // circuit-bent mode: from the next block
       else eng.turnEncoder(e.a);
     }
     const float* tp[Engine::kPads] = {};

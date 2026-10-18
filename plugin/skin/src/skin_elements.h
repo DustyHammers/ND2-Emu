@@ -1,7 +1,10 @@
 // The custom skin elements: <pbutton button>, <led code> (with an optional <lamp> child), <knob control="master">,
-// <encoder>, <segdigit pos> (with <seg class="a".."g"|"dp"> children), <action name> (a plugin action, e.g. "banks").
+// <encoder>, <segdigit pos> (with <seg class="a".."g"|"dp"> children), <action name> (a plugin action, e.g. "banks"),
+// and for the circuit-bent mode <bendpot pot="1".."6"> and <bendled> (with <lamp> children).
 #pragma once
 #include <RmlUi/Core/Element.h>
+#include "skin_port.h"
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -119,6 +122,48 @@ private:
     SkinView* view_;
     std::string name_;
     int lit_ = -1;
+};
+
+// Circuit-bent mode: a bend pot <bendpot pot="1".."6"> (a sprite like the knob: RCSS frames, spriteprefix), one per bend
+// of the whole kit. Its whole travel is Off (frame 0) ... full (the last frame). A smooth pot follows the drag; a
+// stepped one (the instrument says how many positions) selects the nearest position as it turns and settles on it on
+// release. Vertical drag, mouse wheel (a sixteenth of the travel, or a position, a notch).
+class BendPotElement : public SpriteElement {
+public:
+    explicit BendPotElement(const Rml::String& tag);
+    ~BendPotElement() override;
+    int pot() const { return pot_; }                    // 0-5, -1 without a valid pot attribute
+    int value() const { return value_; }                // 0 ... kBendMax
+    double frame() const { return frame_; }
+    double travel() { return double(std::max(1, frames() - 1)); }
+    void show(int value);                               // the instrument's value (unless being dragged)
+    void beginDrag();
+    void dragTo(double frame);                          // turns; sends the value when it changes
+    void endDrag();
+    void wheel(int notches);
+protected:
+    void OnUpdate() override;
+    void OnAttributeChange(const Rml::ElementAttributes& changed) override;
+private:
+    int steps();                                        // 0: smooth
+    double frameOf(int value) { return double(value) * travel() / double(kBendMax); }
+    void send(int value);
+    SkinView* view_;
+    int pot_ = -1, value_ = 0;
+    double frame_ = 0;
+    bool dragging_ = false;
+};
+
+// Circuit-bent mode: the indicator LED. Its <lamp> children are lit while the bent panel is shown and flicker while a
+// bend pot turns (the runtime sets their opacity).
+class BendLedElement : public Rml::Element {
+public:
+    explicit BendLedElement(const Rml::String& tag);
+    ~BendLedElement() override;
+    bool setOpacity(float opacity);                     // true if it changed
+private:
+    SkinView* view_;
+    float opacity_ = -1;
 };
 
 int parseInt(const std::string& s, int fallback);   // decimal or 0x hex

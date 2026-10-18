@@ -114,6 +114,7 @@ DSPIC_FORCEINLINE uint16_t CPU::ea(int mode, int r, bool byte, int breg) {
 DSPIC_FORCEINLINE uint16_t CPU::rd_op(int mode, int r, bool byte, int breg) {
   if (mode == 0) return byte ? (W(r) & 0xFF) : W(r);
   uint16_t a = ea(mode, r, byte, breg);
+  if (mode > 5 && sine_or) return byte ? sine_bent8(a, rd8(a)) : sine_bent(a, rd16(a));   // register offset [Ws+Wb]
   return byte ? rd8(a) : rd16(a);
 }
 DSPIC_FORCEINLINE void CPU::wr_op(int mode, int r, bool byte, uint16_t v, int breg) {
@@ -229,9 +230,9 @@ static void predecode(Insn& I) {
 DSPIC_FORCEINLINE void CPU::mac_prefetch_awb(const Insn& I, bool) {
   uint16_t vx = 0, vy = 0;
   const int xk = I.smode, yk = I.dmode;
-  if (xk == 2) vx = rd16(W(9) + W(12));
+  if (xk == 2) { uint16_t a = W(9) + W(12); vx = rd16(a); if (sine_or) vx = sine_bent(a, vx); }
   else if (xk == 1) { const int r = I.wb; uint16_t a = W(r); vx = rd16(a); setW(r, (uint16_t)(a + (int8_t)I.sbreg)); }
-  if (yk == 2) vy = rd16(W(11) + W(12));
+  if (yk == 2) { uint16_t a = W(11) + W(12); vy = rd16(a); if (sine_or) vy = sine_bent(a, vy); }
   else if (yk == 1) { const int r = I.ws; uint16_t a = W(r); vy = rd16(a); setW(r, (uint16_t)(a + (int8_t)I.dbreg)); }
   if (xk) setW(4 + I.xx, vx);
   if (yk) setW(4 + I.yy, vy);

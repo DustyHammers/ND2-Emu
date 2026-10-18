@@ -1,6 +1,7 @@
 // ND2 board model: dsPIC33EP512 peripherals as used by the original OS v3.00
 #pragma once
 #include "dspic/cpu.h"
+#include "bends.h"
 #include "util/state_io.h"
 #include <deque>
 #include <vector>
@@ -35,6 +36,11 @@ public:
   std::vector<int32_t> stems;                    // kStems words per frame, same format as `audio`
   bool stems_available() const { return stem_hooks_ok; }
   void install_stem_taps();
+
+  // Circuit-bent mode (an emulator extension, see bends.h): the hooks are installed by boot(), all bends Off.
+  Bends bends;
+  // CPU cycles per codec frame (CPU Starve and Brownouts): FRAME_CYCLES unless a bend is on. Not part of the state.
+  uint32_t frame_cycles = FRAME_CYCLES;
 
   // Bus
   uint16_t sfr_read(uint16_t a) override;
@@ -127,7 +133,9 @@ private:
   void recompute_irq();
   void sfr_write_inner(uint16_t a, uint16_t v, uint16_t mask);
   void advance(uint32_t n);
+  void plan(uint64_t now);
   uint64_t last_sync = 0;
+  bool sfr_moves[0x800] = {};                    // SFRs whose value changes with time alone (timer counts, flags)
   uint16_t& R(uint16_t a) { return sfr[a >> 1]; }
 };
 

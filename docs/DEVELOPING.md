@@ -13,7 +13,10 @@ Notes for building and testing. The OS update file is never part of this reposit
 | ADC1 scan (17 inputs, 15.1 kHz) + DMA0 ping-pong → trigger front-end; pads 1–6 = AN12, AN2, AN4, AN6, AN8, AN10 | done (piezo hits modelled as damped sines) |
 | Front panel: 4-digit 7-segment display + 29 LEDs (8-column multiplex, PWM brightness), 15 buttons, encoder, MASTER LEVEL pot (read by the OS on AN25) | done; map in `source/core/nd2/panel_map.h` |
 
-Busy-wait loops in the OS are fast-forwarded cycle-exactly (output is bit-identical with and without it).
+Busy-wait loops in the OS are fast-forwarded cycle-exactly (output is bit-identical with and without it). SFR reads
+sync the peripherals only when the read can see a difference (`Board::sfr_read`: an event is due, interrupts are
+being recomputed, or the SFR changes with time alone: timer counts, interrupt flags); writes re-plan the next event at
+once instead of forcing another sync. `nd2emu -stats` lists the SFRs read and written most.
 
 ## Build
 
@@ -76,6 +79,7 @@ build/nd2render -os os.cab -flash flash.bin -trig pads.wav -o out.wav -bank 0.1,
 | `-note`, `-pgm`, `-bank`, `-midi`, `-press`, `-enc`, `-master` | as for `nd2emu`, times from the start of the render |
 | `-loadstate f` / `-savestate f` | restore / save the whole machine (plugin state format) |
 | `-keeplatency` | do not remove the reported latency from the output |
+| `-bend t,bend,amount` | circuit-bent mode from time t: bend 1-6 (CPU Starve, Brownouts, Time, Sine Stuck Bit, Crystal, DAC Bits), amount 0 (Off) - 1 (`docs/BENDS.md`) |
 | `-stems prefix` | also write `prefix_ch1.wav` … `prefix_ch6.wav`: each channel's exact share of the main output (level, pan and master included); the six add up to the main output |
 
 ## Tools
@@ -111,7 +115,10 @@ build/plugin/plugin/plugin_test [--editor [screenshot dir]]
 builds the factory memory, plays MIDI and a piezo hit, checks that the channel outputs add up to the main output,
 and round-trips the state; with the factory memory also the Banks window's work (bank 1 saved as a file, loaded
 into bank 6, the banks checked, the names in the project state). `--editor` opens the panel, clicks a button and the
-encoder, and goes through the ND2 window's tabs (right-click, last tab, closing by the dimmed area and the round button).
+encoder, opens the bent panel (Cmd-click), turns pot 1, lets automation turn pots 3 and 6, closes and reopens the panel
+(all Off, then the pots back), and goes through the ND2 window's tabs (right-click, last tab, closing by the dimmed area
+and the round button). It also checks the six bend parameters, their texts, Cmd-click's memory and that the amounts are
+saved with the project.
 
 Plugin data lives in `~/Documents/ND2/` (`os/`, `cache/`, `skins/`, `Library/`); global settings in
 `~/Library/Application Support/ND2/ND2.settings`.
@@ -153,6 +160,19 @@ out at 1500 x 900 dp, drawn 1300 dp of the skin wide, centred over a dimmed back
 cancelled first); the bottom-right corner stays with the resize grip. Built from the shared window parts in
 `plugin/Source/ui/` (frame, tabs, footer, buttons, switch, segmented, rows), which come from the owner's other plugin
 with ND2's red highlight and the Banks window's font. Skin actions: "banks" opens the BANKS tab.
+
+## Circuit-bent mode
+
+Six bends of the whole kit, each an amount 0 (Off) ... 1. `source/core/nd2/bends.*`: the amount mappings
+(`bendmap`) and the two bends inside the OS (Time: CPU hooks on the control scheduler; Sine Stuck Bit: `CPU::sine_or`),
+installed by `Board::boot`. `Board::frame_cycles` (CPU Starve, Brownouts). `Engine`: `setKitBend` (lock-free, applied
+at the next block), `updateClock` (the bent clock: cycles per host sample and the MIDI delay follow it, re-anchored at
+a block start), `pushNative` (Crystal: the machine's frames read at the crystal's ratio, cubic; DAC Bits). Plugin: six
+parameters (`ND2Processor`, processor state version 5), Cmd-click's memory (`ND2Processor::setBends`), the skin elements
+`<bendpot pot>` (smooth or stepped) / `<bendled>` and the body class `bent` (`plugin/skin/src/skin_elements.*`,
+`skin_view.cpp`), Cmd-click in `RmlSkinComponent`. `tests/test_bends.cpp` (with `ND2_OS`, optionally `ND2_FLASH`)
+checks that every bend changes the sound, that Sine Stuck Bit and DAC Bits leave no trace once off, and that the hits
+stay on the host's beat with the clock bends. Details and the OS addresses: `docs/BENDS.md`.
 
 ## CI
 

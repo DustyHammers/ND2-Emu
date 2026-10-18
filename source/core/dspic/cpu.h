@@ -53,6 +53,15 @@ public:
   std::vector<uint32_t> prog;   // 24-bit program words, index = pc/2
   Bus* bus = nullptr;
   bool mul_acc_fractional = true;   // MUL.xx Wb,Ws,Acc obeys CORCON.IF (fractional <<1)
+  // Circuit-bent mode, Sine Stuck Bit (an emulator extension, nd2/bends.h): while non-zero, indexed reads of the
+  // board's 2048-word sine table (data 0x39B8..0x49B7) through [Wn+Wb] or the DSP prefetch [W9+W12] / [W11+W12] come
+  // back with these bits set, as if a data line of that RAM were stuck high. 0 (always, unless the bend is on): no
+  // effect. The table in RAM is never changed.
+  uint16_t sine_or = 0;
+  static constexpr uint16_t kSineTable = 0x39B8;
+  uint16_t sine_bent(uint16_t a, uint16_t v) const { return uint16_t(a - kSineTable) < 4096 ? uint16_t(v | sine_or) : v; }
+  uint16_t sine_bent8(uint16_t a, uint16_t v) const {
+    return uint16_t(a - kSineTable) < 4096 ? uint16_t(v | ((a & 1) ? sine_or >> 8 : sine_or & 0xFF)) : v; }
 
   int64_t accv[2] = {0, 0};    // ACCA/ACCB (40-bit, sign-extended); memory-mapped at 0x22..0x2D
   uint32_t pc = 0;

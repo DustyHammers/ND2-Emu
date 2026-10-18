@@ -32,13 +32,27 @@ VST3 and standalone app in one zip, for 64-bit Windows 10 or newer. Installing: 
 
 ### 0.3.0
 
-- Circuit-bent mode: Cmd-click the panel (Ctrl-click on Windows) to open it. Six bend pots, each bending the whole
-  emulated drum by the amount it is turned: CPU Starve, Brownouts, Time, Sine Stuck Bit, Crystal, DAC Bits. Cmd-click
-  again closes the panel and puts the drum back to normal; a third Cmd-click brings the pots back as they were. The
-  pots can be automated and are saved with the project. With every pot down, ND2 sounds exactly as before.
-  [docs/BENDS.md](docs/BENDS.md)
-- About 7 % less CPU: the emulated chip's peripherals are only brought up to date when a register read can see the
-  difference. The sound is exactly the same.
+**Circuit-bent mode.** Cmd-click the panel (Ctrl-click on Windows) to open it. Six pots bend the emulated hardware
+itself. These are not effects: nothing processes the audio afterwards, and there is no limiter. The OS keeps running
+unmodified and plays every hit as usual, on a chip that is being starved, slowed or miswired.
+
+| Pot | Bend | What it bends | Range |
+|--|--|--|--|
+| 1 | CPU Starve | CPU cycles per converter frame (normally 2048). The render falls behind and the converter replays old frames; the OS's own timing slows down. | 1750 to 700 cycles |
+| 2 | Brownouts | random supply dips: CPU Starve at 700 cycles for 20-100 ms each | 0.7 to 15 a second |
+| 3 | Time | passes of the OS's control scheduler (envelopes, decays, LFOs). The tone engines still run every sample, so the pitch doesn't change. | ×1 to ×32, then freeze |
+| 4 | Sine Stuck Bit | one data line of the sine table's RAM stuck high, on every read | bit 8 to 15 |
+| 5 | Crystal | the clock crystal: CPU and converter slow down together | full to half speed |
+| 6 | DAC Bits | the bits of each output word that reach the converter (rounded toward zero) | 12 to 4 bits |
+
+- **Timing:** host MIDI stays on the beat under the clock bends, because ND2's timing follows the bent clock.
+- **Cmd-click:** a second Cmd-click turns every bend Off; a third brings the pots back as they were.
+- **Automation:** the pots can be automated and are saved with the project.
+- **All pots down:** the output is byte-identical to 0.2.3.
+- **CPU:** about 7% lower. The emulated peripherals are only updated when a register read can see the difference, and
+  the sound is unchanged.
+
+More: [docs/BENDS.md](docs/BENDS.md).
 
 ### 0.2.3
 

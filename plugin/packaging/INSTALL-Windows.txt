@@ -44,7 +44,8 @@ The Windows version is new and less tested than the macOS one. Please report pro
      Documents\ND2\skins\<name>\     your own skins: a folder <name> containing <name>.rml (plus its files)
    Right-click the panel for the ND2 window: SYSTEM (OS update file, factory banks, data folder), BANKS, SKIN
    (skins, Reload skin (F5), zoom) and MIDI.
-   Ctrl-click the panel for the circuit-bent mode: a bend pot per pad (Off or one of 8 bends).
+   Ctrl-click the panel for the circuit-bent mode: six bend pots for the whole drum. Ctrl-click again: back to
+   normal; once more: the pots as you left them.
 
 Third-party software in ND2: JUCE, RmlUi, Lua and FreeType (see THIRD_PARTY_NOTICES.md in the repository).
 Portions of this software are copyright (c) 2026 The FreeType Project (www.freetype.org). All rights reserved.

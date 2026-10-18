@@ -16,6 +16,7 @@
 #include "util/rate_converter.h"
 #include <array>
 #include <atomic>
+#include <cmath>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -69,11 +70,13 @@ public:
     return c >= 0 && c < kPads ? int((midiChannels_.load(std::memory_order_relaxed) >> (5 * (c + 1))) & 31) - 1 : -1; }
   bool trigClip(int pad) const { return pad >= 0 && pad < kPads && clipHold_[pad].load() > 0; }
 
-  // ---- circuit-bent mode (an emulator extension, see bends.h), any thread, lock-free: drum channel 0-5, bend 0 (Off)
-  // ... 8. Applied at the next block; not part of the machine state (the plugin saves it as its parameters).
-  void setBend(int channel, int bend) {
-    if (channel >= 0 && channel < kPads) bend_[channel].store(uint8_t(bend > 0 && bend < kBendCount ? bend : 0), std::memory_order_relaxed); }
-  int bend(int channel) const { return channel >= 0 && channel < kPads ? bend_[channel].load(std::memory_order_relaxed) : 0; }
+  // ---- circuit-bent mode (an emulator extension, see bends.h), any thread, lock-free: bend 0-5 (KitBend), amount 0
+  // (Off) ... 1 (the stepped bends take the nearest of their 9 steps). Applied at the next block; not part of the
+  // machine state (the plugin saves the amounts as its parameters).
+  void setKitBend(int bend, float amount) {
+    if (bend >= 0 && bend < kKitBends) kitBend_[bend].store(std::isfinite(amount) ? std::max(0.0f, std::min(1.0f, amount)) : 0.0f,
+                                                            std::memory_order_relaxed); }
+  float kitBend(int bend) const { return bend >= 0 && bend < kKitBends ? kitBend_[bend].load(std::memory_order_relaxed) : 0.0f; }
 
   // ---- audio thread
   // stems: also produce the six channel outputs (stereo pairs, exact shares of the main output; see Board)
@@ -128,7 +131,8 @@ private:
   void install(std::unique_ptr<Board> b);
 
   // timing
-  double hostRate_ = 48000, cps_ = 0;      // machine cycles per host sample
+  double hostRate_ = 48000, cps_ = 0;      // machine cycles per host sample (cpsBase_ x the bent clock's scale)
+  double cpsBase_ = 0, D0_ = 0;            // the same, and the injection delay D_, at the normal clock
   int maxBlock_ = 512;
   bool trigOn_ = false;
   bool retime_ = true;
@@ -144,6 +148,24 @@ private:
   std::unique_ptr<TrigFifo> fifo_;
   uint64_t lateMidi_ = 0, trigUnder_ = 0, lastMidiCycle_ = 0;
   uint64_t cycleOfHost(double h) const { return c0_ + uint64_t(h * cps_ + 0.5) + D_; }
+  // circuit-bent clock (CPU Starve, Brownouts, Crystal) and output (DAC Bits), audio thread
+  uint32_t frameCycles_ = FRAME_CYCLES;    // cycles per codec frame
+  double crystal_ = 1.0;                   // the crystal against its normal speed
+  bool clockBent_ = false;                 // the clock changed since the last retime
+  int64_t brownLeft_ = 0;                  // host samples left in the current brownout
+  uint32_t rng_ = 0x6D2B79F5u;
+  double random01();
+  int dacBits_ = 32;
+  uint32_t dacKeep_ = 0xFFFFFFFFu;
+  float nativeSample(int32_t v) const;
+  void applyClockScale();
+  void updateClock(Board& b, int n);
+  // Crystal: the machine's frames are read at the crystal's ratio (cubic interpolation) to make the frames at the
+  // normal rate that the output converter takes. vsPos_: the read position in frames from audioRead_ (>= 1).
+  bool vsActive_ = false;
+  double vsPos_ = 1.0;
+  size_t fifoTarget_ = 0;
+  bool pushNative(Board& b, int64_t need);
   void retime(Board& b);
   bool runFrames(Board& b, size_t frames);
 
@@ -159,7 +181,7 @@ private:
   std::atomic<bool> masterDirty_{true};
   std::atomic<float> trigGain_[kPads];
   std::atomic<int> clipHold_[kPads];
-  std::atomic<uint8_t> bend_[kPads] = {};
+  std::atomic<float> kitBend_[kKitBends];
   void applyPanel(Board& b);
   uint64_t downAt_[32] = {};               // when each button went down (machine cycles; under mtx_)
 

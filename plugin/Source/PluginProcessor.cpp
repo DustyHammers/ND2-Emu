@@ -1,12 +1,14 @@
 #include "PluginProcessor.h"
 #include <atomic>
+#include <cmath>
 #include "PluginEditor.h"
 #include "Resources.h"
 
 namespace {
 constexpr uint32_t kStateMagic = 0x50324E44;     // "ND2P" (little-endian)
-constexpr uint32_t kStateVersion = 4;            // 2: bank names after the machine; 3: then MIDI out to the host;
-                                                 // 4: then the six bends (one byte each)
+constexpr uint32_t kStateVersion = 5;            // 2: bank names after the machine; 3: then MIDI out to the host;
+                                                 // 4 (test builds only): then six per-pad bends (one byte each, not
+                                                 // read any more); 5: then the six kit bend amounts (floats)
 constexpr int kTimerMs = 100;
 }  // namespace
 
@@ -19,20 +21,43 @@ juce::AudioProcessor::BusesProperties ND2Processor::buses() {
     return b;
 }
 
-const juce::StringArray& ND2Processor::bendNames() {
-    static const juce::StringArray names{"Off", "Crush", "Sample & Hold", "Stuck Bit", "Crackle", "Underclock", "Stretch",
-                                         "Sine Bend", "Noise Bend"};
-    return names;
+namespace {
+// The six kit bends as host parameters: smooth ones (amount 0-1, with the setting as text) and stepped ones (9 choices).
+juce::RangedAudioParameter* makeBendParameter(int bend) {
+    using nd2::KitBend;
+    namespace bm = nd2::bendmap;
+    static const char* const ids[nd2::kKitBends] = {"starve", "brownouts", "time", "sinebit", "crystal", "dacbits"};
+    static const char* const names[nd2::kKitBends] = {"CPU Starve", "Brownouts", "Time", "Sine Stuck Bit", "Crystal", "DAC Bits"};
+    const juce::ParameterID id(ids[bend], 1);
+    if (bend == int(KitBend::SineBit))
+        return new juce::AudioParameterChoice(id, names[bend], {"Off", "Bit 8", "Bit 9", "Bit 10", "Bit 11", "Bit 12", "Bit 13",
+                                                                 "Bit 14", "Bit 15"}, 0);
+    if (bend == int(KitBend::DacBits))
+        return new juce::AudioParameterChoice(id, names[bend], {"Off", "12 bits", "10 bits", "9 bits", "8 bits", "7 bits",
+                                                                 "6 bits", "5 bits", "4 bits"}, 0);
+    auto text = [bend](float v, int) -> juce::String {
+        if (v <= 0.0f) return "Off";
+        switch (KitBend(bend)) {
+        case KitBend::Starve: return juce::String(int(bm::starveFrameCycles(v))) + " cycles";
+        case KitBend::Brownouts: return juce::String(bm::brownoutsPerSecond(v), 1) + " per second";
+        case KitBend::Time: return v >= 1.0f ? juce::String("Freeze") : "x" + juce::String(1.0 / bm::timeRate(v), 1);
+        case KitBend::Crystal: return "-" + juce::String(juce::roundToInt((1.0 - bm::crystalRatio(v)) * 100.0)) + " %";
+        default: return juce::String(v, 2);
+        }
+    };
+    return new juce::AudioParameterFloat(id, names[bend], juce::NormalisableRange<float>(0.0f, 1.0f), 0.0f,
+                                         juce::AudioParameterFloatAttributes().withStringFromValueFunction(text));
 }
+}  // namespace
 
 ND2Processor::ND2Processor() : AudioProcessor(buses()) {
-    static_assert(nd2::kBendCount == skin::kBendSteps && kBendPads == skin::kBendPads, "bend steps and pads agree");
-    for (int k = 0; k < kBendPads; ++k) {
-        auto* p = new juce::AudioParameterChoice(juce::ParameterID("bend" + juce::String(k + 1), 1), "Bend " + juce::String(k + 1),
-                                                 bendNames(), 0);
+    static_assert(kBends == skin::kBendPots && nd2::kBendSteps == skin::kBendSteps, "bends and steps agree");
+    for (int k = 0; k < kBends; ++k) {
+        auto* p = makeBendParameter(k);
         addParameter(p);
         p->addListener(this);
         bends_[size_t(k)] = p;
+        remembered_[size_t(k)].store(0.0f);
     }
     events_.reserve(4096);
     port_.owner = this;
@@ -50,33 +75,66 @@ ND2Processor::~ND2Processor() {
 // A bend parameter changed (the pot, host automation, a project; any thread, the audio thread included): the engine
 // takes it lock-free at its next block. Turning a bend on opens the bent panel, so a bent sound is always visible.
 void ND2Processor::parameterValueChanged(int parameterIndex, float) {
-    for (int k = 0; k < kBendPads; ++k)
+    for (int k = 0; k < kBends; ++k)
         if (bends_[size_t(k)]->getParameterIndex() == parameterIndex) {
-            const int v = bends_[size_t(k)]->getIndex();
-            engine_.setBend(k, v);
-            if (v != 0) bentView.store(true);
+            const float v = bends_[size_t(k)]->getValue();
+            engine_.setKitBend(k, v);
+            if (v > 0.0f) bentView.store(true);
             bendSerial_.fetch_add(1);
         }
 }
 
 // The skin's render thread: the engine at once; the parameter (and so the host) on the message thread.
-void ND2Processor::Port::setBend(int pad, int value) {
-    engine.setBend(pad, value);
+void ND2Processor::Port::setBend(int pot, int value) {
+    if (pot < 0 || pot >= kBends) return;
+    float a = float(juce::jlimit(0, skin::kBendMax, value)) / float(skin::kBendMax);
+    if (nd2::bendmap::stepped(pot)) a = float(nd2::bendmap::step(a)) / float(nd2::kBendSteps - 1);
+    engine.setKitBend(pot, a);
     owner->bendSerial_.fetch_add(1);
+    std::weak_ptr<int> al = alive;
+    ND2Processor* p = owner;
+    juce::MessageManager::callAsync([al, p] { if (al.lock()) p->syncBendParams(); });
+}
+
+void ND2Processor::Port::bendGesture(int pot, bool begin) {
     std::weak_ptr<int> a = alive;
     ND2Processor* p = owner;
-    juce::MessageManager::callAsync([a, p, pad, value] {
+    juce::MessageManager::callAsync([a, p, pot, begin] {
         if (!a.lock()) return;
-        if (auto* prm = p->bendParam(pad); prm && prm->getIndex() != value) *prm = value;
+        if (auto* prm = p->bendParam(pot)) { if (begin) prm->beginChangeGesture(); else prm->endChangeGesture(); }
     });
 }
 
-void ND2Processor::Port::bendGesture(int pad, bool begin) {
-    std::weak_ptr<int> a = alive;
-    ND2Processor* p = owner;
-    juce::MessageManager::callAsync([a, p, pad, begin] {
+// Message thread: each parameter takes the engine's amount (after a pot turn or Cmd-click; no-op when they agree).
+void ND2Processor::syncBendParams() {
+    for (int k = 0; k < kBends; ++k) {
+        auto* prm = bends_[size_t(k)];
+        const float v = engine_.kitBend(k);
+        if (std::abs(prm->getValue() - v) > 1e-6f) prm->setValueNotifyingHost(v);
+    }
+}
+
+// Cmd-click. Hiding the panel turns every bend Off (the drum as normal) and remembers the amounts; showing it again
+// brings back the amounts it had when it was hidden (this session only: not saved).
+void ND2Processor::setBends(bool shown) {
+    if (!shown) {
+        for (int k = 0; k < kBends; ++k) { remembered_[size_t(k)].store(engine_.kitBend(k)); engine_.setKitBend(k, 0.0f); }
+    } else {
+        for (int k = 0; k < kBends; ++k) engine_.setKitBend(k, remembered_[size_t(k)].load());
+    }
+    bentView.store(shown);
+    bendSerial_.fetch_add(1);
+    std::weak_ptr<int> a = port_.alive;
+    juce::MessageManager::callAsync([a, this, shown] {
         if (!a.lock()) return;
-        if (auto* prm = p->bendParam(pad)) { if (begin) prm->beginChangeGesture(); else prm->endChangeGesture(); }
+        for (int k = 0; k < kBends; ++k) {
+            auto* prm = bends_[size_t(k)];
+            const float v = engine_.kitBend(k);
+            if (std::abs(prm->getValue() - v) <= 1e-6f) continue;
+            prm->beginChangeGesture(); prm->setValueNotifyingHost(v); prm->endChangeGesture();
+        }
+        bentView.store(shown);                       // the parameters' own changes don't reopen a hidden panel
+        bendSerial_.fetch_add(1);
     });
 }
 
@@ -239,7 +297,7 @@ void ND2Processor::getStateInformation(juce::MemoryBlock& dest) {
     out.write(packed.getData(), packed.getSize());
     bankfiles::writeRecords(out, banks_.records());
     out.writeByte(midiToHost() ? 1 : 0);
-    for (auto* p : bends_) out.writeByte(char(p->getIndex()));
+    for (auto* p : bends_) out.writeFloat(p->getValue());
 }
 
 void ND2Processor::setStateInformation(const void* data, int size) {
@@ -265,9 +323,10 @@ void ND2Processor::setStateInformation(const void* data, int size) {
     for (auto& b : names) b.crcs.fill(bankfiles::kEmpty);
     if (version >= 2) bankfiles::readRecords(in, names);
     setMidiToHost(version >= 3 && !in.isExhausted() ? in.readByte() != 0 : true);   // older projects: on (as 0.2.1)
+    if (version == 4) for (int k = 0; k < kBends && !in.isExhausted(); ++k) in.readByte();   // per-pad bends: gone
     for (auto* p : bends_) {                         // older projects: no bends
-        const int v = version >= 4 && !in.isExhausted() ? int(in.readByte()) : 0;
-        *p = juce::jlimit(0, skin::kBendSteps - 1, v);
+        const float v = version >= 5 && in.getNumBytesRemaining() >= 4 ? in.readFloat() : 0.0f;
+        p->setValueNotifyingHost(std::isfinite(v) ? juce::jlimit(0.0f, 1.0f, v) : 0.0f);
     }
     banks_.setRecords(names);                        // projects from before 0.1.7: no names (the window finds them)
     projectBanks_ = true;

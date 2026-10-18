@@ -277,14 +277,14 @@ bool SkinView::poll() {
         if (document_) document_->SetClass("bent", bv == 1);
         changed = true;
     }
-    for (int p = 0; p < kBendPads; ++p) {
+    for (int p = 0; p < kBendPots; ++p) {
         const int b = port_.bend(p);
         if (b != bends_[size_t(p)] || !known_) {
             bends_[size_t(p)] = b;
             changed = true;
         }
     }
-    for (BendPotElement* pot : pots_) if (pot != dragPot_ && pot->pad() >= 0) pot->show(bends_[size_t(pot->pad())]);
+    for (BendPotElement* pot : pots_) if (pot != dragPot_ && pot->pot() >= 0) pot->show(bends_[size_t(pot->pot())]);
     if (updateBendLeds()) changed = true;
     const int m = port_.master();
     if (m != master_ && !dragKnob_) {
@@ -322,11 +322,11 @@ void SkinView::turnEncoder(int detents) {
     encoderTurned(detents);
 }
 
-void SkinView::bendTurned(int pad, int step) {
+void SkinView::bendTurned(int pot, int value) {
     lastPotTurn_ = now_;
-    if (pad < 0 || pad >= kBendPads || step < 0) return;
-    bends_[size_t(pad)] = step;
-    port_.setBend(pad, step);
+    if (pot < 0 || pot >= kBendPots || value < 0) return;
+    bends_[size_t(pot)] = value;
+    port_.setBend(pot, value);
 }
 
 void SkinView::button(int index, bool down) {
@@ -360,7 +360,7 @@ void SkinView::mouseMove(int x, int y, int mods) {
         }
         if (dragPot_) {
             if (fine != dragFine_) { dragFine_ = fine; dragStartY_ = y; dragStartFrame_ = dragPot_->frame(); }
-            const double framesPerPx = (dragPot_->stepFrame(kBendSteps - 1) / kPotDpPerTurn) * (fine ? kFineFactor : 1.0) / double(dpRatio_);
+            const double framesPerPx = (dragPot_->travel() / kPotDpPerTurn) * (fine ? kFineFactor : 1.0) / double(dpRatio_);
             dragPot_->dragTo(dragStartFrame_ + double(dragStartY_ - y) * framesPerPx);
         }
         if (dragEncoder_) {
@@ -388,7 +388,7 @@ void SkinView::mouseDown(int button, int mods) {
             Rml::Element* hover = context_->GetHoverElement();
             dragFine_ = (mods & ModShift) != 0;
             dragStartY_ = mouseY_;
-            if (BendPotElement* p = findUp<BendPotElement>(hover); p && p->pad() >= 0) {
+            if (BendPotElement* p = findUp<BendPotElement>(hover); p && p->pot() >= 0) {
                 dragPot_ = p;
                 dragStartFrame_ = p->frame();
                 p->beginDrag();
@@ -429,7 +429,7 @@ void SkinView::mouseWheel(float deltaY, int mods) {
         if (!context_) return;
         if (document_) {
             Rml::Element* hover = context_->GetHoverElement();
-            if (BendPotElement* p = findUp<BendPotElement>(hover); p && p->pad() >= 0) {
+            if (BendPotElement* p = findUp<BendPotElement>(hover); p && p->pot() >= 0) {
                 p->wheel(deltaY < 0 ? 1 : -1);
                 return;
             }

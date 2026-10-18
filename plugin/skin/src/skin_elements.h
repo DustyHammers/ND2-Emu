@@ -1,8 +1,10 @@
 // The custom skin elements: <pbutton button>, <led code> (with an optional <lamp> child), <knob control="master">,
 // <encoder>, <segdigit pos> (with <seg class="a".."g"|"dp"> children), <action name> (a plugin action, e.g. "banks"),
-// and for the circuit-bent mode <bendpot pad="1".."6"> and <bendled> (with <lamp> children).
+// and for the circuit-bent mode <bendpot pot="1".."6"> and <bendled> (with <lamp> children).
 #pragma once
 #include <RmlUi/Core/Element.h>
+#include "skin_port.h"
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -122,28 +124,32 @@ private:
     int lit_ = -1;
 };
 
-// Circuit-bent mode: a bend pot <bendpot pad="1".."6"> (a sprite like the knob: RCSS frames, spriteprefix). Step 0
-// (Off) ... kBendSteps - 1 sit at frames round(step x (frames - 1) / (kBendSteps - 1)). A drag turns it smoothly and
-// selects the nearest step as it goes; on release it settles on that step. Vertical drag, mouse wheel (a step a notch).
+// Circuit-bent mode: a bend pot <bendpot pot="1".."6"> (a sprite like the knob: RCSS frames, spriteprefix), one per bend
+// of the whole kit. Its whole travel is Off (frame 0) ... full (the last frame). A smooth pot follows the drag; a
+// stepped one (the instrument says how many positions) selects the nearest position as it turns and settles on it on
+// release. Vertical drag, mouse wheel (a sixteenth of the travel, or a position, a notch).
 class BendPotElement : public SpriteElement {
 public:
     explicit BendPotElement(const Rml::String& tag);
     ~BendPotElement() override;
-    int pad() const { return pad_; }                    // 0-5, -1 without a valid pad attribute
-    int step() const { return step_; }
+    int pot() const { return pot_; }                    // 0-5, -1 without a valid pot attribute
+    int value() const { return value_; }                // 0 ... kBendMax
     double frame() const { return frame_; }
-    void show(int step);                                // the instrument's value (unless being dragged)
+    double travel() { return double(std::max(1, frames() - 1)); }
+    void show(int value);                               // the instrument's value (unless being dragged)
     void beginDrag();
-    void dragTo(double frame);                          // turns; sends the step when it changes
+    void dragTo(double frame);                          // turns; sends the value when it changes
     void endDrag();
-    void wheel(int steps);
-    double stepFrame(int step);
+    void wheel(int notches);
 protected:
     void OnUpdate() override;
     void OnAttributeChange(const Rml::ElementAttributes& changed) override;
 private:
+    int steps();                                        // 0: smooth
+    double frameOf(int value) { return double(value) * travel() / double(kBendMax); }
+    void send(int value);
     SkinView* view_;
-    int pad_ = -1, step_ = 0;
+    int pot_ = -1, value_ = 0;
     double frame_ = 0;
     bool dragging_ = false;
 };

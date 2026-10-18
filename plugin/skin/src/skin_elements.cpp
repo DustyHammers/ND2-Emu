@@ -246,10 +246,11 @@ BendPotElement::~BendPotElement() { if (view_) view_->unregisterElement(this); }
 
 void BendPotElement::OnAttributeChange(const Rml::ElementAttributes& changed) {
     SpriteElement::OnAttributeChange(changed);
-    if (changed.count("pad")) {
-        const int p = parseInt(attr(*this, "pad"), 0);
-        pad_ = p >= 1 && p <= kBendPads ? p - 1 : -1;
-        if (view_ && pad_ >= 0) show(view_->port().bend(pad_));
+    if (changed.count("pot") || changed.count("pad")) {   // pad: the name in the first test builds
+        const std::string a = HasAttribute("pot") ? attr(*this, "pot") : attr(*this, "pad");
+        const int p = parseInt(a, 0);
+        pot_ = p >= 1 && p <= kBendPots ? p - 1 : -1;
+        if (view_ && pot_ >= 0) show(view_->port().bend(pot_));
     }
 }
 
@@ -258,48 +259,65 @@ void BendPotElement::OnUpdate() {
     showSprite(int(std::lround(frame_)));
 }
 
-double BendPotElement::stepFrame(int step) { return std::round(double(step) * (frames() - 1) / double(kBendSteps - 1)); }
+int BendPotElement::steps() {
+    const int s = view_ && pot_ >= 0 ? view_->port().bendSteps(pot_) : 0;
+    return s >= 2 ? s : 0;
+}
 
-void BendPotElement::show(int step) {
+void BendPotElement::show(int value) {
     if (dragging_) return;
-    step_ = std::clamp(step, 0, kBendSteps - 1);
-    frame_ = stepFrame(step_);
+    value_ = std::clamp(value, 0, kBendMax);
+    frame_ = frameOf(value_);
     showSprite(int(std::lround(frame_)));
 }
 
 void BendPotElement::beginDrag() {
     dragging_ = true;
-    if (view_ && pad_ >= 0) view_->port().bendGesture(pad_, true);
+    if (view_ && pot_ >= 0) view_->port().bendGesture(pot_, true);
+}
+
+void BendPotElement::send(int value) {
+    const bool changed = value != value_;
+    value_ = value;
+    if (view_) view_->bendTurned(pot_, changed ? value : -1);
 }
 
 void BendPotElement::dragTo(double frame) {
-    const double last = double(frames() - 1);
-    frame = std::clamp(frame, 0.0, last);
+    frame = std::clamp(frame, 0.0, travel());
     if (frame == frame_) return;
     frame_ = frame;
     showSprite(int(std::lround(frame_)));
-    const int step = int(std::lround(frame_ * double(kBendSteps - 1) / last));
-    if (view_) view_->bendTurned(pad_, step != step_ ? step : -1);
-    step_ = step;
+    const int s = steps();
+    if (s) {
+        const int pos = int(std::lround(frame_ * double(s - 1) / travel()));
+        send(int(std::lround(double(pos) * kBendMax / double(s - 1))));
+    } else {
+        send(int(std::lround(frame_ * kBendMax / travel())));
+    }
 }
 
 void BendPotElement::endDrag() {
     if (!dragging_) return;
     dragging_ = false;
-    frame_ = stepFrame(step_);                            // settles on the selected bend
-    showSprite(int(std::lround(frame_)));
-    if (view_ && pad_ >= 0) view_->port().bendGesture(pad_, false);
+    if (steps()) { frame_ = frameOf(value_); showSprite(int(std::lround(frame_))); }   // settles on its position
+    if (view_ && pot_ >= 0) view_->port().bendGesture(pot_, false);
 }
 
-void BendPotElement::wheel(int steps) {
-    const int step = std::clamp(step_ + steps, 0, kBendSteps - 1);
-    if (step == step_) return;
-    if (view_ && pad_ >= 0) view_->port().bendGesture(pad_, true);
-    step_ = step;
-    frame_ = stepFrame(step_);
+void BendPotElement::wheel(int notches) {
+    const int s = steps();
+    int v;
+    if (s) {
+        const int pos = std::clamp(int(std::lround(double(value_) * double(s - 1) / kBendMax)) + notches, 0, s - 1);
+        v = int(std::lround(double(pos) * kBendMax / double(s - 1)));
+    } else {
+        v = std::clamp(value_ + notches * ((kBendMax + 1) / 16), 0, kBendMax);
+    }
+    if (v == value_) return;
+    if (view_ && pot_ >= 0) view_->port().bendGesture(pot_, true);
+    frame_ = frameOf(v);
     showSprite(int(std::lround(frame_)));
-    if (view_) view_->bendTurned(pad_, step_);
-    if (view_ && pad_ >= 0) view_->port().bendGesture(pad_, false);
+    send(v);
+    if (view_ && pot_ >= 0) view_->port().bendGesture(pot_, false);
 }
 
 BendLedElement::BendLedElement(const Rml::String& tag) : Rml::Element(tag), view_(SkinView::current()) {

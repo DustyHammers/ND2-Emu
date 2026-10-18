@@ -293,7 +293,7 @@ void Board::sync() {
     uint64_t rem = ((uint64_t)R(t.a_pr) - R(t.a_tmr) + 1) * p - t.pacc;
     if (rem < nxt) nxt = rem;
   }
-  if ((R(DCICON1) & 0x8000) && (R(DMA1CON) & 0x8000)) nxt = std::min<uint64_t>(nxt, FRAME_CYCLES - frame_acc);
+  if ((R(DCICON1) & 0x8000) && (R(DMA1CON) & 0x8000)) nxt = std::min<uint64_t>(nxt, frame_acc < frame_cycles ? frame_cycles - frame_acc : 1);
   if (!rxq.empty()) nxt = std::min<uint64_t>(nxt, rxq.front().first > now ? rxq.front().first - now : 1);
   if (adc_running()) { uint32_t p = adc_block_cycles(); nxt = std::min<uint64_t>(nxt, adc_acc < p ? p - adc_acc : 1); }
   if (nxt < 1) nxt = 1;
@@ -335,8 +335,8 @@ void Board::advance(uint32_t n) {
   // DCI + DMA1: one stereo frame (4 words) every 2048 cycles
   if ((R(DCICON1) & 0x8000) && (R(DMA1CON) & 0x8000)) {
     frame_acc += n;
-    while (frame_acc >= FRAME_CYCLES) {
-      frame_acc -= FRAME_CYCLES;
+    while (frame_acc >= frame_cycles) {
+      frame_acc -= frame_cycles;
       uint32_t cnt = R(DMA1CNT) + 1, base = R(DMA1STAL);
       uint16_t w[4];
       const uint32_t slot = ((base + 2 * dma1_pos - 0xDF00u) >> 3) & 15u;

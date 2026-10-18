@@ -3,9 +3,10 @@
 // Buses: "Main" stereo out; "Ch 1" ... "Ch 6" stereo outs (each channel's exact share of the main output; off until
 // the host enables them); "Trigger In" (up to 6 channels = pads 1-6: piezo audio from the host); MIDI in and out.
 // State: the complete machine (presets stored on the panel included), the MASTER LEVEL knob, the window size, the
-// names of the bank files loaded into the 8 banks (Banks window), MIDI out to the host, and the six bends.
-// Parameters (host automation): Bend 1 ... Bend 6, the circuit-bent mode's bend for each pad (Off and 8 bends; IDs
-// bend1 ... bend6, fixed: hosts store automation by them). The only parameters; the panel's knob and buttons are not.
+// names of the bank files loaded into the 8 banks (Banks window), MIDI out to the host, and the six bend amounts.
+// Parameters (host automation): the circuit-bent mode's six bends of the whole kit, CPU Starve, Brownouts, Time, Sine
+// Stuck Bit, Crystal and DAC Bits (IDs starve, brownouts, time, sinebit, crystal, dacbits; fixed once released: hosts
+// store automation by them). The only parameters; the panel's knob and buttons are not.
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <array>
@@ -20,7 +21,7 @@
 class ND2Processor : public juce::AudioProcessor, private juce::Timer, private juce::AudioProcessorParameter::Listener {
 public:
     static constexpr int kChannelOuts = 6;
-    static constexpr int kBendPads = 6;
+    static constexpr int kBends = nd2::kKitBends;
 
     ND2Processor();
     ~ND2Processor() override;
@@ -63,11 +64,13 @@ public:
     // saved with the project.
     void setMidiToHost(bool on) { midiToHost_ = on; engine_.setMidiToHost(on); }
     bool midiToHost() const { return midiToHost_.load(); }
-    // Circuit-bent mode: a bend per pad (0 = Off, 1-8), as host parameters; the bent panel (Cmd-click) is shown while
-    // bentView is set (not saved: it opens by itself when a bend is turned on, also by automation or a project).
-    juce::AudioParameterChoice* bendParam(int pad) const { return pad >= 0 && pad < kBendPads ? bends_[size_t(pad)] : nullptr; }
+    // Circuit-bent mode: six bends of the whole kit, each an amount 0 (Off) ... 1 (Sine Stuck Bit and DAC Bits in 9
+    // steps), as host parameters (normalised value = amount). The bent panel is shown while bentView is set (not saved:
+    // it opens by itself when a bend is turned on, also by automation or a project). Cmd-click (setBends): hiding the
+    // panel turns every bend Off and remembers the amounts; showing it again in this session brings them back.
+    juce::RangedAudioParameter* bendParam(int bend) const { return bend >= 0 && bend < kBends ? bends_[size_t(bend)] : nullptr; }
     std::atomic<bool> bentView{false};
-    static const juce::StringArray& bendNames();
+    void setBends(bool shown);                       // any thread (the skin's render thread: Cmd-click)
     // Typed program entry: what the display shows instead of the OS's display while it runs (any thread reads it).
     void setEntryDisplay(bool on, std::array<uint8_t, 4> seg) {
         entrySegs_.store(uint32_t(seg[0]) | uint32_t(seg[1]) << 8 | uint32_t(seg[2]) << 16 | uint32_t(seg[3]) << 24);
@@ -96,11 +99,12 @@ private:
             return engine.uiSerial() + owner->entrySerial_.load() * 7919u + owner->bendSerial_.load() * 104729u
                  + (owner->bentView.load() ? 0x40000000u : 0u) + (owner->banksOpen.load() ? 0x80000000u : 0u);
         }
-        int bend(int pad) override { return engine.bend(pad); }
-        void setBend(int pad, int value) override;
-        void bendGesture(int pad, bool begin) override;
+        int bend(int pot) override { return juce::roundToInt(engine.kitBend(pot) * float(skin::kBendMax)); }
+        int bendSteps(int pot) override { return nd2::bendmap::stepped(pot) ? nd2::kBendSteps : 0; }
+        void setBend(int pot, int value) override;
+        void bendGesture(int pot, bool begin) override;
         bool bentView() override { return owner->bentView.load(); }
-        void setBentView(bool on) override { owner->bentView.store(on); owner->bendSerial_.fetch_add(1); }
+        void setBentView(bool on) override { owner->setBends(on); }
         void action(const std::string& name) override;
         bool actionLit(const std::string& name) override { return name == "banks" && owner->banksOpen.load(); }
         nd2::Engine& engine;
@@ -122,7 +126,9 @@ private:
     uint32_t resourcesSerial_ = 0;
     bool started_ = false, bootedWithoutFactory_ = false;
     bool projectBanks_ = false;                      // the bank names came from a project
-    std::array<juce::AudioParameterChoice*, kBendPads> bends_{};
+    std::array<juce::RangedAudioParameter*, kBends> bends_{};
+    std::array<std::atomic<float>, kBends> remembered_{};    // the amounts when the panel was hidden (this session)
+    void syncBendParams();                           // message thread: the parameters to the engine's amounts
     std::atomic<uint32_t> bendSerial_{0};
     std::atomic<bool> entryOn_{false};
     std::atomic<uint32_t> entrySegs_{0xFFFFFFFF}, entrySerial_{0};

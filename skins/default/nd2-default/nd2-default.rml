@@ -57,13 +57,13 @@
 	<segdigit id="d1" pos="1"><seg class="a"/><seg class="b"/><seg class="c"/><seg class="d"/><seg class="e"/><seg class="f"/><seg class="g"/><seg class="dp"/></segdigit>
 	<segdigit id="d2" pos="2"><seg class="a"/><seg class="b"/><seg class="c"/><seg class="d"/><seg class="e"/><seg class="f"/><seg class="g"/><seg class="dp"/></segdigit>
 	<segdigit id="d3" pos="3"><seg class="a"/><seg class="b"/><seg class="c"/><seg class="d"/><seg class="e"/><seg class="f"/><seg class="g"/><seg class="dp"/></segdigit>
-	<!-- circuit-bent mode: a bend pot per pad (Off and bends 1-8) and the indicator LED, shown with the bent panel -->
-	<bendpot id="bend1" pad="1"/>
-	<bendpot id="bend2" pad="2"/>
-	<bendpot id="bend3" pad="3"/>
-	<bendpot id="bend4" pad="4"/>
-	<bendpot id="bend5" pad="5"/>
-	<bendpot id="bend6" pad="6"/>
+	<!-- circuit-bent mode: the six bend pots (CPU Starve, Brownouts, Time, Sine Stuck Bit, Crystal, DAC Bits) and the indicator LED, shown with the bent panel -->
+	<bendpot id="bend1" pot="1"/>
+	<bendpot id="bend2" pot="2"/>
+	<bendpot id="bend3" pot="3"/>
+	<bendpot id="bend4" pot="4"/>
+	<bendpot id="bend5" pot="5"/>
+	<bendpot id="bend6" pot="6"/>
 	<bendled id="bendled"><lamp/></bendled>
 </body>
 </rml>

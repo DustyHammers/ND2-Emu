@@ -37,8 +37,10 @@ public:
   bool stems_available() const { return stem_hooks_ok; }
   void install_stem_taps();
 
-  // Circuit-bent mode (an emulator extension, see bends.h): installed by boot(), all channels Off.
+  // Circuit-bent mode (an emulator extension, see bends.h): the hooks are installed by boot(), all bends Off.
   Bends bends;
+  // CPU cycles per codec frame (CPU Starve and Brownouts): FRAME_CYCLES unless a bend is on. Not part of the state.
+  uint32_t frame_cycles = FRAME_CYCLES;
 
   // Bus
   uint16_t sfr_read(uint16_t a) override;

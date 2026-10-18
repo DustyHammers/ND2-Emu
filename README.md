@@ -32,10 +32,11 @@ VST3 and standalone app in one zip, for 64-bit Windows 10 or newer. Installing: 
 
 ### 0.3.0
 
-- Circuit-bent mode: Cmd-click the panel (Ctrl-click on Windows) to open it. Six bend pots, one per pad, each Off or one
-  of eight bends of the emulated chip (Crush, Sample & Hold, Stuck Bit, Crackle, Underclock, Stretch, Sine Bend, Noise
-  Bend). The pots can be automated (parameters Bend 1-6) and are saved with the project. With every pot Off, ND2
-  sounds exactly as before. [docs/BENDS.md](docs/BENDS.md)
+- Circuit-bent mode: Cmd-click the panel (Ctrl-click on Windows) to open it. Six bend pots, each bending the whole
+  emulated drum by the amount it is turned: CPU Starve, Brownouts, Time, Sine Stuck Bit, Crystal, DAC Bits. Cmd-click
+  again closes the panel and puts the drum back to normal; a third Cmd-click brings the pots back as they were. The
+  pots can be automated and are saved with the project. With every pot down, ND2 sounds exactly as before.
+  [docs/BENDS.md](docs/BENDS.md)
 
 ### 0.2.3
 
@@ -128,8 +129,8 @@ On first start, choose the OS update file and then the factory bank files.
 - Right-click the panel for the ND2 window: SYSTEM (the OS update file, the factory banks, the data folder), BANKS,
   SKIN (skins, Reload skin, zoom) and MIDI. It opens on the tab used last; the round button, Esc or a click on the
   dimmed area closes it.
-- **Cmd-click** (Ctrl-click on Windows) opens and closes the circuit-bent panel: a bend pot per pad, turned like the
-  MASTER LEVEL knob ([docs/BENDS.md](docs/BENDS.md)).
+- **Cmd-click** (Ctrl-click on Windows) opens and closes the circuit-bent panel: six bend pots, turned like the MASTER
+  LEVEL knob. Closing it puts the drum back to normal; opening it again brings the pots back ([docs/BENDS.md](docs/BENDS.md)).
 - MIDI: every sound setting has a MIDI CC ([chart](docs/MIDI_CC.md), also on the MIDI tab); MIDI channels 1-6 address
   drum channels 1-6. The MIDI tab turns ND2's MIDI out to the host on or off (saved with the project).
 

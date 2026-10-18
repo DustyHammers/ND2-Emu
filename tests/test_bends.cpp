@@ -1,6 +1,6 @@
-// Circuit-bent mode (source/core/nd2/bends.h). Setting checks always; with the real OS (ND2_OS=/path/to/os.cab,
-// optional ND2_FLASH=flash image) also: Off leaves no trace, and each bend on one pad leaves the other five pads'
-// channel outputs byte-identical (Underclock: within 1.5 dB, see bends.h).
+// Circuit-bent mode (source/core/nd2/bends.h). Mappings and settings always; with the real OS (ND2_OS=/path/to/os.cab,
+// optional ND2_FLASH=flash image) also: every bend changes the sound, Sine Stuck Bit and DAC Bits switched off leave no
+// trace, and with the clock bends (CPU Starve, Brownouts, Crystal) the hits still land on the host's beat.
 #include "engine.h"
 #include <cmath>
 #include <cstdio>
@@ -16,21 +16,21 @@ static OsImage g_os;
 static std::vector<uint8_t> g_flash;
 constexpr double kRate = 48000;
 constexpr int kBlock = 256, kTotal = int(2.2 * kRate);
+constexpr double kFirstHit = 0.2, kHitEvery = 0.25;
 
-struct Render { std::vector<float> main; std::vector<float> pad[Engine::kPads]; };   // pad k: L+R of its channel output
+struct Setting { int bend; float amount; double from, until; };   // amount from `from` to `until` (seconds), else 0
 
-// Every pad hit on its default MIDI note every 0.25 s from 0.2 s; `bends[k]` from the first block (pad k), and
-// optionally one pad bent only until 0.1 s (before any note), to see that Off leaves nothing behind.
-static Render render(const int (&bends)[Engine::kPads], int earlyPad = -1, int earlyBend = 0) {
-  Render r;
+// Bank 1 program 5 (sine-bank tone models, so Sine Stuck Bit has something to bend), every pad hit on its default MIDI
+// note every 0.25 s from 0.2 s.
+static std::vector<float> render(std::initializer_list<Setting> settings, int* latency = nullptr) {
+  std::vector<float> out;
   Engine e;
   e.setBootFlash(g_flash);
   std::string err;
-  if (!e.setOs(g_os, err)) { printf("setOs: %s\n", err.c_str()); return r; }
+  if (!e.setOs(g_os, err)) { printf("setOs: %s\n", err.c_str()); return out; }
   e.waitForJob();
   e.prepare(kRate, kBlock, false, true);
-  for (int k = 0; k < Engine::kPads; k++) e.setBend(k, bends[k]);
-  if (earlyPad >= 0) e.setBend(earlyPad, earlyBend);
+  if (latency) *latency = e.latencySamples();
   static const uint8_t notes[Engine::kPads] = {60, 62, 64, 65, 67, 69};
   std::vector<float> L(kBlock), R(kBlock), S[Engine::kStemChannels];
   float* sp[Engine::kStemChannels];
@@ -38,34 +38,57 @@ static Render render(const int (&bends)[Engine::kPads], int earlyPad = -1, int e
   std::vector<uint8_t> msg(3 * Engine::kPads);
   for (int done = 0; done < kTotal; done += kBlock) {
     const int n = std::min(kBlock, kTotal - done);
-    if (earlyPad >= 0 && done >= int(0.1 * kRate)) e.setBend(earlyPad, bends[earlyPad]);
+    const double t = done / kRate;
+    for (const auto& s : settings) e.setKitBend(s.bend, t >= s.from && t < s.until ? s.amount : 0.0f);
     std::vector<Engine::MidiEvent> ev;
-    for (int64_t t = int64_t(0.2 * kRate); t < kTotal; t += int64_t(0.25 * kRate))
-      if (t >= done && t < done + n)
+    static const uint8_t program[8] = {0xB9, 0, 0, 0xB9, 32, 0, 0xC9, 4};
+    if (done == 0) { ev.push_back({0, program, 3}); ev.push_back({0, program + 3, 3}); ev.push_back({0, program + 6, 2}); }
+    for (int64_t h = int64_t(kFirstHit * kRate); h < kTotal; h += int64_t(kHitEvery * kRate))
+      if (h >= done && h < done + n)
         for (int k = 0; k < Engine::kPads; k++) {
           msg[3 * k] = 0x99; msg[3 * k + 1] = notes[k]; msg[3 * k + 2] = 110;
-          ev.push_back({int(t - done), &msg[3 * k], 3});
+          ev.push_back({int(h - done), &msg[3 * k], 3});
         }
     e.process(L.data(), R.data(), n, ev.data(), int(ev.size()), nullptr, sp);
-    r.main.insert(r.main.end(), L.begin(), L.begin() + n);
-    for (int k = 0; k < Engine::kPads; k++)
-      for (int i = 0; i < n; i++) r.pad[k].push_back(S[2 * k][size_t(i)] + S[2 * k + 1][size_t(i)]);
+    out.insert(out.end(), L.begin(), L.begin() + n);
   }
-  return r;
+  return out;
 }
 
 static double rmsDb(const std::vector<float>& x) {
   double s = 0; for (float v : x) s += double(v) * v;
   return 10 * std::log10(s / double(std::max<size_t>(1, x.size())) + 1e-20);
 }
+static double diffDb(const std::vector<float>& a, const std::vector<float>& b) {
+  double s = 0; const size_t n = std::min(a.size(), b.size());
+  for (size_t i = 0; i < n; i++) s += double(a[i] - b[i]) * double(a[i] - b[i]);
+  return 10 * std::log10(s / double(std::max<size_t>(1, n)) + 1e-20);
+}
+// Onset of each hit: the first sample above -30 dBFS in the 0.2 s after it was sent (host time, latency removed).
+static std::vector<double> onsets(const std::vector<float>& x, int latency) {
+  std::vector<double> t;
+  for (double h = kFirstHit; h + 0.2 < double(x.size()) / kRate; h += kHitEvery) {
+    const size_t a = size_t(h * kRate) + size_t(latency), b = a + size_t(0.2 * kRate);
+    double at = -1;
+    for (size_t i = a; i < b && i < x.size(); i++) if (std::fabs(x[i]) > 0.0316f) { at = double(i - size_t(latency)) / kRate; break; }
+    t.push_back(at);
+  }
+  return t;
+}
 
 int main() {
-  {   // settings (no OS needed)
+  {   // mappings and settings (no OS needed)
+    CHECK(bendmap::starveFrameCycles(0) == 2048 && bendmap::starveFrameCycles(1) == 700, "starve range");
+    CHECK(bendmap::timeRate(0) == 1.0 && bendmap::timeRate(1) == 0.0 && std::fabs(bendmap::timeRate(0.4) - 0.25) < 1e-9, "time range");
+    CHECK(bendmap::sineBit(0) == -1 && bendmap::sineBit(1.0 / 8) == 8 && bendmap::sineBit(1) == 15, "sine bit steps");
+    CHECK(bendmap::dacBits(0) == 32 && bendmap::dacBits(1.0 / 8) == 12 && bendmap::dacBits(1) == 4, "dac bit steps");
+    CHECK(bendmap::crystalRatio(0) == 1.0 && bendmap::crystalRatio(1) == 0.5, "crystal range");
+    CHECK(bendmap::brownoutsPerSecond(0) == 0.0 && bendmap::brownoutsPerSecond(1) > 10, "brownout range");
     Engine e;
-    e.setBend(0, 9); CHECK(e.bend(0) == 0, "bend out of range is Off (%d)", e.bend(0));
-    e.setBend(2, 8); CHECK(e.bend(2) == 8, "bend 8 kept (%d)", e.bend(2));
-    e.setBend(5, -1); CHECK(e.bend(5) == 0, "negative bend is Off (%d)", e.bend(5));
-    e.setBend(6, 3); CHECK(e.bend(6) == 0, "pad 7 does not exist");
+    e.setKitBend(0, 2.0f); CHECK(e.kitBend(0) == 1.0f, "amount above 1 is 1 (%g)", double(e.kitBend(0)));
+    e.setKitBend(2, -1.0f); CHECK(e.kitBend(2) == 0.0f, "negative amount is Off");
+    e.setKitBend(5, NAN); CHECK(e.kitBend(5) == 0.0f, "NaN is Off");
+    e.setKitBend(6, 0.5f); CHECK(e.kitBend(6) == 0.0f, "bend 7 does not exist");
   }
   const char* osPath = getenv("ND2_OS");
   if (!osPath) { printf("%s\n", fails ? "bend tests FAILED" : "bend tests passed (ND2_OS not set: OS checks skipped)"); return fails ? 1 : 0; }
@@ -76,33 +99,32 @@ int main() {
     g_flash.assign(std::istreambuf_iterator<char>(in), {});
   }
 
-  const int off[Engine::kPads] = {0, 0, 0, 0, 0, 0};
-  const Render base = render(off);
-  CHECK(!base.main.empty() && rmsDb(base.main) > -60, "the unbent render sounds (%.1f dB)", rmsDb(base.main));
-  const Render early = render(off, 0, int(Bend::Crush));
-  CHECK(early.main == base.main, "a bend switched off before any note leaves no trace");
+  int latency = 0;
+  const std::vector<float> base = render({}, &latency);
+  CHECK(!base.empty() && rmsDb(base) > -60, "the unbent render sounds (%.1f dB)", rmsDb(base));
+  CHECK(render({{0, 0.0f, 0, 9}, {4, 0.0f, 0, 9}}) == base, "amounts at 0 change nothing");
+  // bends switched off before the first hit (0.2 s) that leave nothing behind
+  CHECK(render({{int(KitBend::SineBit), 1.0f, 0, 0.1}}) == base, "Sine Stuck Bit switched off leaves no trace");
+  CHECK(render({{int(KitBend::DacBits), 1.0f, 0, 0.1}}) == base, "DAC Bits switched off leaves no trace");
 
-  static const char* names[kBendCount] = {"Off", "Crush", "Hold", "Stuck", "Crackle", "Underclock", "Stretch", "Sine", "Noise"};
-  for (int b = 1; b < kBendCount; b++) {
-    int changedOwn = 0;
-    for (int p = 0; p < Engine::kPads; p++) {
-      int bends[Engine::kPads] = {0, 0, 0, 0, 0, 0};
-      bends[p] = b;
-      const Render r = render(bends);
-      if (r.pad[p] != base.pad[p]) changedOwn++;
-      for (int q = 0; q < Engine::kPads; q++) {
-        if (q == p) continue;
-        if (Bend(b) == Bend::Underclock) {
-          const double d = std::fabs(rmsDb(r.pad[q]) - rmsDb(base.pad[q]));
-          CHECK(d < 1.5, "%s on pad %d: pad %d's level moved %.2f dB", names[b], p + 1, q + 1, d);
-        } else {
-          CHECK(r.pad[q] == base.pad[q], "%s on pad %d changed pad %d", names[b], p + 1, q + 1);
-        }
+  static const char* names[kKitBends] = {"CPU Starve", "Brownouts", "Time", "Sine Stuck Bit", "Crystal", "DAC Bits"};
+  const auto baseOn = onsets(base, latency);
+  for (int b = 0; b < kKitBends; b++)
+    for (float a : {0.5f, 1.0f}) {
+      const auto r = render({{b, a, 0, 9}});
+      const double d = diffDb(r, base);
+      printf("%-15s %.1f: %6.1f dB rms, difference %6.1f dB\n", names[b], double(a), rmsDb(r), d);
+      CHECK(r.size() == base.size() && r != base && d > -70, "%s at %.1f changes the sound (%.1f dB)", names[b], double(a), d);
+      if (b == int(KitBend::Starve) || b == int(KitBend::Brownouts) || b == int(KitBend::Crystal)) {
+        const auto on = onsets(r, latency);
+        double worst = 0; int found = 0;
+        for (size_t i = 0; i < on.size() && i < baseOn.size(); i++)
+          if (on[i] >= 0 && baseOn[i] >= 0) { worst = std::max(worst, std::fabs(on[i] - baseOn[i])); found++; }
+        printf("                hits on the beat: %d of %zu, worst %.1f ms\n", found, baseOn.size(), worst * 1e3);
+        CHECK(found >= int(baseOn.size()) - 1 && worst < 0.012, "%s at %.1f: hits off the beat (worst %.1f ms, %d found)",
+              names[b], double(a), worst * 1e3, found);
       }
     }
-    printf("%-10s changes %d of 6 pads on their own (the rest don't use what it bends in this program)\n", names[b], changedOwn);
-    if (Bend(b) <= Bend::Underclock) CHECK(changedOwn == Engine::kPads, "%s changes every pad (%d)", names[b], changedOwn);
-  }
   printf("%s\n", fails ? "bend tests FAILED" : "bend tests passed");
   return fails ? 1 : 0;
 }

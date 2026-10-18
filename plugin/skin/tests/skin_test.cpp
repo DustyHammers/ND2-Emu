@@ -30,11 +30,12 @@ struct FakePort : PanelPort {
     int master() override { return masterRaw; }
     int ledLevel(int led) override { return led >= 0 && led < kLeds ? levels[size_t(led)] : 0; }
     std::array<uint8_t, 4> segments() override { return segs; }
-    std::array<int, kBendPads> bends{};
+    std::array<int, kBendPots> bends{};
     bool bent = false;
-    int bend(int pad) override { return pad >= 0 && pad < kBendPads ? bends[size_t(pad)] : 0; }
-    void setBend(int pad, int value) override { bends[size_t(pad)] = value; log.push_back("bend " + std::to_string(pad) + " " + std::to_string(value)); }
-    void bendGesture(int pad, bool begin) override { log.push_back("gesture " + std::to_string(pad) + (begin ? " begin" : " end")); }
+    int bend(int pot) override { return pot >= 0 && pot < kBendPots ? bends[size_t(pot)] : 0; }
+    int bendSteps(int pot) override { return pot == 3 || pot == 5 ? kBendSteps : 0; }   // as the plugin: pots 4 and 6 stepped
+    void setBend(int pot, int value) override { bends[size_t(pot)] = value; log.push_back("bend " + std::to_string(pot) + " " + std::to_string(value)); }
+    void bendGesture(int pot, bool begin) override { log.push_back("gesture " + std::to_string(pot) + (begin ? " begin" : " end")); }
     bool bentView() override { return bent; }
     void setBentView(bool on) override { bent = on; log.push_back(on ? "bent view on" : "bent view off"); }
 };
@@ -102,7 +103,8 @@ int main() {
     v.update(t += 0.02);
     CHECK(v.evalForTest("panel.master()") == "100", "panel.master %s", v.evalForTest("panel.master()").c_str());
 
-    // ---- circuit-bent mode: Cmd-click shows the bend pots and LED; a pot drag selects the nearest of 9 steps
+    // ---- circuit-bent mode: Cmd-click shows the bend pots and LED; a smooth pot follows the drag, a stepped one selects
+    // the nearest of its 9 positions and settles on it
     {
         Rml::Element* body = v.context()->GetDocument(0);
         v.mouseMove(30, 630, 0); v.mouseDown(0, 0); v.mouseUp(0, 0);    // hidden: nothing there to turn
@@ -110,14 +112,16 @@ int main() {
         v.mouseMove(900, 900, 0); v.mouseDown(0, ModMeta); v.mouseUp(0, ModMeta);
         v.update(t += 0.02);
         CHECK(port.bent && body->IsClassSet("bent") && last(port) == "bent view on", "Cmd-click shows the bent panel");
-        const size_t before = port.log.size();
+        // smooth pot (pot 1): its whole travel over 256 dp
+        size_t before = port.log.size();
         v.mouseMove(30, 630, 0); v.mouseDown(0, 0); v.mouseMove(30, 630 - 20, 0); v.mouseMove(30, 630 - 64, 0);
         auto* pot = dynamic_cast<BendPotElement*>(byId(v, "pot1"));
-        CHECK(port.bends[0] == 2, "drag up 64 dp: bend %d", port.bends[0]);
-        CHECK(port.log.size() >= before + 3 && port.log[before] == "gesture 0 begin" && port.log[before + 1] == "bend 0 1"
-              && port.log[before + 2] == "bend 0 2", "steps on the way: %s", port.log.size() > before ? port.log[before].c_str() : "-");
-        v.mouseMove(30, 630 - 70, 0);                                    // within step 2: turns, sends nothing
-        CHECK(last(port) == "bend 0 2", "no send within a step: %s", last(port).c_str());
+        CHECK(port.bends[0] >= 250 && port.bends[0] <= 262, "smooth: drag up 64 dp: %d", port.bends[0]);
+        CHECK(port.log.size() >= before + 3 && port.log[before] == "gesture 0 begin" && port.log[before + 1].rfind("bend 0 ", 0) == 0,
+              "smooth: sends as it turns: %s", port.log.size() > before ? port.log[before].c_str() : "-");
+        const int at64 = port.bends[0];
+        v.mouseMove(30, 630 - 70, 0);
+        CHECK(port.bends[0] > at64, "smooth: every move sends (%d)", port.bends[0]);
         v.update(t += 0.05);
         auto* led = byId(v, "bled");
         auto* lamp = led ? led->GetChild(0) : nullptr;
@@ -126,14 +130,28 @@ int main() {
         v.update(t += 0.04);
         const float o2 = opacity();
         CHECK(o1 >= 0.35f && o1 <= 1.0f && o2 >= 0.35f && o2 <= 1.0f && (o1 < 1.0f || o2 < 1.0f), "LED flickers while turning: %.2f %.2f", o1, o2);
+        const std::string sprite = pot ? pot->shownSprite() : "";
         v.mouseUp(0, 0);
         CHECK(last(port) == "gesture 0 end", "gesture ends: %s", last(port).c_str());
-        CHECK(pot && pot->shownSprite() == "image(bend_032)", "settles on step 2's frame: %s", pot ? pot->shownSprite().c_str() : "?");
+        CHECK(pot && pot->shownSprite() == sprite, "smooth: stays where it was let go: %s", pot ? pot->shownSprite().c_str() : "?");
         v.update(t += 0.5);
         CHECK(opacity() == 1.0f, "LED steady when still: %.2f", opacity());
-        v.mouseMove(130, 630, 0); v.mouseWheel(-1.0f, 0);                // one notch up: pad 2 to bend 1
-        CHECK(port.bends[1] == 1, "wheel: bend %d", port.bends[1]);
-        port.bends[0] = 8;                                                // host automation
+        // stepped pot (pot 4)
+        before = port.log.size();
+        v.mouseMove(130, 630, 0); v.mouseDown(0, 0); v.mouseMove(130, 630 - 20, 0); v.mouseMove(130, 630 - 64, 0);
+        auto* pot2 = dynamic_cast<BendPotElement*>(byId(v, "pot2"));
+        CHECK(port.bends[3] == 256, "stepped: drag up 64 dp: position 2 = %d", port.bends[3]);
+        CHECK(port.log.size() >= before + 3 && port.log[before] == "gesture 3 begin" && port.log[before + 1] == "bend 3 128"
+              && port.log[before + 2] == "bend 3 256", "stepped: positions on the way: %s", port.log.size() > before + 1 ? port.log[before + 1].c_str() : "-");
+        v.mouseMove(130, 630 - 70, 0);                                   // within position 2: turns, sends nothing
+        CHECK(last(port) == "bend 3 256", "stepped: no send within a position: %s", last(port).c_str());
+        v.mouseUp(0, 0);
+        CHECK(pot2 && pot2->shownSprite() == "image(bend_032)", "stepped: settles on position 2's frame: %s", pot2 ? pot2->shownSprite().c_str() : "?");
+        v.mouseWheel(-1.0f, 0);                                          // one notch up: position 3
+        CHECK(port.bends[3] == 384, "stepped wheel: %d", port.bends[3]);
+        v.mouseMove(30, 630, 0); const int w0 = port.bends[0]; v.mouseWheel(-1.0f, 0);
+        CHECK(port.bends[0] == w0 + 64, "smooth wheel: a sixteenth of the travel (%d -> %d)", w0, port.bends[0]);
+        port.bends[0] = kBendMax;                                         // host automation
         v.update(t += 0.02);
         CHECK(pot && pot->shownSprite() == "image(bend_127)", "automation turns the pot: %s", pot ? pot->shownSprite().c_str() : "?");
         v.mouseMove(900, 900, 0); v.mouseDown(0, ModMeta); v.mouseUp(0, ModMeta);
@@ -237,9 +255,9 @@ int main() {
         d.update(1.2);
         CHECK(p2.bent && doc->IsClassSet("bent"), "Cmd-click opens the bent panel");
         d.mouseMove(350, 118, 0); d.mouseDown(0, 0); d.mouseMove(350, 118 - 260, 0); d.mouseUp(0, 0);
-        CHECK(p2.bends[0] == 8, "pot 1 turned fully up: bend %d", p2.bends[0]);
+        CHECK(p2.bends[0] == kBendMax, "pot 1 turned fully up: %d", p2.bends[0]);
         d.mouseMove(1375, 118, 0); d.mouseWheel(-1.0f, 0);
-        CHECK(p2.bends[5] == 1, "pot 6 one notch: bend %d", p2.bends[5]);
+        CHECK(p2.bends[5] == 128, "pot 6 (stepped) one notch: %d", p2.bends[5]);
         d.update(1.3);
         for (const std::string& l : d.log())
             CHECK(l.rfind("warning", 0) != 0 && l.rfind("error", 0) != 0, "default skin log (bent): %s", l.c_str());

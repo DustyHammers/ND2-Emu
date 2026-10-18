@@ -418,7 +418,7 @@ segdigit seg.a { decorator: image(seg_a); } segdigit seg.b { decorator: image(se
    bend pots (Off at frame 0 ... full at frame 127; the stepped ones at 0, 16, 32, 48, 64, 79, 95, 111, 127) and the
    indicator LED (lit; it
    flickers while a pot turns: the runtime sets the lamp's opacity). */
-div#bendpanel { display: none; position: absolute; left: 196dp; top: 37dp; width: 1322dp; height: 166dp; decorator: image(ND2BendPanel.png); }
+div#bendpanel { display: none; position: absolute; left: 208dp; top: 37dp; width: 1310dp; height: 166dp; decorator: image(ND2BendPanel.png); }
 bendpot, bendled { display: none; position: absolute; }
 body.bent div#bendpanel, body.bent bendpot, body.bent bendled { display: block; }
 bendpot { top: 88dp; width: 60dp; height: 60dp; frames: 128; spriteprefix: bend_; }

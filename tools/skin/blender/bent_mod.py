@@ -19,7 +19,6 @@ import scene
 MM = D.MM
 MOD = dict(
     slot=(470.0, 152.0, 2960.0, 330.0),    # the opening: x0, y0, x1, y1 (below the TRIG INPUTS line, above the black print)
-    kerf=10.0,                             # cut-off wheel width (px): the overcuts past the corners
     chip=(0.6, 6.0),                       # paint chipped off along the cut: min, max width (px)
     chip_depth=1.1,                        # paint thickness (px)
     board_top=-6.0 * MM,                   # the circuit board's top surface
@@ -86,8 +85,6 @@ def ragged_ring(x0, y0, x1, y1, rnd, wmin, wmax, step=6.0):
             f = 0.5 + 0.5 * (0.5 * math.sin(u * 2 * math.pi * 9 + ph[0]) + 0.3 * math.sin(u * 2 * math.pi * 31 + ph[1])
                              + 0.2 * math.sin(u * 2 * math.pi * 87 + ph[2]))
             f = max(0.0, min(1.0, f)) ** 1.6
-            if rnd.random() < 0.01:                     # an occasional bigger flake
-                f = 2.2
             w = wmin + (wmax - wmin) * f
             pts.append((ax + (bx - ax) * t + nx * w, ay + (by - ay) * t + ny * w))
         s += L
@@ -390,30 +387,16 @@ def add(tmp_dir):
     M = mats()
     plate = bpy.data.objects['Plate']
     sx0, sy0, sx1, sy1 = MOD['slot']
-    k = MOD['kerf']
     # 1) the paint chipped off along the cut: a paint-deep ragged ring, bare steel at its bottom
     bm = bmesh.new()
     scene.prism(bm, ragged_ring(sx0, sy0, sx1, sy1, rnd, *MOD['chip']), -MOD['chip_depth'], 20.0)
     chip_cut = obj('ModChipCut', bm, col, M['steel'])
-    # 2) the opening, with the cut-off wheel's overcuts past each corner
+    # 2) the opening
     outline = (wavy_edge((sx0, sy0), (sx1, sy0), rnd) + wavy_edge((sx1, sy0), (sx1, sy1), rnd)
                + wavy_edge((sx1, sy1), (sx0, sy1), rnd) + wavy_edge((sx0, sy1), (sx0, sy0), rnd))
     bm = bmesh.new()
     scene.prism(bm, list(reversed(outline)), -D.PLATE['thickness'] - 20, 30.0)
     slot_cut = obj('ModSlotCut', bm, col, M['steel'])
-    for j, (cx, cy, dx, dy) in enumerate(((sx0, sy0, -1, -1), (sx1, sy0, 1, -1), (sx1, sy1, 1, 1), (sx0, sy1, -1, 1))):
-        Lh = rnd.uniform(12, 34)
-        Lv = rnd.uniform(6, 16) if dy < 0 else rnd.uniform(4, 9)      # stop short of the black print below
-        for xa, xb, ya, yb in ((*sorted((cx - dx * 6, cx + dx * Lh)), cy - k / 2, cy + k / 2),
-                               (cx - k / 2, cx + k / 2, *sorted((cy - dy * 6, cy + dy * Lv)))):
-            b2 = bmesh.new()
-            box(b2, xa, ya, xb, yb, -D.PLATE['thickness'] - 20, 30.0)
-            slit = scene.new_object(f'ModSlit{j}', b2, col, smooth=False)
-            m = slot_cut.modifiers.new('u', 'BOOLEAN')
-            m.operation, m.object, m.solver = 'UNION', slit, 'EXACT'
-            bpy.context.view_layer.objects.active = slot_cut
-            bpy.ops.object.modifier_apply(modifier=m.name)
-            bpy.data.objects.remove(slit)
     for cutter in (chip_cut, slot_cut):
         cutter.hide_render = True
         m = plate.modifiers.new('mod_' + cutter.name, 'BOOLEAN')

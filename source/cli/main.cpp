@@ -178,6 +178,16 @@ int main(int argc, char** argv) {
     printf("irqs:"); for (int i = 0; i < 128; i++) if (B.irq_count[i]) printf(" %d:%llu", i, (unsigned long long)B.irq_count[i]); printf("\n");
     if (!B.midi_out.empty()) { printf("midi out:"); for (size_t i = 0; i < B.midi_out.size() && i < 32; i++) printf(" %02x", B.midi_out[i]); printf("\n"); }
     if (!B.log.empty()) printf("%s", B.log.substr(0, 2000).c_str());
+    for (int w = 0; w < 2; w++) {                  // the SFRs the OS reads / writes most (each access syncs the board)
+      const uint64_t* cnt = w ? B.sfr_wr_count : B.sfr_rd_count;
+      std::vector<std::pair<uint64_t, int>> top;
+      uint64_t total = 0;
+      for (int i = 0; i < 0x800; i++) if (cnt[i]) { top.push_back({cnt[i], i * 2}); total += cnt[i]; }
+      std::sort(top.rbegin(), top.rend());
+      printf("SFR %s: %llu in all;", w ? "writes" : "reads", (unsigned long long)total);
+      for (size_t i = 0; i < top.size() && i < 12; i++) printf(" %03x:%llu", top[i].second, (unsigned long long)top[i].first);
+      printf("\n");
+    }
   }
   for (auto& d : dumps) { printf("dump %04x:", d.first); for (uint32_t i = 0; i < d.second; i += 2) printf(" %04x", C.ram[d.first + i] | (C.ram[d.first + i + 1] << 8)); printf("\n"); }
   if (pcprof) writefile(pcprof, pcc.data(), pcc.size() * 4);

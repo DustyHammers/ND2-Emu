@@ -30,6 +30,11 @@ VST3 and standalone app in one zip, for 64-bit Windows 10 or newer. Installing: 
 
 ## What's new
 
+### 0.3.1
+
+- About 7 % less CPU: the emulated chip's peripherals are only brought up to date when a register read can see the
+  difference. The sound is exactly the same.
+
 ### 0.3.0
 
 - Circuit-bent mode: Cmd-click the panel (Ctrl-click on Windows) to open it. Six bend pots, each bending the whole

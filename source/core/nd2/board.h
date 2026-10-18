@@ -133,7 +133,9 @@ private:
   void recompute_irq();
   void sfr_write_inner(uint16_t a, uint16_t v, uint16_t mask);
   void advance(uint32_t n);
+  void plan(uint64_t now);
   uint64_t last_sync = 0;
+  bool sfr_moves[0x800] = {};                    // SFRs whose value changes with time alone (timer counts, flags)
   uint16_t& R(uint16_t a) { return sfr[a >> 1]; }
 };
 

@@ -37,6 +37,8 @@ VST3 and standalone app in one zip, for 64-bit Windows 10 or newer. Installing: 
   again closes the panel and puts the drum back to normal; a third Cmd-click brings the pots back as they were. The
   pots can be automated and are saved with the project. With every pot down, ND2 sounds exactly as before.
   [docs/BENDS.md](docs/BENDS.md)
+- About 7 % less CPU: the emulated chip's peripherals are only brought up to date when a register read can see the
+  difference. The sound is exactly the same.
 
 ### 0.2.3
 

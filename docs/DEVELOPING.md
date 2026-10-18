@@ -13,7 +13,10 @@ Notes for building and testing. The OS update file is never part of this reposit
 | ADC1 scan (17 inputs, 15.1 kHz) + DMA0 ping-pong → trigger front-end; pads 1–6 = AN12, AN2, AN4, AN6, AN8, AN10 | done (piezo hits modelled as damped sines) |
 | Front panel: 4-digit 7-segment display + 29 LEDs (8-column multiplex, PWM brightness), 15 buttons, encoder, MASTER LEVEL pot (read by the OS on AN25) | done; map in `source/core/nd2/panel_map.h` |
 
-Busy-wait loops in the OS are fast-forwarded cycle-exactly (output is bit-identical with and without it).
+Busy-wait loops in the OS are fast-forwarded cycle-exactly (output is bit-identical with and without it). SFR reads
+sync the peripherals only when the read can see a difference (`Board::sfr_read`: an event is due, interrupts are
+being recomputed, or the SFR changes with time alone: timer counts, interrupt flags); writes re-plan the next event at
+once instead of forcing another sync. `nd2emu -stats` lists the SFRs read and written most.
 
 ## Build
 

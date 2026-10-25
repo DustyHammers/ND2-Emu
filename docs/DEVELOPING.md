@@ -86,6 +86,12 @@ build/nd2render -os os.cab -flash flash.bin -trig pads.wav -o out.wav -bank 0.1,
 
 - `tools/nd2_sysex.py`: `.nd2_bank` / `.nd2p` ↔ SysEx (ProgDump protocol), Get Bank queries, parser
 - `tools/dis_check.cpp`, `tools/cmp_dis.py`: decoder check against a Ghidra listing
+- `tools/skin/blender`: the 3D model and render scripts that make the default skin's images (Blender's `bpy`).
+  Two workflows run them, only when started by hand from the Actions tab (never on a push, never part of the build):
+  **Skin files** (panel, buttons, LEDs, knobs) and **Bend files** (the bent panel, the bend pot frames, the LED).
+  Each leaves one download with the images, a read-me and previews; copying them into `skins/default/nd2-default/`
+  is a separate, reviewed change. Both read the flat panel art from commit `ec1ba0b` (`ART_COMMIT`), which exists
+  only while the repository keeps its history.
 
 ## Layout
 

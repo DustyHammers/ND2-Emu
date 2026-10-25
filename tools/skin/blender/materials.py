@@ -1,0 +1,548 @@
+# Materials. The panel paint takes its inks from masks.py's maps (aligned 1:1 with the canvas), so the
+# shader maps world x, y straight to the art. Ink colours live in RGB nodes named col_<ink> so a later step
+# can set calibrated values without rebuilding anything.
+import bpy
+
+import dims as D
+
+# linear albedo guesses (from the art's sRGB); calibration replaces them
+INK_ALBEDO = {                      # red: matched to the owner's straight-on photo under the studio HDR
+    'red': (0.54, 0.003, 0.016),
+    'black': (0.009, 0.009, 0.010),
+    'tag': (0.54, 0.003, 0.016),      # the body paint (label windows show it through the black print)
+    'white': (0.873, 0.841, 0.838),
+}
+PAINT = dict(
+    rough_red=0.45, rough_ink=0.55,        # base layer (mostly diffuse)
+    spec_level=0.05,                        # base layer specular (the coat carries most of the sheen)
+    # coat weight on the red body and on the printed inks: run 1 (1.0 everywhere) left the black print 48-130
+    # against the photo's 38 at zero albedo, so the gloss is cut to what the calibration can reach
+    # the reference photos show a satin finish with only a faint sheen
+    # owner: a very fine orange peel with a slight shine that sparkles in places
+    coat_red=0.16, coat_ink=0.20, coat_rough_red=0.42, coat_rough_ink=0.48, coat_ior=1.5,   # satin
+    peel_wavelength=0.26 * D.MM,            # orange peel cell size (very fine)
+    peel_distance=2.5,                      # bump distance (px): the photo shows a clearly lit, pebbly fine relief
+    coat_peel_share=0.2,                    # share of that relief in the coat's normal
+    mottle=0.035,                           # powder-coat mottle: +/- share of the paint colour
+    # powder-coat grain in the colour itself (owner's straight-on photo: dense fine speckle on red and black)
+    grain_size=0.12 * D.MM,                 # particle spacing
+    grain_var=0.10,                         # every particle's brightness varies by up to +/- this share
+    grain_bright=0.025,                     # share of particles that are clearly lighter (sparse flecks)
+    grain_lift_red=(0.16, 0.035, 0.045),    # a light fleck on the red (light red, linear)
+    grain_lift_black=(0.022, 0.022, 0.024), # a light fleck on the black print (grey)
+    # sparkle: a small share of the coat's grains sit tilted and catch the light as tiny glints
+    sparkle_size=0.09 * D.MM,               # grain spacing
+    sparkle_density=0.25,                   # share of grains that are tilted
+    sparkle_coat=0.85,                      # a tilted grain's coat weight is raised by this: a crisp glint
+    sparkle_black=0.1,                      # share of that raise on the black print
+    sparkle_dot=0.45,                       # glint size within its grain (share of the spacing)
+    sparkle_tilt=0.75,                      # how far a tilted grain leans (about 35 degrees at most)
+    sparkle_smooth=0.30,                    # tilted grains are this much glossier, so their glints are crisp
+    virtual_perspective=False,              # only for an orthographic skin camera
+    edge_gloss_gain=5.0,                    # how fast the edge gloss comes in as a surface leans (1 - normal z)
+    edge_gloss_coat=1.0, edge_gloss_rough=0.12,   # coat weight and roughness on a fully leaning bend
+    ink_distance=0.12,                      # printed relief (px)
+    lip_distance=0.35,                      # build-up lip (px)
+    smudge_size=30 * D.MM, smudge_amount=0.06,
+    virtual_cam_height=1000 * D.MM,         # reflections as if seen from 1 m above the panel centre
+)
+
+
+def _n(nt, kind, name=None, loc=(0, 0), **inputs):
+    n = nt.nodes.new(kind)
+    if name:
+        n.name = n.label = name
+    n.location = loc
+    for k, v in inputs.items():
+        n.inputs[k].default_value = v
+    return n
+
+
+def _vm(nt, op, a, b=None, loc=(0, 0), name=None):
+    n = nt.nodes.new('ShaderNodeVectorMath')
+    n.operation = op
+    n.location = loc
+    if name:
+        n.name = n.label = name
+    _link(nt, a, n.inputs[0])
+    if b is not None:
+        _link(nt, b, n.inputs[1])
+    return n
+
+
+def _m(nt, op, a, b=None, loc=(0, 0), name=None):
+    n = nt.nodes.new('ShaderNodeMath')
+    n.operation = op
+    n.location = loc
+    if name:
+        n.name = n.label = name
+    _link(nt, a, n.inputs[0])
+    if b is not None:
+        _link(nt, b, n.inputs[1])
+    return n
+
+
+def _link(nt, src, dst):
+    """src: an output socket, a node (first output) or a constant."""
+    if src is None:
+        return
+    if isinstance(src, bpy.types.Node):
+        src = src.outputs[0]
+    if isinstance(src, bpy.types.NodeSocket):
+        nt.links.new(src, dst)
+    else:
+        dst.default_value = src
+
+
+def _image(nt, path, loc, name):
+    img = bpy.data.images.load(path, check_existing=True)
+    img.colorspace_settings.name = 'Non-Color'
+    img.alpha_mode = 'CHANNEL_PACKED'
+    t = nt.nodes.new('ShaderNodeTexImage')
+    t.image, t.interpolation, t.extension = img, 'Cubic', 'EXTEND'
+    t.name = t.label = name
+    t.location = loc
+    return t
+
+
+def paint(maps_dir, peel_strips=None):
+    """peel_strips: None, or (x_a, x_b) in art px: peel 0.5x left of x_a, 1x up to x_b, 2x beyond (test only)."""
+    P = PAINT
+    m = bpy.data.materials.new('Paint')
+    m.use_nodes = True
+    nt = m.node_tree
+    nt.nodes.clear()
+    out = _n(nt, 'ShaderNodeOutputMaterial', loc=(1600, 0))
+    bsdf = _n(nt, 'ShaderNodeBsdfPrincipled', 'paint_bsdf', (1300, 0))
+    nt.links.new(bsdf.outputs[0], out.inputs['Surface'])
+
+    geo = _n(nt, 'ShaderNodeNewGeometry', loc=(-1800, 0))
+    uv = _vm(nt, 'MULTIPLY_ADD', geo.outputs['Position'], (1 / D.CANVAS_W, 1 / D.CANVAS_H, 0), (-1600, 200))
+    uv.inputs[2].default_value = (0, 1, 0)
+    inks = _image(nt, f'{maps_dir}/inks.png', (-1400, 300), 'inks')
+    _link(nt, uv.outputs[0], inks.inputs['Vector'])
+    sep = _n(nt, 'ShaderNodeSeparateColor', loc=(-1100, 300))
+    _link(nt, inks.outputs['Color'], sep.inputs[0])
+    masks = {'red': sep.outputs[0], 'black': sep.outputs[1], 'tag': sep.outputs[2], 'white': inks.outputs['Alpha']}
+
+    # base colour = sum of ink albedo x mask
+    acc = None
+    for i, (ink, alb) in enumerate(INK_ALBEDO.items()):
+        c = _n(nt, 'ShaderNodeRGB', 'col_' + ink, (-1100, -100 - 200 * i))
+        c.outputs[0].default_value = (*alb, 1)
+        s = _vm(nt, 'SCALE', c.outputs[0], None, (-850, -100 - 200 * i))
+        _link(nt, masks[ink], s.inputs['Scale'])
+        acc = s if acc is None else _vm(nt, 'ADD', acc.outputs[0], s.outputs[0], (-650, -100 - 200 * i))
+    _link(nt, acc.outputs[0], bsdf.inputs['Base Color'])
+
+    # label windows are the body's red paint showing through the black print: same paint as the body
+    ink_frac = _m(nt, 'SUBTRACT', _m(nt, 'SUBTRACT', 1.0, masks['red'], (-1000, 600)), masks['tag'], (-850, 600))
+    # handling smudges: low-frequency noise in the gloss
+    smudge = _n(nt, 'ShaderNodeTexNoise', 'smudge', (-1400, -1000))
+    _link(nt, geo.outputs['Position'], smudge.inputs['Vector'])
+    smudge.inputs['Scale'].default_value = 1 / P['smudge_size']
+    smudge.inputs['Detail'].default_value = 2
+    sm = _m(nt, 'MULTIPLY', _m(nt, 'SUBTRACT', smudge.outputs['Fac'], 0.5, (-1150, -1000)), P['smudge_amount'] * 2, (-950, -1000))
+
+    def mix_rough(a, b, add=None, loc=(0, 0)):
+        r = _m(nt, 'MULTIPLY_ADD', ink_frac, b - a, loc)
+        r.inputs[2].default_value = a
+        return _m(nt, 'ADD', r, add, (loc[0] + 200, loc[1])) if add is not None else r
+
+    _link(nt, mix_rough(P['rough_red'], P['rough_ink'], sm, (-600, 600)).outputs[0], bsdf.inputs['Roughness'])
+    _link(nt, mix_rough(P['coat_rough_red'], P['coat_rough_ink'], sm, (-600, 800)).outputs[0], bsdf.inputs['Coat Roughness'])
+    bsdf.inputs['Specular IOR Level'].default_value = P['spec_level']
+    _link(nt, mix_rough(P['coat_red'], P['coat_ink'], None, (-600, 1000)).outputs[0], bsdf.inputs['Coat Weight'])
+    bsdf.inputs['Coat IOR'].default_value = P['coat_ior']
+
+    # heights: printed relief, hole lips, orange peel (with optional test strips)
+    ink_h = _image(nt, f'{maps_dir}/ink_height.png', (-1400, -1400), 'ink_height')
+    lip_h = _image(nt, f'{maps_dir}/lip_height.png', (-1400, -1700), 'lip_height')
+    for t in (ink_h, lip_h):
+        _link(nt, uv.outputs[0], t.inputs['Vector'])
+    peel = _n(nt, 'ShaderNodeTexNoise', 'peel', (-1400, -2000))
+    _link(nt, geo.outputs['Position'], peel.inputs['Vector'])
+    peel.inputs['Scale'].default_value = 1 / P['peel_wavelength']
+    peel.inputs['Detail'].default_value = 3
+    peel.inputs['Roughness'].default_value = 0.55
+    peel_d = _n(nt, 'ShaderNodeValue', 'peel_distance', (-1150, -2200))
+    peel_d.outputs[0].default_value = P['peel_distance']
+    peel_dist = peel_d.outputs[0]
+    if peel_strips:
+        sx = _n(nt, 'ShaderNodeSeparateXYZ', loc=(-1400, -2400))
+        _link(nt, geo.outputs['Position'], sx.inputs[0])
+        a = _m(nt, 'GREATER_THAN', sx.outputs[0], peel_strips[0], (-1150, -2400))
+        b = _m(nt, 'GREATER_THAN', sx.outputs[0], peel_strips[1], (-1150, -2600))
+        f = _m(nt, 'ADD', _m(nt, 'MULTIPLY', a, 0.5, (-950, -2400)), _m(nt, 'ADD', b, 0.5, (-950, -2600)), (-750, -2500))
+        peel_dist = _m(nt, 'MULTIPLY', f, peel_d.outputs[0], (-550, -2400)).outputs[0]
+
+    def bump_chain(normal_in, x, peel_share=None):
+        n = normal_in
+        pd = peel_dist if peel_share is None else _m(nt, 'MULTIPLY', peel_dist, peel_share, (x, -1900)).outputs[0]
+        for k, (h, dist) in enumerate(((ink_h.outputs['Color'], P['ink_distance']), (lip_h.outputs['Color'], P['lip_distance']),
+                                       (peel.outputs['Fac'], pd))):
+            b = nt.nodes.new('ShaderNodeBump')
+            b.location = (x + 180 * k, -1600)
+            b.inputs['Strength'].default_value = 1.0
+            _link(nt, dist, b.inputs['Distance'])
+            _link(nt, h, b.inputs['Height'])
+            if n is not None:
+                _link(nt, n, b.inputs['Normal'])
+            n = b.outputs['Normal']
+        return n
+
+    _link(nt, bump_chain(None, 200), bsdf.inputs['Normal'])
+
+    # coat: "virtual perspective" normal. With V from the surface to a camera 1 m above the canvas centre,
+    # the perspective reflection direction is R = (-Vx, -Vy, Vz); the half vector of R and straight up tilts the
+    # normal so the orthographic camera sees the reflection a perspective camera would. Applied as a tilt on
+    # the geometric normal, so fillets and walls keep their own shape.
+    cam = (D.CANVAS_W / 2, -D.CANVAS_H / 2, P['virtual_cam_height'])
+    v = _vm(nt, 'NORMALIZE', _vm(nt, 'SUBTRACT', cam, geo.outputs['Position'], (-1600, -2900)), None, (-1400, -2900))
+    r = _vm(nt, 'MULTIPLY', v, (-1, -1, 1), (-1200, -2900))
+    h = _vm(nt, 'NORMALIZE', _vm(nt, 'ADD', r, (0, 0, 1), (-1000, -2900)), None, (-800, -2900))
+    tilt = _vm(nt, 'SUBTRACT', h, (0, 0, 1), (-600, -2900))
+    nv = _vm(nt, 'NORMALIZE', _vm(nt, 'ADD', geo.outputs['Normal'], tilt, (-400, -2900)), None, (-200, -2900), 'virtual_normal')
+    # how far the surface leans away from the top (bends, rolled edges, hole fillets): 0 on the flat, 1 when steep
+    gz = nt.nodes.new('ShaderNodeSeparateXYZ')
+    gz.location = (900, -3450)
+    _link(nt, geo.outputs['Normal'], gz.inputs[0])
+    lean = _m(nt, 'MULTIPLY', _m(nt, 'SUBTRACT', 1.0, gz.outputs['Z'], (1080, -3450)), P['edge_gloss_gain'], (1260, -3450))
+    lean.use_clamp = True
+    # the coat follows the peel more gently (strong enough to break up its sheen) and not at all on the bends, so
+    # a bend shows one clean highlight line
+    coat_share = _m(nt, 'MULTIPLY', _m(nt, 'SUBTRACT', 1.0, lean, (1080, -1900)), P['coat_peel_share'], (1260, -1900))
+    coat_n = bump_chain(nv.outputs[0] if P['virtual_perspective'] else None, 300, coat_share)
+    # sparkle: Voronoi grains; a random few, and only a dot in each, get a random tilt in the coat's normal
+    vor = nt.nodes.new('ShaderNodeTexVoronoi')
+    vor.name = vor.label = 'sparkle'
+    vor.voronoi_dimensions = '3D'
+    vor.location = (300, -2600)
+    _link(nt, geo.outputs['Position'], vor.inputs['Vector'])
+    vor.inputs['Scale'].default_value = 1.0 / P['sparkle_size']
+    vor.inputs['Randomness'].default_value = 1.0
+    rnd = _vm(nt, 'MULTIPLY_ADD', vor.outputs['Color'], (2.0, 2.0, 2.0), (520, -2600))
+    rnd.inputs[2].default_value = (-1.0, -1.0, -1.0)
+    sc_ = nt.nodes.new('ShaderNodeSeparateColor')
+    sc_.location = (520, -2800)
+    _link(nt, vor.outputs['Color'], sc_.inputs[0])
+    pick = _m(nt, 'GREATER_THAN', sc_.outputs[0], 1.0 - P['sparkle_density'], (720, -2800))
+    dot = _m(nt, 'LESS_THAN', vor.outputs['Distance'], P['sparkle_dot'], (720, -2950))
+    amt = _m(nt, 'MULTIPLY', _m(nt, 'MULTIPLY', pick, dot, (900, -2850)), P['sparkle_tilt'], (1080, -2850))
+    # no glints on the bends: there the coat shows one clean highlight line, as on the photo's back edge
+    amt = _m(nt, 'MULTIPLY', amt, _m(nt, 'SUBTRACT', 1.0, lean, (1080, -2750)), (1180, -2850))
+    tilt = _vm(nt, 'SCALE', rnd.outputs[0], None, (1080, -2650))
+    _link(nt, amt.outputs[0], tilt.inputs['Scale'])
+    spark_n = _vm(nt, 'NORMALIZE', _vm(nt, 'ADD', coat_n, tilt.outputs[0], (1260, -2650)), None, (1420, -2650), 'sparkle_normal')
+    _link(nt, spark_n.outputs[0], bsdf.inputs['Coat Normal'])
+    # glossier grains: subtract from the coat roughness where a grain is tilted
+    cr = bsdf.inputs['Coat Roughness'].links[0].from_socket
+    grain = _m(nt, 'MULTIPLY', pick, dot, (900, -3050))
+    _link(nt, _m(nt, 'MAXIMUM', _m(nt, 'MULTIPLY_ADD', grain, -P['sparkle_smooth'], (1080, -3050)), 0.03, (1260, -3050)).outputs[0],
+          bsdf.inputs['Coat Roughness'])
+    nt.nodes[-2].inputs[2].default_value = 0.0
+    _link(nt, cr, nt.nodes[-2].inputs[2])
+    # the tilted grains carry more coat, so they glint like flakes while the rest of the paint stays satin
+    cw = bsdf.inputs['Coat Weight'].links[0].from_socket
+    # on the red paint only: the photo's black print shows hardly any glints
+    on_red = _m(nt, 'MULTIPLY_ADD', masks['black'], P['sparkle_black'], (1080, -3150))
+    _link(nt, _m(nt, 'ADD', masks['red'], masks['tag'], (900, -3150)), on_red.inputs[2])
+    cwn = _m(nt, 'MULTIPLY_ADD', _m(nt, 'MULTIPLY', grain, on_red, (1180, -3250)), P['sparkle_coat'], (1260, -3250))
+    _link(nt, cw, cwn.inputs[2])
+    _link(nt, _m(nt, 'MINIMUM', cwn, 1.0, (1420, -3250)).outputs[0], bsdf.inputs['Coat Weight'])
+    # bends and rolled edges: seen by a real camera at a glancing angle, the coat reflects much more there
+    # (Fresnel), so the photo shows a bright line along the rolled back edge. The straight-down camera can't see
+    # that, so surfaces that lean away from the top get a glossier, fuller coat
+    cw2 = bsdf.inputs['Coat Weight'].links[0].from_socket
+    _link(nt, _m(nt, 'MAXIMUM', cw2, _m(nt, 'MULTIPLY', lean, P['edge_gloss_coat'], (1420, -3450)), (1580, -3350)).outputs[0],
+          bsdf.inputs['Coat Weight'])
+    cr2 = bsdf.inputs['Coat Roughness'].links[0].from_socket
+    mixr = nt.nodes.new('ShaderNodeMix')
+    mixr.location = (1580, -3550)
+    _link(nt, lean, mixr.inputs['Factor'])
+    _link(nt, cr2, mixr.inputs['A'])
+    mixr.inputs['B'].default_value = P['edge_gloss_rough']
+    _link(nt, mixr.outputs['Result'], bsdf.inputs['Coat Roughness'])
+    # powder-coat mottle on the paint colour
+    mot = nt.nodes.new('ShaderNodeTexNoise')
+    mot.location = (-1400, -3300)
+    _link(nt, geo.outputs['Position'], mot.inputs['Vector'])
+    mot.inputs['Scale'].default_value = 1.0 / (0.5 * D.MM)
+    mot.inputs['Detail'].default_value = 4
+    base_in = bsdf.inputs['Base Color'].links[0].from_socket
+    f = _m(nt, 'MULTIPLY_ADD', mot.outputs['Fac'], 2 * P['mottle'], (-1150, -3300))
+    f.inputs[2].default_value = 1.0 - P['mottle']
+    _link(nt, _vm(nt, 'SCALE', base_in, None, (-950, -3300)).outputs[0], bsdf.inputs['Base Color'])
+    _link(nt, f.outputs[0], nt.nodes[-1].inputs['Scale'])
+    mottled = bsdf.inputs['Base Color'].links[0].from_socket
+    # grain: one random value per particle (Voronoi cells); a brightness variation on all, a lift on a few
+    gv = nt.nodes.new('ShaderNodeTexVoronoi')
+    gv.name = gv.label = 'grain'
+    gv.voronoi_dimensions = '3D'
+    gv.location = (-1400, -3700)
+    _link(nt, geo.outputs['Position'], gv.inputs['Vector'])
+    gv.inputs['Scale'].default_value = 1.0 / P['grain_size']
+    gsep = nt.nodes.new('ShaderNodeSeparateColor')
+    gsep.location = (-1200, -3700)
+    _link(nt, gv.outputs['Color'], gsep.inputs[0])
+    var = _m(nt, 'MULTIPLY_ADD', gsep.outputs[1], 2 * P['grain_var'], (-1000, -3700))
+    var.inputs[2].default_value = 1.0 - P['grain_var']
+    scaled = _vm(nt, 'SCALE', mottled, None, (-800, -3700))
+    var_ink = _m(nt, 'MULTIPLY_ADD', masks['white'], -1.0, (-900, -3600))         # 1 - white
+    var_ink.inputs[2].default_value = 1.0
+    var_w = _m(nt, 'MULTIPLY_ADD', _m(nt, 'SUBTRACT', var.outputs[0], 1.0, (-850, -3550)), var_ink, (-750, -3550))
+    var_w.inputs[2].default_value = 1.0
+    _link(nt, var_w.outputs[0], scaled.inputs['Scale'])
+    light = _m(nt, 'GREATER_THAN', gsep.outputs[0], 1.0 - P['grain_bright'], (-1000, -3900))
+    # the fleck's colour follows the ink: light red on the paint and labels, grey on the black, none on white
+    paint_share = _m(nt, 'ADD', masks['red'], masks['tag'], (-1200, -4100))
+    lr = _vm(nt, 'SCALE', P['grain_lift_red'], None, (-1000, -4100))
+    _link(nt, paint_share.outputs[0], lr.inputs['Scale'])
+    lb = _vm(nt, 'SCALE', P['grain_lift_black'], None, (-1000, -4250))
+    _link(nt, masks['black'], lb.inputs['Scale'])
+    lift = _vm(nt, 'SCALE', _vm(nt, 'ADD', lr.outputs[0], lb.outputs[0], (-850, -4150)).outputs[0], None, (-700, -3900))
+    _link(nt, light.outputs[0], lift.inputs['Scale'])
+    _link(nt, _vm(nt, 'ADD', scaled.outputs[0], lift.outputs[0], (-600, -3800)).outputs[0], bsdf.inputs['Base Color'])
+    return m
+
+
+def simple(name, rgb, rough=0.5, spec=0.5, coat=0.0, coat_rough=0.1, transmission=0.0):
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    b = m.node_tree.nodes.get('Principled BSDF')
+    b.inputs['Base Color'].default_value = (*rgb, 1)
+    b.inputs['Roughness'].default_value = rough
+    b.inputs['Specular IOR Level'].default_value = spec
+    b.inputs['Coat Weight'].default_value = coat
+    b.inputs['Coat Roughness'].default_value = coat_rough
+    b.inputs['Transmission Weight'].default_value = transmission
+    return m
+
+
+def emissive_board(name, emission_png, colour=(1.0, 0.012, 0.004), strength=12.0, unlit=0.004):
+    """Black display board; the segment map (R = lit, G = unlit segments) lights it from below the lens."""
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    b = nt.nodes.get('Principled BSDF')
+    b.inputs['Base Color'].default_value = (0.004, 0.003, 0.003, 1)
+    b.inputs['Roughness'].default_value = 0.6
+    geo = nt.nodes.new('ShaderNodeNewGeometry')
+    uv = _vm(nt, 'MULTIPLY_ADD', geo.outputs['Position'], (1 / D.CANVAS_W, 1 / D.CANVAS_H, 0))
+    uv.inputs[2].default_value = (0, 1, 0)
+    t = _image(nt, emission_png, (-400, 300), 'segments')
+    _link(nt, uv.outputs[0], t.inputs['Vector'])
+    sep = nt.nodes.new('ShaderNodeSeparateColor')
+    _link(nt, t.outputs['Color'], sep.inputs[0])
+    lvl = _m(nt, 'MULTIPLY_ADD', sep.outputs[1], unlit)
+    lvl.inputs[2].default_value = 0.0
+    tot = _m(nt, 'ADD', sep.outputs[0], lvl)
+    b.inputs['Emission Color'].default_value = (*colour, 1)
+    _link(nt, _m(nt, 'MULTIPLY', tot, strength).outputs[0], b.inputs['Emission Strength'])
+    return m
+
+
+def knob_with_pointer(name):
+    """Black satin plastic with the white pointer stripe: in object space the knob points along +y; the stripe is
+    a band of constant width along that direction, across the top (outside pointer_r0) and down the side."""
+    K = D.MASTER
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    b = nt.nodes.get('Principled BSDF')
+    b.inputs['Roughness'].default_value = 0.45
+    b.inputs['Specular IOR Level'].default_value = 0.5
+    tc = nt.nodes.new('ShaderNodeTexCoord')
+    sep = nt.nodes.new('ShaderNodeSeparateXYZ')
+    _link(nt, tc.outputs['Object'], sep.inputs[0])
+    across = _m(nt, 'ABSOLUTE', sep.outputs['X'])                  # distance from the pointer's centre line
+    band = _m(nt, 'LESS_THAN', across, K['pointer_w'] / 2)
+    ahead = _m(nt, 'GREATER_THAN', sep.outputs['Y'], K['pointer_r0'] * K['r_top'])
+    stripe = _m(nt, 'MULTIPLY', band, ahead)
+    mix = nt.nodes.new('ShaderNodeMix')
+    mix.data_type = 'RGBA'
+    _link(nt, stripe.outputs[0], mix.inputs['Factor'])
+    mix.inputs['A'].default_value = (0.020, 0.020, 0.022, 1)
+    mix.inputs['B'].default_value = (0.82, 0.82, 0.80, 1)
+    _link(nt, mix.outputs['Result'], b.inputs['Base Color'])
+    return m
+
+
+def knob_plastic(name, rgb=(0.016, 0.016, 0.017), rough=0.62, grain_mm=0.06, grain_bump=0.25, side_rough=0.40):
+    """Near-black plastic: a sandblasted matte top with fine grain, and smoother, glossier sides that pick up the
+    red of the panel (the encoder in the owner's straight-on photo)."""
+    m = simple(name, rgb, rough, 0.4)
+    nt = m.node_tree
+    b = nt.nodes.get('Principled BSDF')
+    tc = nt.nodes.new('ShaderNodeTexCoord')
+    geo = nt.nodes.new('ShaderNodeNewGeometry')
+    nsep = nt.nodes.new('ShaderNodeSeparateXYZ')
+    nt.links.new(geo.outputs['Normal'], nsep.inputs[0])
+    top = nt.nodes.new('ShaderNodeMapRange')
+    top.inputs['From Min'].default_value, top.inputs['From Max'].default_value = 0.80, 0.95
+    top.inputs['To Min'].default_value, top.inputs['To Max'].default_value = side_rough, rough
+    nt.links.new(nsep.outputs['Z'], top.inputs['Value'])
+    nt.links.new(top.outputs['Result'], b.inputs['Roughness'])
+    nz = nt.nodes.new('ShaderNodeTexNoise')
+    nt.links.new(tc.outputs['Object'], nz.inputs['Vector'])
+    nz.inputs['Scale'].default_value = 1.0 / (grain_mm * D.MM)
+    nz.inputs['Detail'].default_value = 2
+    bump = nt.nodes.new('ShaderNodeBump')
+    bump.inputs['Distance'].default_value = grain_bump
+    nt.links.new(nz.outputs['Fac'], bump.inputs['Height'])
+    nt.links.new(bump.outputs['Normal'], b.inputs['Normal'])
+    # sandblasted speckle: sparse lighter grains in the colour
+    vo = nt.nodes.new('ShaderNodeTexVoronoi')
+    vo.voronoi_dimensions = '3D'
+    nt.links.new(tc.outputs['Object'], vo.inputs['Vector'])
+    vo.inputs['Scale'].default_value = 1.0 / (0.10 * D.MM)
+    sp = nt.nodes.new('ShaderNodeSeparateColor')
+    nt.links.new(vo.outputs['Color'], sp.inputs[0])
+    gt = nt.nodes.new('ShaderNodeMath')
+    gt.operation = 'GREATER_THAN'
+    gt.inputs[1].default_value = 0.90
+    nt.links.new(sp.outputs[0], gt.inputs[0])
+    mix = nt.nodes.new('ShaderNodeMix')
+    mix.data_type = 'RGBA'
+    nt.links.new(gt.outputs[0], mix.inputs['Factor'])
+    mix.inputs['A'].default_value = (*rgb, 1)
+    mix.inputs['B'].default_value = (rgb[0] * 3.2, rgb[1] * 3.2, rgb[2] * 3.2, 1)
+    nt.links.new(mix.outputs['Result'], b.inputs['Base Color'])
+    return m
+
+
+def led_lens(name, rgb):
+    """A milky, lightly tinted epoxy dome: frosted inside, glossy outside (owner: translucent, not solid
+    colour; the photo's unlit lenses are pale and diffuse)."""
+    m = simple(name, rgb, 0.35, 0.5, coat=0.8, coat_rough=0.04, transmission=0.25)
+    b = m.node_tree.nodes.get('Principled BSDF')
+    b.inputs['Subsurface Weight'].default_value = 0.6
+    b.inputs['Subsurface Radius'].default_value = (12.0, 8.0, 8.0)
+    return m
+
+
+def digit_board(name):
+    """The four digit packages under the display filter: dark grey faces with black gaps between them."""
+    d = D.DISPLAY
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    b = nt.nodes.get('Principled BSDF')
+    b.inputs['Roughness'].default_value = 0.55
+    geo = nt.nodes.new('ShaderNodeNewGeometry')
+    sx = nt.nodes.new('ShaderNodeSeparateXYZ')
+    nt.links.new(geo.outputs['Position'], sx.inputs[0])
+    # distance to the nearest gap: gaps at x0 + pitch * k (k = 0..4), divider_w wide
+    # gaps halfway between digit centres (centres at digit_x0 + digit_w / 2 + pitch * i)
+    rel = _m(nt, 'SUBTRACT', sx.outputs['X'], d['digit_x0'] + d['digit_w'] / 2 - d['digit_pitch'] / 2)
+    wrapped = _m(nt, 'PINGPONG', rel, d['digit_pitch'] / 2)
+    gap = _m(nt, 'LESS_THAN', wrapped, d['divider_w'] / 2)
+    mix = nt.nodes.new('ShaderNodeMix')
+    mix.data_type = 'RGBA'
+    _link(nt, gap.outputs[0], mix.inputs['Factor'])
+    mix.inputs['A'].default_value = (0.012, 0.012, 0.012, 1)     # package face: dark behind the smoked filter (photo)
+    mix.inputs['B'].default_value = (0.004, 0.004, 0.004, 1)     # gap: a darker line between packages (photo)
+    _link(nt, mix.outputs['Result'], b.inputs['Base Color'])
+    # most of what shows through the filter is the faces' sheen, so keep them nearly matte (the photo's window
+    # is dark) and the gaps duller still, so the dividers read as darker lines
+    sp = _m(nt, 'ADD', _m(nt, 'MULTIPLY', gap, -0.11), 0.15)
+    _link(nt, sp.outputs[0], b.inputs['Specular IOR Level'])
+    return m
+
+
+def metal(name, rgb, rough):
+    m = simple(name, rgb, rough, 0.5)
+    m.node_tree.nodes.get('Principled BSDF').inputs['Metallic'].default_value = 1.0
+    return m
+
+
+def filter_lens(name, tint, gloss_rough=0.08):
+    """A thin tinted filter: light passes straight through it, tinted, at each face (so the board behind is lit
+    through it and the bezel's shadows land on the board), with a faint glossy reflection on top."""
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    nt.nodes.clear()
+    out = nt.nodes.new('ShaderNodeOutputMaterial')
+    tr = nt.nodes.new('ShaderNodeBsdfTransparent')
+    tr.inputs['Color'].default_value = (*tint, 1)
+    gl = nt.nodes.new('ShaderNodeBsdfGlossy')
+    gl.inputs['Roughness'].default_value = gloss_rough
+    lw = nt.nodes.new('ShaderNodeLayerWeight')
+    lw.inputs['Blend'].default_value = 0.08
+    mix = nt.nodes.new('ShaderNodeMixShader')
+    nt.links.new(lw.outputs['Fresnel'], mix.inputs['Fac'])
+    nt.links.new(tr.outputs[0], mix.inputs[1])
+    nt.links.new(gl.outputs[0], mix.inputs[2])
+    nt.links.new(mix.outputs[0], out.inputs['Surface'])
+    return m
+
+
+def assign_all(scene, maps_dir, peel_strips=None, emission_png=None):
+    # smoked red filter: the photo's window is a dark, slightly purple red, a little darker than the black panel
+    lens = filter_lens('DisplayLens', D.DISPLAY['filter_tint'])
+    mats = {
+        'paint': paint(maps_dir, peel_strips),
+        'interior': simple('Interior', (0.012, 0.012, 0.013), 0.8, 0.3),
+        'lens': lens,
+        'board': emissive_board('DisplayBoard', emission_png) if emission_png else digit_board('DisplayBoard'),
+        'grey': simple('ButtonGrey', (0.56, 0.58, 0.64), 0.55, 0.5),      # light cool grey (photo)
+        'black_plastic': simple('BlackPlastic', (0.022, 0.022, 0.024), 0.5, 0.5),
+        'encoder': knob_plastic('EncoderPlastic'),
+        # LED lenses: tinted red and green domes (owner), glossy, partly translucent
+        'led_red': led_lens('LedRed', (0.42, 0.20, 0.18)),
+        'led_green': led_lens('LedGreen', (0.24, 0.36, 0.22)),
+        'pointer': simple('Pointer', (0.80, 0.80, 0.80), 0.4, 0.5),
+        'knob': knob_with_pointer('MasterKnob'),
+        'base': simple('BasePlate', (0.02, 0.02, 0.022), 0.5, 0.4),
+        'rubber': simple('Rubber', (0.012, 0.012, 0.012), 0.85, 0.3),
+        'screw': metal('BlackOxide', (0.06, 0.06, 0.065), 0.35),
+        'nickel': metal('Nickel', (0.62, 0.60, 0.58), 0.28),
+        'hole': simple('HoleBlack', (0.004, 0.004, 0.004), 0.9, 0.1),
+        'backdrop': simple('Backdrop', (0.16, 0.16, 0.17), 0.9, 0.2),
+    }
+    green = {'l_6', 'l_14', 'l_15', 'l_23', 'l_22', 'l_30'}
+    for ob in scene.objects:
+        if ob.type != 'MESH':
+            continue
+        n = ob.name
+        users = {c.name for c in ob.users_collection}
+        if n == 'Plate':
+            k = 'paint'
+        elif n == 'Interior':
+            k = 'interior'
+        elif n == 'DisplayLens':
+            k = 'lens'
+        elif n == 'DisplayBoard':
+            k = 'board'
+        elif n == 'DisplayBezel':
+            k = 'black_plastic'
+        elif n == 'MasterPointer':
+            k = 'pointer'
+        elif n == 'MasterKnob':
+            k = 'knob'
+        elif n in ('Base', 'Chassis'):
+            k = 'base'
+        elif n.startswith('Foot'):
+            k = 'rubber'
+        elif n.startswith('Screw'):
+            k = 'screw'
+        elif n.startswith(('JackNut', 'DinShell')):
+            k = 'nickel'
+        elif n.startswith(('JackHole', 'DinPins', 'DcHole')):
+            k = 'hole'
+        elif n.startswith(('DinFace', 'DcBody')):
+            k = 'black_plastic'
+        elif n == 'Backdrop':
+            k = 'backdrop'
+        elif n in ('Encoder', 'EncoderCap'):
+            k = 'encoder'
+        elif 'Buttons grey' in users:
+            k = 'grey'
+        elif 'LEDs' in users:
+            k = 'interior' if n.endswith('_die') else ('led_green' if n in green else 'led_red')
+        else:
+            k = 'black_plastic'                  # black buttons, knob, encoder
+        ob.data.materials.clear()
+        ob.data.materials.append(mats[k])
+    return mats

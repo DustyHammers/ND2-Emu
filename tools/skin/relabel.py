@@ -1,9 +1,9 @@
 # Renames panel lettering in the flat art the 3D skin is made from (the newer parameter names), so masks.py and the
 # renders pick them up. Old words are painted out with the panel colour around them and the new ones lettered in the
 # art's own style (Liberation Sans Bold, its colours and places); a renamed tag gets a box of the new length.
-# Only the renamed words change; they keep the art's size and weight, except ATTACK/RATE, which is far longer than
-# ATK/RATE: it is set just small enough to stay clear of the next column's LED (owner: everything as it was, that one
-# label adjusted), on the same baseline as its neighbours.
+# Only the renamed words change; they keep the art's size and weight. ATTACK/RATE is far longer than ATK/RATE: it keeps
+# the full height and its letters are narrowed just enough to stay clear of the next column's LED (owner: taller, not
+# wider).
 #   python3 relabel.py ART_IN.jpg ART_OUT.png
 # The art is never committed; it is made at run time from the owner's art (git show ec1ba0b:...).
 import sys
@@ -98,10 +98,10 @@ def main():
         limit = PARX[i + 1] * 2 - LED_R - GAP
         x0, y0, x1, y1 = ink_box(left - 6, (PARX[i + 1] + 18) * 2 - 10, *ROW_CAP[row])
         d.rectangle((x0 - 4, y0 - 4, x1 + 4, y1 + 4), fill=around(x0, y0, x1, y1))
-        size = min(LABEL_PX, LABEL_PX * (limit - left) / natural_width(word, LABEL_PX))
-        if size < LABEL_PX:
-            attack_dp = size / 2
-        t = text_image(word, size, LABEL_LS * size / LABEL_PX, LABEL_RGB)
+        t = text_image(word, LABEL_PX, LABEL_LS, LABEL_RGB)
+        if t.width > limit - left:              # ATTACK/RATE: full height, letters narrowed to fit the column
+            attack_dp = (limit - left) / t.width
+            t = t.resize((limit - left, t.height), Image.LANCZOS)
         base = ROW_CAP[row][0] + 2 + 28                                   # the row's baseline (cap bottom)
         art.paste(t, (left, base - t.height), t)
     # 2) renamed tags, the art's size, boxes of the new length
@@ -122,7 +122,7 @@ def main():
         art.paste(t, (round(ax - t.width / 2), y1 + 1 - t.height), t)
     art.save(out)
     print('renamed:', ', '.join(list(RENAMED_LABELS.values()) + list(RENAMED_TAGS.values()) + [e[1] for e in EDITS]),
-          f'(ATTACK/RATE at {attack_dp:.1f} dp, the rest at the art\'s {LABEL_PX / 2:.1f} dp)')
+          f'(all at the art\'s size; ATTACK/RATE narrowed to {attack_dp:.0%} width)')
 
 
 if __name__ == '__main__':

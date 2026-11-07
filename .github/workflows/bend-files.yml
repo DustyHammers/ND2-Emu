@@ -1,0 +1,115 @@
+# Renders the bent mode's images (the opened panel, the pot shaft frames, the indicator LED) from the 3D model in
+# parallel and packs them into one download, "ND2-bend-files", with a read-me (positions) and a preview folder.
+# Runs only when started by hand (Actions tab > Run workflow); never on a push, so it never affects the build. The
+# per-job renders are deleted at the end; only the one download is kept (7 days).
+name: Bend files
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: bend-files-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BPY_VERSION: 5.2.2
+  ART_COMMIT: ec1ba0b              # the flat panel art the paint and ink maps are made from
+  SAMPLES: 64
+
+jobs:
+  render:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[bend-files]')
+    name: Render ${{ matrix.part.name }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: true
+      matrix:
+        part:
+          - { name: strip-0, what: strip, frames: '0:4' }
+          - { name: strip-1, what: strip, frames: '1:4' }
+          - { name: strip-2, what: strip, frames: '2:4' }
+          - { name: strip-3, what: strip, frames: '3:4' }
+          - { name: base-0, what: base, frames: '0:4' }
+          - { name: base-1, what: base, frames: '1:4' }
+          - { name: base-2, what: base, frames: '2:4' }
+          - { name: base-3, what: base, frames: '3:4' }
+          - { name: pot-0, what: pot, frames: '0:32' }
+          - { name: pot-1, what: pot, frames: '32:64' }
+          - { name: pot-2, what: pot, frames: '64:96' }
+          - { name: pot-3, what: pot, frames: '96:128' }
+          - { name: led, what: led, frames: '' }
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: .github/workflows/bend-files.yml
+      - name: Blender as a Python module
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libxrender1 libxi6 libxkbcommon0 libsm6 libgl1 libxxf86vm1 libxfixes3 libegl1 fonts-dejavu-core > /dev/null
+          pip install -q "bpy==$BPY_VERSION" numpy pillow scipy OpenEXR
+      - name: Paint maps and studio light
+        run: |
+          git show "$ART_COMMIT:skins/default/nd2-default/ND2Background.jpg" > "$RUNNER_TEMP/art.jpg"
+          python3 tools/skin/blender/masks.py "$RUNNER_TEMP/maps" "$RUNNER_TEMP/art.jpg"
+          python3 tools/skin/blender/make_hdr.py "$RUNNER_TEMP/studio.exr" 2048
+      - name: Render
+        run: |
+          set -o pipefail
+          FR=()
+          if [ -n "${{ matrix.part.frames }}" ]; then FR=(--frames "${{ matrix.part.frames }}"); fi
+          python3 tools/skin/blender/bent_sprites.py --what "${{ matrix.part.what }}" "${FR[@]}" \
+            --maps "$RUNNER_TEMP/maps" --hdr "$RUNNER_TEMP/studio.exr" --samples "$SAMPLES" --out renders 2>&1 \
+            | grep -v -e '^Fra:' -e 'EGL Error' -e 'CUEW' | tail -n 20
+          rm -f renders/pcb.png
+          ls renders
+      - uses: actions/upload-artifact@v7
+        with:
+          name: part-${{ matrix.part.name }}
+          path: renders
+          retention-days: 1
+
+  package:
+    name: Pack the bend files
+    needs: render
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Tools
+        run: |
+          sudo apt-get install -y -qq fonts-dejavu-core > /dev/null
+          pip install -q numpy pillow scipy pyoxipng imagequant
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: part-*
+          path: renders
+          merge-multiple: true
+      - name: Pack
+        run: |
+          ls renders | wc -l
+          python3 tools/skin/blender/pack_bent.py renders out/ND2-bend-files
+          python3 tools/skin/compress_pngs.py out/ND2-bend-files
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ND2-bend-files
+          path: out/ND2-bend-files
+          retention-days: 7
+      - name: Remove the per-job renders
+        if: always()
+        uses: geekyeggo/delete-artifact@v5
+        with:
+          name: part-*
+          failOnError: false

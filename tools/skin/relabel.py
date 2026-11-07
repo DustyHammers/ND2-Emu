@@ -1,8 +1,9 @@
 # Renames panel lettering in the flat art the 3D skin is made from (the newer parameter names), so masks.py and the
 # renders pick them up. Old words are painted out with the panel colour around them and the new ones lettered in the
 # art's own style (Liberation Sans Bold, its colours and places); a renamed tag gets a box of the new length.
-# The 16 parameter names (both rows) are all relettered at one size: the largest at which every name, ATTACK/RATE
-# the longest, stays clear of the next column's LED (owner: all the same size, bold, smaller as needed).
+# Only the renamed words change; they keep the art's size and weight, except ATTACK/RATE, which is far longer than
+# ATK/RATE: it is set just small enough to stay clear of the next column's LED (owner: everything as it was, that one
+# label adjusted), on the same baseline as its neighbours.
 #   python3 relabel.py ART_IN.jpg ART_OUT.png
 # The art is never committed; it is made at run time from the owner's art (git show ec1ba0b:...).
 import sys
@@ -11,9 +12,9 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 FONT = '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf'
-LABEL_PX, LABEL_LS = 39.3, 0.79          # 20 dp lettering at 2x, 0.02 em letter spacing (measured on the art)
-TAG_PX = 36.6                            # 19 dp tag lettering at 2x
-BOLDEN = 0.6                             # extra stroke per side (px at 2x)
+LABEL_PX, LABEL_LS = 38.4, 1.4           # the art's lettering at 2x: size and spacing that match its words exactly
+TAG_PX, TAG_LS = 35.2, 1.4               # the art's tag lettering at 2x (matched the same way)
+BOLDEN = 0.5                             # extra stroke per side (px at 2x): the art's 6 px stems
 DARKRED_RGB = (98, 9, 12)                # SCL PRE's dark red lettering
 LABEL_RGB, TAG_TEXT_RGB = (222, 222, 222), (240, 223, 223)
 PANEL_RGB, TAG_RGB = (32, 32, 31), (193, 28, 35)
@@ -68,13 +69,18 @@ def natural_width(text, px):
     return text_image(text, px, LABEL_LS * px / LABEL_PX, LABEL_RGB).width
 
 
+RENAMED_LABELS = {('up', 1): 'FILT ENV', ('up', 2): 'ATTACK/RATE', ('up', 6): 'ECHO',
+                  ('lo', 1): 'TIMB ENV', ('lo', 2): 'TIMB DEC'}
+RENAMED_TAGS = {('up', 2): 'ATK MODE', ('up', 3): 'DEC LO', ('lo', 3): 'DEC LO'}
+
+
 def main():
     art = Image.open(sys.argv[1]).convert('RGB')
     out = sys.argv[2]
     d = ImageDraw.Draw(art)
     px_all = np.asarray(art).astype(np.float32)
 
-    def around(x0, y0, x1, y1, dark=True, m=10):
+    def around(x0, y0, x1, y1, m=10):
         """The panel colour just around a box (its median, lettering left out)."""
         ring = np.concatenate([px_all[y0 - m:y0 - 5, x0:x1].reshape(-1, 3), px_all[y1 + 5:y1 + m, x0:x1].reshape(-1, 3)])
         ring = ring[ring.max(-1) < 120]
@@ -85,61 +91,38 @@ def main():
         ys, xs = np.where(sub.min(-1) > 150)
         return (int(xs.min()) + x0, int(ys.min()) + y0, int(xs.max()) + x0, int(ys.max()) + y0)
 
-    # 1) the parameter names: one size for all, the largest that keeps every name clear of the next LED
-    names = []
-    for row, words in (('up', UPPER), ('lo', LOWER)):
-        for i, word in enumerate(words):
-            left = (PARX[i] + 18) * 2
-            limit = (PARX[i + 1] * 2 - LED_R - GAP) if i < 7 else 3000
-            y0, y1 = ROW_CAP[row]
-            search = ((PARX[i + 1] + 18) * 2 - 10) if i < 7 else 3000      # the old name may run past the LED
-            names.append((row, i, word, left, limit, ink_box(left - 6, search, y0, y1)))
-    size = min([LABEL_PX] + [LABEL_PX * (lim - left) / natural_width(w, LABEL_PX) for _, _, w, left, lim, _ in names])
-    # the red tags under them: the same lettering size, boxes scaled with it, centred where the old boxes were
-    for row, words in (('up', UPPER_TAGS), ('lo', LOWER_TAGS)):
-        for i, word in enumerate(words):
-            if word is None:
-                continue
-            ty0, ty1 = TAG_ROWS[row]
-            x_left = (PARX[i] + 16) * 2
-            sub = px_all[ty0:ty1, x_left - 4:(PARX[i + 1] + 16) * 2 - 8 if i < 7 else 3000]
-            ys, xs = np.where((sub[..., 0] > 150) & (sub[..., 1] < 90))
-            bx0, by0, bx1, by1 = x_left - 4 + xs.min(), ty0 + ys.min(), x_left - 4 + xs.max(), ty0 + ys.max()
-            d.rectangle((bx0 - 3, by0 - 3, bx1 + 3, by1 + 3), fill=around(bx0, by0, bx1, by1))
-            k = size / TAG_PX
-            colour = DARKRED_RGB if word == 'SCL PRE' else TAG_TEXT_RGB
-            t = text_image(word, size, 0.0, colour)
-            h = round((by1 - by0 + 1) * k)
-            top = round((by0 + by1) / 2 - h / 2)
-            d.rounded_rectangle((bx0, top, bx0 + round(TAG_PAD_L * k) + t.width + round(TAG_PAD_R * k), top + h - 1),
-                                radius=max(2, round(4 * k)), fill=TAG_RGB)
-            art.paste(t, (bx0 + round(TAG_PAD_L * k), top + round((h - t.height) / 2)), t)
-    for row, i, word, left, limit, (x0, y0, x1, y1) in names:
+    # 1) renamed parameter names, at the art's size; ATTACK/RATE as large as fits before the next LED
+    attack_dp = None
+    for (row, i), word in RENAMED_LABELS.items():
+        left = (PARX[i] + 18) * 2
+        limit = PARX[i + 1] * 2 - LED_R - GAP
+        x0, y0, x1, y1 = ink_box(left - 6, (PARX[i + 1] + 18) * 2 - 10, *ROW_CAP[row])
         d.rectangle((x0 - 4, y0 - 4, x1 + 4, y1 + 4), fill=around(x0, y0, x1, y1))
+        size = min(LABEL_PX, LABEL_PX * (limit - left) / natural_width(word, LABEL_PX))
+        if size < LABEL_PX:
+            attack_dp = size / 2
         t = text_image(word, size, LABEL_LS * size / LABEL_PX, LABEL_RGB)
-        cap_h = round(size * 0.729 + 2 * BOLDEN)                            # cap height (Q's tail hangs below)
-        cap = ROW_CAP[row][0] + 2 + (27 - cap_h) // 2                       # centred on the old cap height
-        art.paste(t, (left, cap), t)
-    # the second line under TONE: '<| NOISE', at the same size
-    x0, y0, x1, y1 = ink_box(2720, 3000, *NOISE_LINE)
-    d.rectangle((x0 - 4, y0 - 4, x1 + 4, y1 + 4), fill=around(x0, y0, x1, y1))
-    t = text_image('\u25c0 NOISE', size, LABEL_LS * size / LABEL_PX, LABEL_RGB)
-    art.paste(t, ((PARX[7] + 18) * 2, NOISE_LINE[0] + 4 + (27 - t.height) // 2), t)
-    # 2) the other renamed words (their neighbours' size) and tags
+        base = ROW_CAP[row][0] + 2 + 28                                   # the row's baseline (cap bottom)
+        art.paste(t, (left, base - t.height), t)
+    # 2) renamed tags, the art's size, boxes of the new length
+    for (row, i), word in RENAMED_TAGS.items():
+        ty0, ty1 = TAG_ROWS[row]
+        x_left = (PARX[i] + 16) * 2
+        sub = px_all[ty0:ty1, x_left - 4:(PARX[i + 1] + 16) * 2 - 8]
+        ys, xs = np.where((sub[..., 0] > 150) & (sub[..., 1] < 90))
+        bx0, by0, bx1, by1 = x_left - 4 + xs.min(), ty0 + ys.min(), x_left - 4 + xs.max(), ty0 + ys.max()
+        d.rectangle((bx0 - 3, by0 - 3, bx1 + 3, by1 + 3), fill=around(bx0, by0, bx1, by1))
+        t = text_image(word, TAG_PX, TAG_LS, TAG_TEXT_RGB)
+        d.rounded_rectangle((bx0, by0, bx0 + TAG_PAD_L + t.width + TAG_PAD_R, by1), radius=4, fill=TAG_RGB)
+        art.paste(t, (bx0 + TAG_PAD_L, by0 + TAG_TOP), t)
+    # 3) the other renamed words, centred where the old ones were
     for (x0, y0, x1, y1), new, kind, ax in EDITS:
-        if kind == 'tag':
-            d.rectangle((x0 - 3, y0 - 3, x1 + 3, y1 + 3), fill=around(x0, y0, x1, y1))
-            t = text_image(new, TAG_PX, 0.0, TAG_TEXT_RGB)
-            d.rounded_rectangle((ax, y0, ax + TAG_PAD_L + t.width + TAG_PAD_R, y1), radius=4, fill=TAG_RGB)
-            art.paste(t, (ax + TAG_PAD_L, y0 + TAG_TOP), t)
-            continue
         d.rectangle((x0 - 4, y0 - 4, x1 + 4, y1 + 4), fill=around(x0, y0, x1, y1))
         t = text_image(new, LABEL_PX, LABEL_LS, LABEL_RGB)
-        art.paste(t, (round(ax - t.width / 2), y0), t)
+        art.paste(t, (round(ax - t.width / 2), y1 + 1 - t.height), t)
     art.save(out)
-    print(f'parameter names at {size / 2:.1f} dp (was {LABEL_PX / 2:.1f}); renamed:',
-          ', '.join(['FILT ENV', 'ATTACK/RATE', 'ECHO', 'TIMB ENV', 'TIMB DEC', 'ATK MODE', 'DEC LO'] + [e[1] for e in EDITS]),
-          '(the parameter names and their red tags all at that size)')
+    print('renamed:', ', '.join(list(RENAMED_LABELS.values()) + list(RENAMED_TAGS.values()) + [e[1] for e in EDITS]),
+          f'(ATTACK/RATE at {attack_dp:.1f} dp, the rest at the art\'s {LABEL_PX / 2:.1f} dp)')
 
 
 if __name__ == '__main__':

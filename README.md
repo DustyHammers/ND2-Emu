@@ -30,6 +30,11 @@ VST3 and standalone app in one zip, for 64-bit Windows 10 or newer. Installing: 
 
 ## What's new
 
+### 0.3.1
+
+- Panel labels: the newer parameter names (FILT ENV, ATTACK/RATE, ATK MODE, DEC LO, ECHO, TIMB ENV, TIMB DEC, ECHO BPM,
+  TRIG/TAP).
+
 ### 0.3.0
 
 **Circuit-bent mode.** Cmd-click the panel (Ctrl-click on Windows) to open it. Six pots bend the emulated hardware

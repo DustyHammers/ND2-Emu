@@ -91,7 +91,8 @@ build/nd2render -os os.cab -flash flash.bin -trig pads.wav -o out.wav -bank 0.1,
   **Skin files** (panel, buttons, LEDs, knobs) and **Bend files** (the bent panel, the bend pot frames, the LED).
   Each leaves one download with the images, a read-me and previews; copying them into `skins/default/nd2-default/`
   is a separate, reviewed change. Both read the flat panel art from commit `ec1ba0b` (`ART_COMMIT`), which exists
-  only while the repository keeps its history.
+  only while the repository keeps its history. `tools/skin/relabel.py` letters the newer parameter names into that
+  art before the paint maps are made; Skin files' **Background only** option renders just the background.
 
 ## Layout
 

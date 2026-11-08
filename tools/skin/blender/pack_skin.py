@@ -83,6 +83,29 @@ else:
 assert bg.size == (3450, 2070), bg.size
 flat = Image.alpha_composite(Image.new('RGBA', bg.size, (*PANEL_BG, 255)), bg).convert('RGB')
 flat.save(os.path.join(OUT, 'ND2Background.jpg'), quality=92, subsampling=0, optimize=True)
+if '--background-only' in sys.argv:          # only the lettering changed: the background is the one file to replace
+    old_md5 = sys.argv[sys.argv.index('--background-only') + 1]
+    rows = [flat.crop((560, 740, 3010, 1090)), flat.crop((880, 1400, 3000, 1720))]
+    W = max(r.width for r in rows)
+    pv = Image.new('RGB', (W, sum(r.height for r in rows) + 20), (245, 245, 245))
+    y = 0
+    for r in rows:
+        pv.paste(r, (0, y))
+        y += r.height + 20
+    pv.save(os.path.join(OUT, 'preview', 'renamed labels (actual size).png'))
+    flat.resize((1725, 1035), Image.LANCZOS).save(os.path.join(OUT, 'preview', 'background (half size).jpg'), quality=90)
+    new_md5 = hashlib.md5(open(os.path.join(OUT, 'ND2Background.jpg'), 'rb').read()).hexdigest()
+    L = ['ND2 default skin: background with the newer parameter names', '',
+         'Copy ND2Background.jpg into skins/default/nd2-default/, replacing the one there. Nothing else changes:',
+         'the buttons, LEDs, knobs, display, stylesheet and the bent-mode files stay as they are.', '',
+         f'  ND2Background.jpg   new md5 {new_md5}   replaces md5 {old_md5}', '',
+         'Renamed on the panel: DYN FILTER -> FILT ENV, ATK/RATE -> ATTACK/RATE, ENV MODE -> ATK MODE,',
+         'TYPE/DYN -> DEC LO (both), REPEAT -> ECHO, DYN TIMB -> TIMB ENV, HI DECAY -> TIMB DEC,',
+         'REPEAT TEMPO -> ECHO BPM, TRIG -> TRIG/TAP.', '',
+         'The preview folder is for review only; it does not go into the skin.']
+    open(os.path.join(OUT, 'README.txt'), 'w').write('\n'.join(L) + '\n')
+    print('\n'.join(L))
+    sys.exit(0)
 
 # ---- buttons: up and pressed, the whole 122 x 59 dp box (it lies inside the hole, so it is all cap and gap) ----
 for cls in ('black', 'grey'):
